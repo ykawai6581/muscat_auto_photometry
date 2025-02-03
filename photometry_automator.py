@@ -305,7 +305,7 @@ class MuSCAT_PHOTOMETRY:
                 else:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
 
-    def read_photometry(self, ccd, rad, frame, add_metadata=True):
+    def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
         try:
             metadata = {}
@@ -370,7 +370,7 @@ class MuSCAT_PHOTOMETRY:
 
     def process_single_ccd(self, ccd, rad):
         """
-        Process photometry data for a single CCD.
+        Process photometry data for a single CCD with metadata.
         """
         try:
             frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
@@ -378,25 +378,29 @@ class MuSCAT_PHOTOMETRY:
             last_frame = int(frame_range["FRAME#2"].iloc[0])
             
             all_frames = []
+            all_metadata = []
+            
             for frame in range(first_frame, last_frame + 1):
-                df = self.read_photometry(ccd=ccd, rad=rad, frame=frame)
-                if df is not None:
+                result = self.read_photometry(filepath=None, ccd=ccd, rad=rad, frame=frame, add_metadata=False)
+                if result is not None:
+                    df = result  # Properly unpack the tuple
                     df['frame'] = frame
                     all_frames.append(df)
-            
+
             if all_frames:
                 combined_df = pd.concat(all_frames, ignore_index=True)
-                pivot_df = combined_df.pivot(index='ID', columns='frame', values='peak')
-                pivot_df.reset_index(inplace=True)
+                metadata_df = pd.DataFrame(all_metadata)
+                
                 # Add CCD identifier
-                pivot_df['ccd'] = ccd
-                return pivot_df
+                combined_df['ccd'] = ccd
+                
+                return (combined_df, metadata_df)  # Return as tuple to match format
             return None
         except Exception as e:
-            print(f"Error processing CCD {ccd}: {e}")
+            print(f"Error reading: {e}")
             return None
-
-    def read_photometry_parallel(self, rad, num_processes=4):
+        
+    def read_photometry_parallel(self, rad, num_ccds=4, num_processes=4):
         """
         Read photometry data for multiple CCDs in parallel.
         
@@ -406,34 +410,38 @@ class MuSCAT_PHOTOMETRY:
         num_processes (int): Number of parallel processes to use (default=None, uses CPU count)
         
         Returns:
-        pandas.DataFrame: Combined data with ID and peak values for all frames and CCDs
+        tuple: (combined_data_df, combined_metadata_df)
         """
         # Create list of CCDs to process
+        ccds = [f'ccd{i}' for i in range(1, num_ccds + 1)]
         
         # Create partial function with fixed parameters
         process_func = partial(self.process_single_ccd, rad=rad)
         
         # Process CCDs in parallel
         with Pool(processes=num_processes) as pool:
-            results = pool.map(process_func, list(range(self.nccd)))
+            results = pool.map(process_func, ccds)
         
-        # Filter out None results and combine DataFrames
-        valid_results = [df for df in results if df is not None]
+        # Filter out None results and separate data and metadata
+        valid_results = [result for result in results if result is not None]
         
         if valid_results:
+            # Unzip the results into separate lists for data and metadata
+            all_data_dfs, all_metadata_dfs = zip(*valid_results)
+            
             # Combine all results
-            final_df = pd.concat(valid_results, ignore_index=True)
+            final_data_df = pd.concat(all_data_dfs, ignore_index=True)
+            final_metadata_df = pd.concat(all_metadata_dfs, ignore_index=True)
             
-            # Optional: sort by CCD and ID if needed
-            final_df.sort_values(['ccd', 'ID'], inplace=True)
+            # Optional: sort by CCD and ID
+            final_data_df.sort_values(['ccd', 'ID'], inplace=True)
+            final_metadata_df.sort_values(['ccd', 'frame'], inplace=True)
             
-            return final_df
+            return final_data_df, final_metadata_df
         else:
-            print("Returned empty results")
-            sys.exit()
-            return pd.DataFrame()
+            return pd.DataFrame(), pd.DataFrame()
 
-        
+            
     def check_saturation(self, rad):
         self.saturation_cids = []
         df = self.read_photometry_parallel(rad=rad)
