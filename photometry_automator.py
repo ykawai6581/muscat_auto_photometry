@@ -250,17 +250,21 @@ class MuSCAT_PHOTOMETRY:
 
         missing = False
         for i in range(self.nccd):
-            appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
-            first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
-            last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
-            missing_files = [f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(appphot_directory, f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits"))]
-            if missing_files:
-                missing = True
-            else:
-                pass
+            for j in range(len(rads)):
+                rad = rads[j]
+                appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
+                first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
+                last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
+                missing_files = [f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(appphot_directory, f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits"))]
+                if missing_files:
+                    missing = True
+                else:
+                    pass
         if missing:
             print(f"Photometry for this set of radius is incomplete")
+        else:
             print(f"Photometry is already available for radius: {available_rad}")
+            sys.exit()
 
         if method=='mapping':
             script = 'scripts/auto_apphot_mapping.pl'  
