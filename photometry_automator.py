@@ -251,7 +251,7 @@ class MuSCAT_PHOTOMETRY:
         missing = False
         for i in range(self.nccd):
             for j in range(len(rads)):
-                rad = rads[j]
+                rad = float(rads[j])
                 appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
                 first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
                 last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
@@ -276,7 +276,7 @@ class MuSCAT_PHOTOMETRY:
             first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
             last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
             for j in range(len(rads)):
-                rad = rads[j]
+                rad = float(rads[j])
                 missing_files = [f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(appphot_directory, f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits"))]
                 if missing_files:
                     cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {drad} > /dev/null"
