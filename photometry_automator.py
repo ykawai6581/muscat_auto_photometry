@@ -429,7 +429,10 @@ class MuSCAT_PHOTOMETRY:
             
             return final_df
         else:
+            print("Returned empty results")
+            sys.exit()
             return pd.DataFrame()
+
         
     def check_saturation(self, rad):
         self.saturation_cids = []
