@@ -42,6 +42,20 @@ def get_combinations(x, y, exclude):
     
     return combinations
 
+def time_keeper(func):
+    """Decorator to time methods."""
+    def wrapper(self, *args, **kwargs):
+        start_time = time.time()
+        result = func(self, *args, **kwargs)  # Call the original method
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        minutes = int(elapsed_time // 60)
+        seconds = int(elapsed_time % 60)
+        print("Done.")
+        print(f"Wall time: {minutes} minutes {seconds} seconds")
+        return result
+    return wrapper
+
 def ra_to_hms(ra_deg):
     ra_hours = ra_deg / 15
     ra_deg_part, ra_min_part = divmod(ra_hours, 1)
@@ -96,6 +110,7 @@ class MuSCAT_PHOTOMETRY:
         self.target = self.obj_names[int(pick_target[0])]
         print(f"Continuing photometry for {self.target}")
 
+    @time_keeper
     def config_flat(self):
         ## Setting configure files for flat
 
@@ -119,33 +134,34 @@ class MuSCAT_PHOTOMETRY:
             print(result.stdout)
             print('\n')
 
-
+    @time_keeper
     def config_object(self):
         ## Setting configure files for object
 
         exposure = [float(ccd["EXPTIME(s)"][ccd["OBJECT"] == self.target]) for ccd in self.obslog]  # exposure times (sec) for object
-
         for i in range(self.nccd):
             exp=exposure[i]
             cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {i} -auto_obj -auto_dark {exp}'
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            print(result.stdout)
 
-            
+    @time_keeper
     def reduce_flat(self):
         ## Reducing FLAT images 
         for i in range(self.nccd):
             print(f'>> Reducing FLAT images of CCD{i} ... (it may take tens of seconds)')
             cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {i} > /dev/null"
             subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-
+    
+    @time_keeper
     ## Reducing Object images 
     def run_auto_mkdf(self):
         for i in range(self.nccd):
             cmd = f"perl scripts/auto_mkdf.pl {self.obsdate} {self.target} {i} > /dev/null"
             subprocess.run(cmd, shell=True, capture_output=True, text=True)
             print(f'Completed auto_mkdf.pl for CCD{i}')
-
+    
+    @time_keeper
     def create_ref(self, ccd=0,refid_delta=0):
         ## Creating a reference image
 
@@ -194,7 +210,7 @@ class MuSCAT_PHOTOMETRY:
         IFrame(f"https://aladin.u-strasbg.fr/AladinLite/?target={self.ra}{dec_str}&fov=0.2", width=700, height=500)
 
     ## Performing aperture photometry
-
+    @time_keeper
     def run_apphot(self, nstars, rad1, rad2, drad, method="mapping"):
         self.rad1 = float(rad1)
         self.rad2 = float(rad2)
