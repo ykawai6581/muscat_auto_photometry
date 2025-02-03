@@ -246,7 +246,7 @@ class MuSCAT_PHOTOMETRY:
         rads = np.arange(rad1, rad2+1, drad)
 
         print(f"Performing photometry for radius: {rads}")
-        available_rad = set([[p.name[3:] for p in Path(f"{self.obsdate}/{self.target}_{i}/apphot_{method}").glob("*/")] for i in range(self.nccd)])
+        available_rad = [[p.name[3:] for p in Path(f"{self.obsdate}/{self.target}_{i}/apphot_{method}").glob("*/")] for i in range(self.nccd)][0]#assuming same radius for all bands
 
         missing = False
         for i in range(self.nccd):
