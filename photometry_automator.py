@@ -115,7 +115,7 @@ class MuSCAT_PHOTOMETRY:
             text = f'flat {self.flat_first_frameIDs[i]} {self.flat_first_frameIDs[i]+49}\nflat_dark {self.flat_first_frameIDs[i]+50} {self.flat_first_frameIDs[i]+54}'
             with open(flat_conf, mode='w') as f:
                 f.write(text)
-            subprocess.run("cat $flat_conf")
+            subprocess.run(f"cat {flat_conf}")
             print('\n')
 
 
