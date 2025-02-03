@@ -173,8 +173,9 @@ class MuSCAT_PHOTOMETRY:
     def run_auto_mkdf(self):
         for i in range(self.nccd):
             df_directory = f'{self.obsdate}/{self.target}_{i}/df'
-            first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
-            last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
+            frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
+            first_frame = int(frame_range["FRAME#1"].iloc[0])
+            last_frame = int(frame_range["FRAME#2"].iloc[0])
             print(f'CCD{i}: Reducing frames {first_frame}~{last_frame} ...')
             missing_files = [f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits"))]
 
@@ -237,15 +238,23 @@ class MuSCAT_PHOTOMETRY:
 
     ## Performing aperture photometry
     @time_keeper
-    def run_apphot(self, nstars, rad1, rad2, drad, method="mapping"):
-        self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
-        rads = np.arange(rad1, rad2 + 1, drad)
-
-        print(f"Performing photometry for radius: {rads}")
+    def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping"):
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
-        available_rad = [p.name[3:] for p in Path(apphot_base).glob("*/")] if Path(apphot_base).exists() else []
+        available_rad = [float(p.name[3:]) for p in Path(apphot_base).glob("*/")].sort() if Path(apphot_base).exists() else []
+
+        if available_rad and rad1==None and rad2==None and drad==None:
+            self.rad1, self.rad2, self.drad, self.method = available_rad[0], available_rad[-1], (available_rad[-1]-available_rad[0])/len(available_rad), method
+            random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
+            random_frame = int(random_frame["FRAME#1"].iloc[0])
+            df, metadata = self.read_photometry(ccd=0, rad=10, frame=random_frame, add_metadata=True)
+            self.nstars = metadata['nstars'] 
+        else:
+            self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
+            rads = np.arange(rad1, rad2 + 1, drad)
+
+        print(f"Performing photometry for radius: {rads}")
 
         # Check for missing photometry files
         missing, missing_files_per_ccd = self.check_missing_photometry(rads)
@@ -267,9 +276,10 @@ class MuSCAT_PHOTOMETRY:
 
         for i in range(self.nccd):
             appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
-            first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
-            last_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
-
+            frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
+            first_frame = int(frame_range["FRAME#1"].iloc[0])
+            last_frame = int(frame_range["FRAME#2"].iloc[0])
+            
             missing_files = [
                 f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 for rad in rads
@@ -295,9 +305,135 @@ class MuSCAT_PHOTOMETRY:
                 else:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
 
+    def read_photometry(self, ccd, rad, frame, add_metadata=False):
+        filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
+        try:
+            metadata = {}
+            table_started = False
+            table_data = []
+            
+            with open(filepath, 'r') as file:
+                for line in file:
+                    if line.startswith('#'):
+                        if 'ID xcen ycen' in line:
+                            table_started = True
+                            continue
+                        if add_metadata and not table_started:
+                            line = line.strip('# \n')
+                            if '=' in line:
+                                key, value = line.split('=')
+                                metadata[key.strip()] = value.strip()
+                    else:
+                        table_data.append(line.strip())
+            
+            # Convert to DataFrame
+            df = pd.DataFrame([row.split() for row in table_data], 
+                            columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
+                                    'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
+            
+            # Convert numeric columns
+            numeric_cols = df.columns.difference(['filename', 'ccd'])
+            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric)
+            
+            # Add file information
+            df['filename'] = Path(filepath).name
+            df['ccd'] = Path(filepath).parent.name
+            
+            if add_metadata:
+                for key, value in metadata.items():
+                    df[key] = value
+            
+            # Return DataFrame with ID and peak value
+            return df[['ID', 'peak']]
 
-    def read_photometry(self, filepath, ccd, rad, add_metadata=False):
-        filepath = f"/ut3/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}"
+        except Exception as e:
+            print(f"Error reading {filepath}: {e}")
+            return None
+
+    def process_single_ccd(self, ccd, rad):
+        """
+        Process photometry data for a single CCD.
+        """
+        try:
+            frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
+            first_frame = int(frame_range["FRAME#1"].iloc[0])
+            last_frame = int(frame_range["FRAME#2"].iloc[0])
+            
+            all_frames = []
+            for frame in range(first_frame, last_frame + 1):
+                df = self.read_photometry(ccd=ccd, rad=rad, frame=frame)
+                if df is not None:
+                    df['frame'] = frame
+                    all_frames.append(df)
+            
+            if all_frames:
+                combined_df = pd.concat(all_frames, ignore_index=True)
+                pivot_df = combined_df.pivot(index='ID', columns='frame', values='peak')
+                pivot_df.reset_index(inplace=True)
+                # Add CCD identifier
+                pivot_df['ccd'] = ccd
+                return pivot_df
+            return None
+        except Exception as e:
+            print(f"Error processing CCD {ccd}: {e}")
+            return None
+
+    def read_photometry_parallel(self, rad, num_processes=4):
+        """
+        Read photometry data for multiple CCDs in parallel.
+        
+        Parameters:
+        rad (int/float): Radius value
+        num_ccds (int): Number of CCDs to process (default=4)
+        num_processes (int): Number of parallel processes to use (default=None, uses CPU count)
+        
+        Returns:
+        pandas.DataFrame: Combined data with ID and peak values for all frames and CCDs
+        """
+        # Create list of CCDs to process
+        
+        # Create partial function with fixed parameters
+        process_func = partial(self.process_single_ccd, rad=rad)
+        
+        # Process CCDs in parallel
+        with Pool(processes=num_processes) as pool:
+            results = pool.map(process_func, list(range(self.nccd)))
+        
+        # Filter out None results and combine DataFrames
+        valid_results = [df for df in results if df is not None]
+        
+        if valid_results:
+            # Combine all results
+            final_df = pd.concat(valid_results, ignore_index=True)
+            
+            # Optional: sort by CCD and ID if needed
+            final_df.sort_values(['ccd', 'ID'], inplace=True)
+            
+            return final_df
+        else:
+            return pd.DataFrame()
+        
+    def check_saturation(self, rad):
+        self.saturation_cids = []
+        df = self.read_photometry_parallel()
+        # Count the number of rows where peak > 60000 for this star ID
+        for i in range(self.nccd):
+            saturation_cids_per_ccd = []
+            for star_id in range(self.nstars):
+                count_above_threshold = (df[df["ccd"] == i][df["ID"] == star_id] > 60000).sum()
+                percentage_above_threshold = count_above_threshold / len(df[df["ccd"] == i][df["ID"] == star_id]) * 100
+                
+                # If more than 5% of the rows have a peak > 60000, add this star ID to the list
+                if percentage_above_threshold > 5:
+                    saturation_cids_per_ccd.append(star_id)
+            self.saturation_cids.append(saturation_cids_per_ccd)
+
+        for i in range(self.nccds):
+            print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
+            
+    '''
+    def read_photometry(self, filepath, ccd, rad, frame, add_metadata=False):
+        filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
         try:
             metadata = {}
             table_started = False
@@ -353,7 +489,7 @@ class MuSCAT_PHOTOMETRY:
         return ccd_peak_data
 
     def read_all_files_parallel(self, rad=None, add_metadata=False):
-        base_dir = f"/ut3/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/"
+        base_dir = f"{self.obsdate}/"
         if rad is None:
             rad = str(float(self.rad1))
         # Iterate over each CCD folder and process files
@@ -391,7 +527,7 @@ class MuSCAT_PHOTOMETRY:
         print(f"\nProcessing completed in {end_time - start_time:.2f} seconds")
         
         return results
-
+    '''
     def select_comparison(self, tid, cids = None):
         if cids == None:
             cids = get_combinations(1,5,tid)
