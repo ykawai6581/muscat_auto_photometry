@@ -249,7 +249,7 @@ class MuSCAT_PHOTOMETRY:
             self.rad1, self.rad2, self.drad, self.method = float(available_rad[0]), float(available_rad[-1]), (available_rad[-1]-available_rad[0])/len(available_rad), method
             random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
             random_frame = int(random_frame["FRAME#1"].iloc[0])
-            a = self.read_photometry(ccd=0, rad=10, frame=random_frame, add_metadata=True)
+            a = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
             print(a)
             print(type(a))
             self.nstars = metadata['nstars'] 
@@ -310,66 +310,61 @@ class MuSCAT_PHOTOMETRY:
 
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
-        try:
-            metadata = {}
-            table_started = False
-            table_data = []
-            
-            with open(filepath, 'r') as file:
-                for line in file:
-                    if line.startswith('#'):
-                        if 'ID xcen ycen' in line:
-                            table_started = True
-                            continue
-                        if add_metadata and not table_started:
-                            line = line.strip('# \n')
-                            if '=' in line:
-                                key, value = line.split('=')
+        metadata = {}
+        table_started = False
+        table_data = []
+        
+        with open(filepath, 'r') as file:
+            for line in file:
+                if line.startswith('#'):
+                    if 'ID xcen ycen' in line:
+                        table_started = True
+                        continue
+                    if add_metadata and not table_started:
+                        line = line.strip('# \n')
+                        if '=' in line:
+                            key, value = line.split('=')
+                            metadata[key.strip()] = value.strip()
+                        elif line.strip():
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                key = parts[0]
+                                value = ' '.join(parts[1:])
                                 metadata[key.strip()] = value.strip()
-                            elif line.strip():
-                                parts = line.split()
-                                if len(parts) >= 2:
-                                    key = parts[0]
-                                    value = ' '.join(parts[1:])
-                                    metadata[key.strip()] = value.strip()
+                else:
+                    # Replace "-nan" with "nan" in the data
+                    cleaned_line = line.replace("-nan", "nan")
+                    table_data.append(cleaned_line.strip())
+        
+        # Convert to DataFrame
+        df = pd.DataFrame([row.split() for row in table_data], 
+                        columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
+                                'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
+        
+        # Convert numeric columns with proper NaN handling
+        numeric_cols = df.columns.difference(['filename', 'ccd'])
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce')  # 'coerce' will convert invalid parsing to NaN
+        
+        # Add file information
+        df['filename'] = Path(filepath).name
+        df['ccd'] = ccd
+        
+        # Convert numeric metadata values
+        if add_metadata:
+            for key, value in metadata.items():
+                try:
+                    # Handle -nan in metadata as well
+                    if value.strip().lower() == "-nan":
+                        metadata[key] = np.nan
                     else:
-                        # Replace "-nan" with "nan" in the data
-                        cleaned_line = line.replace("-nan", "nan")
-                        table_data.append(cleaned_line.strip())
-            
-            # Convert to DataFrame
-            df = pd.DataFrame([row.split() for row in table_data], 
-                            columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
-                                    'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
-            
-            # Convert numeric columns with proper NaN handling
-            numeric_cols = df.columns.difference(['filename', 'ccd'])
-            for col in numeric_cols:
-                df[col] = pd.to_numeric(df[col], errors='coerce')  # 'coerce' will convert invalid parsing to NaN
-            
-            # Add file information
-            df['filename'] = Path(filepath).name
-            df['ccd'] = ccd
-            
-            # Convert numeric metadata values
-            if add_metadata:
-                for key, value in metadata.items():
-                    try:
-                        # Handle -nan in metadata as well
-                        if value.strip().lower() == "-nan":
-                            metadata[key] = np.nan
-                        else:
-                            metadata[key] = float(value)
-                    except (ValueError, AttributeError):
-                        # Keep as string if conversion fails
-                        pass
-                    df[key] = metadata[key]
-            
-            return df, metadata if add_metadata else df[['ID', 'peak']]
-
-        except Exception as e:
-            print(f"Error reading {filepath}: {e}")
-            return None
+                        metadata[key] = float(value)
+                except (ValueError, AttributeError):
+                    # Keep as string if conversion fails
+                    pass
+                df[key] = metadata[key]
+        
+        return df, metadata if add_metadata else df[['ID', 'peak']]
 
     def process_single_ccd(self, ccd, rad):
         """
