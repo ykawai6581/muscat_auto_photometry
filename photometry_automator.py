@@ -400,27 +400,24 @@ class MuSCAT_PHOTOMETRY:
             print(f"Error reading: {e}")
             return None
         
-    def read_photometry_parallel(self, rad, num_ccds=4, num_processes=4):
+    def read_photometry_parallel(self, rad, num_processes=4):
         """
         Read photometry data for multiple CCDs in parallel.
         
         Parameters:
         rad (int/float): Radius value
-        num_ccds (int): Number of CCDs to process (default=4)
         num_processes (int): Number of parallel processes to use (default=None, uses CPU count)
         
         Returns:
         tuple: (combined_data_df, combined_metadata_df)
         """
-        # Create list of CCDs to process
-        ccds = [f'ccd{i}' for i in range(1, num_ccds + 1)]
         
         # Create partial function with fixed parameters
         process_func = partial(self.process_single_ccd, rad=rad)
         
         # Process CCDs in parallel
         with Pool(processes=num_processes) as pool:
-            results = pool.map(process_func, ccds)
+            results = pool.map(process_func, list(range(self.nccd)))
         
         # Filter out None results and separate data and metadata
         valid_results = [result for result in results if result is not None]
@@ -444,7 +441,7 @@ class MuSCAT_PHOTOMETRY:
             
     def check_saturation(self, rad):
         self.saturation_cids = []
-        df = self.read_photometry_parallel(rad=rad)
+        df, meta = self.read_photometry_parallel(rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
         for i in range(self.nccd):
             saturation_cids_per_ccd = []
