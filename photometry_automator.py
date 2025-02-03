@@ -58,8 +58,6 @@ def dec_to_dms(dec_deg):
     sign = "+" if dec_deg >= 0 else "-"
     return f"{sign}{int(dec_deg_part):02d}:{int(dec_min_part):02d}:{dec_seconds:05.2f}"
 
-
-sys.path.append(os.path.abspath('/ut3/kawai/transit_fitting/muscat_photometry'))
 from muscat_photometry import target_from_filename, obsdates_from_filename, query_radec
 
 os.umask(0o002)
