@@ -250,13 +250,11 @@ class MuSCAT_PHOTOMETRY:
             random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
             random_frame = int(random_frame["FRAME#1"].iloc[0])
             df, meta = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
-            print(df.columns)
-            print(type(df))
             self.nstars = meta['nstars'] 
         else:
             self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
-            rads = np.arange(rad1, rad2 + 1, drad)
 
+        rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
         print(f"Performing photometry for radius: {rads}")
 
         # Check for missing photometry files
