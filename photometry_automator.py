@@ -287,8 +287,6 @@ class MuSCAT_PHOTOMETRY:
     def run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
         """Runs photometry for CCDs where files are missing."""
         for i, missing_files in missing_files_per_ccd.items():
-            appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
-
             for rad in rads:
                 if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
                     cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {self.drad} > /dev/null"
