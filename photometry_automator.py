@@ -377,9 +377,9 @@ class MuSCAT_PHOTOMETRY:
         
         for frame in range(first_frame, last_frame+1):
             result = self.read_photometry(ccd=ccd, rad=rad, frame=frame, add_metadata=False)
-            print(frame)
-            print(result)
-            print(type(result))
+            #print(frame)
+            #print(result)
+            #print(type(result))
             if result is not None:
                 df = result[0]
                 df['frame'] = frame
