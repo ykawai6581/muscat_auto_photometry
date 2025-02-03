@@ -372,32 +372,29 @@ class MuSCAT_PHOTOMETRY:
         """
         Process photometry data for a single CCD with metadata.
         """
-        try:
-            frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
-            first_frame = int(frame_range["FRAME#1"].iloc[0])
-            last_frame = int(frame_range["FRAME#2"].iloc[0])
-            
-            all_frames = []
-            all_metadata = []
-            
-            for frame in range(first_frame, last_frame + 1):
-                result = self.read_photometry(ccd=ccd, rad=rad, frame=frame, add_metadata=False)
-                if result is not None:
-                    df = result 
-                    df['frame'] = frame
-                    all_frames.append(df)
+        frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
+        first_frame = int(frame_range["FRAME#1"].iloc[0])
+        last_frame = int(frame_range["FRAME#2"].iloc[0])
+        
+        all_frames = []
+        
+        for frame in range(first_frame, last_frame + 1):
+            result = self.read_photometry(ccd=ccd, rad=rad, frame=frame, add_metadata=False)
+            if result is not None:
+                df = result 
+                df['frame'] = frame
+                all_frames.append(df)
 
-            if all_frames:
-                combined_df = pd.concat(all_frames, ignore_index=True)
-                
-                # Add CCD identifier
-                combined_df['ccd'] = ccd
-                
-                return combined_df  
+        if all_frames:
+            combined_df = pd.concat(all_frames, ignore_index=True)
+            
+            # Add CCD identifier
+            combined_df['ccd'] = ccd
+            
+            return combined_df  
+        else:
             return None
-        except Exception as e:
-            print(f"Error reading: {e}")
-            return None
+
         
     def read_photometry_parallel(self, rad, num_processes=4):
         """
