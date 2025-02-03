@@ -91,6 +91,8 @@ class MuSCAT_PHOTOMETRY:
         self.obslog = []
         self.obsdate = obsdate
         self.instrument = instrument
+        instrument_id = {"muscat":1,"muscat2":2,"muscat3":3,"muscat4":4}
+        self.instid = instrument_id[instrument]
         os.chdir('/home/muscat/reduction_afphot/'+instrument)
 
         for i in range(self.nccd):
@@ -121,7 +123,7 @@ class MuSCAT_PHOTOMETRY:
         #======
 
         for i in range(self.nccd):
-            if not os.path.exists("/FLAT/list/flat_ccd{i}.conf"):
+            if not os.path.exists(f"/FLAT/list/flat_ccd{i}.conf"):
                 cmd = f'perl scripts/config_flat.pl {self.obsdate} {i} -set_dir_only'
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
@@ -141,30 +143,41 @@ class MuSCAT_PHOTOMETRY:
         ## Setting configure files for object
         exposure = [float(ccd["EXPTIME(s)"][ccd["OBJECT"] == self.target]) for ccd in self.obslog]  # exposure times (sec) for object
         for i in range(self.nccd):
-            if not os.path.exists(f"/FLAT/list/object_ccd{i}.conf"):
+            if not os.path.exists(f"/{self.target}_{i}/list/object_ccd{i}.conf"):
                 exp=exposure[i]
                 cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {i} -auto_obj -auto_dark {exp}'
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
                 print(result.stdout)
             else:
-                print(f"config file already exisits under /FLAT/list/object_ccd{i}.conf")
+                print(f"config file already exisits under /{self.target}_{i}/list/ as object_ccd{i}.conf")
 
     @time_keeper
     def reduce_flat(self):
         ## Reducing FLAT images 
         for i in range(self.nccd):
-            print(f'>> Reducing FLAT images of CCD{i} ... (it may take tens of seconds)')
-            cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {i} > /dev/null"
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    
+            if not os.path.exists(f"/FLAT/flat/flat_ccd{i}.fits"):
+                print(f'>> Reducing FLAT images of CCD{i} ... (it may take tens of seconds)')
+                cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {i} > /dev/null"
+                subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            else:
+                print(f"flat file already exisits under /FLAT/flat/ as flat_ccd{i}.fits")
+
     @time_keeper
     ## Reducing Object images 
     def run_auto_mkdf(self):
         for i in range(self.nccd):
-            cmd = f"perl scripts/auto_mkdf.pl {self.obsdate} {self.target} {i} > /dev/null"
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            print(f'Completed auto_mkdf.pl for CCD{i}')
-    
+            df_directory = f'/{self.target}_{i}/df'
+            first_frame = self.obslog[i][["OBJECT"] == self.target]["FRAME#1"]
+            last_frame = self.obslog[i][["OBJECT"] == self.target]["FRAME#2"]
+            missing_files = [f"MCT{self.instid}0_{self.obsdate}{i:04d}.df.fits" for i in range(first_frame, last_frame) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}0_{self.obsdate}{i:04d}.df.fits"))]
+
+            if missing_files:
+                cmd = f"perl scripts/auto_mkdf.pl {self.obsdate} {self.target} {i} > /dev/null"
+                subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                print(f'Completed auto_mkdf.pl for CCD{i}')
+            else:
+                print(f"df file already exisits under /{self.target}_{i}/df/")
+
     @time_keeper
     def create_ref(self, ccd=0,refid_delta=0):
         ## Creating a reference image
