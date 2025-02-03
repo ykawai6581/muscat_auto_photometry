@@ -248,8 +248,8 @@ class MuSCAT_PHOTOMETRY:
             self.rad1, self.rad2, self.method = float(available_rad[0]), float(available_rad[-1]), method
             random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
             random_frame = int(random_frame["FRAME#1"].iloc[0])
-            df = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
-            self.nstars = df.attr['nstars'] 
+            df, meta = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
+            self.nstars = meta['nstars'] 
             print(f"Previously attempted photometry with {available_rad}, nstars={self.nstars}")
             pass
         else:
@@ -351,9 +351,19 @@ class MuSCAT_PHOTOMETRY:
         
         # Convert numeric metadata values
         if add_metadata:
-            df.attrs = metadata
-                
-        return df
+            for key, value in metadata.items():
+                try:
+                    # Handle -nan in metadata as well
+                    if value.strip().lower() == "-nan":
+                        metadata[key] = np.nan
+                    else:
+                        metadata[key] = float(value)
+                except (ValueError, AttributeError):
+                    # Keep as string if conversion fails
+                    pass
+                df[key] = metadata[key]
+        
+        return df, metadata if add_metadata else df#[['ID', 'peak']]
 
     def process_single_ccd(self, ccd, rad):
         """
@@ -369,8 +379,9 @@ class MuSCAT_PHOTOMETRY:
             result = self.read_photometry(ccd=ccd, rad=rad, frame=frame, add_metadata=False)
             print(frame)
             print(result)
+            print(type(result))
             if result is not None:
-                df = result 
+                df = result[0]
                 df['frame'] = frame
                 all_frames.append(df)
 
