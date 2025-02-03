@@ -197,7 +197,7 @@ class MuSCAT_PHOTOMETRY:
         refid+=refid_delta
         #======
 
-        ref_file = set([Path(f'{self.obsdate}/{self.target}_{i}/').glob("*.lst") for i in range(self.nccd)])[0]
+        ref_file = list(set([Path(f'{self.obsdate}/{self.target}_{i}/').glob("*.lst") for i in range(self.nccd)]))[0]
         ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/*.lst") for i in range(self.nccd)])
         if not ref_exists:
             cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid}"
