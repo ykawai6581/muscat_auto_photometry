@@ -177,7 +177,7 @@ class MuSCAT_PHOTOMETRY:
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
             print(f'CCD{i}: Reducing frames {first_frame}~{last_frame} ...')
-            missing_files = [f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits"))]
+            missing_files = [f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits" for frame in range(first_frame, last_frame+1) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits"))]
 
             if missing_files:
                 cmd = f"perl scripts/auto_mkdf.pl {self.obsdate} {self.target} {i} > /dev/null"
@@ -285,7 +285,7 @@ class MuSCAT_PHOTOMETRY:
             missing_files = [
                 f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 for rad in rads
-                for frame in range(first_frame, last_frame)
+                for frame in range(first_frame, last_frame+1)
                 if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
             ]
 
@@ -375,8 +375,9 @@ class MuSCAT_PHOTOMETRY:
         
         all_frames = []
         
-        for frame in range(first_frame, last_frame + 1):
+        for frame in range(first_frame, last_frame+1):
             result = self.read_photometry(ccd=ccd, rad=rad, frame=frame, add_metadata=False)
+            print(frame)
             print(result)
             if result is not None:
                 df = result 
