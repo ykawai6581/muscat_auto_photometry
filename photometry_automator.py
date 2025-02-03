@@ -90,11 +90,11 @@ class MuSCAT_PHOTOMETRY:
             obslog_perccd_df = pd.read_csv(StringIO(obslog_perccd), delim_whitespace=True)
 
             self.obslog.append(obslog_perccd_df)
-            self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
-            pick_target = input(f"Available object names {[f'{i}|{item}' for i, item in enumerate(self.obj_names)]}")
-            print(pick_target)
-            self.target = self.obj_names[int(pick_target[0])]
-            print(f"Continuing photometry for {self.target}")
+        self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
+        pick_target = input(f"Available object names {[f'{i}|{item}' for i, item in enumerate(self.obj_names)]}")
+        print(pick_target)
+        self.target = self.obj_names[int(pick_target[0])]
+        print(f"Continuing photometry for {self.target}")
 
     def config_flat(self):
         ## Setting configure files for flat
