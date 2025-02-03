@@ -246,10 +246,12 @@ class MuSCAT_PHOTOMETRY:
         available_rad.sort()
 
         if available_rad and rad1==None and rad2==None and drad==None:
-            self.rad1, self.rad2, self.drad, self.method = available_rad[0], available_rad[-1], (available_rad[-1]-available_rad[0])/len(available_rad), method
+            self.rad1, self.rad2, self.drad, self.method = float(available_rad[0]), float(available_rad[-1]), (available_rad[-1]-available_rad[0])/len(available_rad), method
             random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
             random_frame = int(random_frame["FRAME#1"].iloc[0])
-            df, metadata = self.read_photometry(ccd=0, rad=10, frame=random_frame, add_metadata=True)
+            a = self.read_photometry(ccd=0, rad=10, frame=random_frame, add_metadata=True)
+            print(a)
+            print(type(a))
             self.nstars = metadata['nstars'] 
         else:
             self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
