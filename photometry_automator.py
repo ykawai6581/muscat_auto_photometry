@@ -420,12 +420,13 @@ class MuSCAT_PHOTOMETRY:
         
         return valid_results
 
-            
+    @time_keeper
     def check_saturation(self, rad):
         self.saturation_cids = []
         df = self.read_photometry_parallel(rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
         for i in range(self.nccd):
+            print(f'>> Checking saturation in CCD{i} ... (it may take tens of seconds)')
             saturation_cids_per_ccd = []
             for star_id in range(int(self.nstars)):
                 count_above_threshold = (df[i][df[i]["ID"] == star_id] > 60000).sum()
