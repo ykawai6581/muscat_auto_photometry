@@ -296,7 +296,7 @@ class MuSCAT_PHOTOMETRY:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
 
 
-    def read_photometry(self, ccd, rad, add_metadata=False):
+    def read_photometry(self, filepath, ccd, rad, add_metadata=False):
         filepath = f"/ut3/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}"
         try:
             metadata = {}
