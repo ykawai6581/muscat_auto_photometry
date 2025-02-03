@@ -415,7 +415,7 @@ class MuSCAT_PHOTOMETRY:
         
     def check_saturation(self, rad):
         self.saturation_cids = []
-        df = self.read_photometry_parallel()
+        df = self.read_photometry_parallel(rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
         for i in range(self.nccd):
             saturation_cids_per_ccd = []
