@@ -238,62 +238,64 @@ class MuSCAT_PHOTOMETRY:
     ## Performing aperture photometry
     @time_keeper
     def run_apphot(self, nstars, rad1, rad2, drad, method="mapping"):
-        self.rad1 = float(rad1)
-        self.rad2 = float(rad2)
-        self.drad = float(drad)
-        self.method = method
-        self.nstars = int(nstars)
-        rads = np.arange(rad1, rad2+1, drad)
+        self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
+        rads = np.arange(rad1, rad2 + 1, drad)
 
         print(f"Performing photometry for radius: {rads}")
-        available_rad = [[p.name[3:] for p in Path(f"{self.obsdate}/{self.target}_{i}/apphot_{method}").glob("*/")] for i in range(self.nccd)][0]#assuming same radius for all bands
 
-        missing = False
-        for i in range(self.nccd):
-            for j in range(len(rads)):
-                rad = float(rads[j])
-                appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
-                first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
-                last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
-                missing_files = [
-                    f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                    for frame in range(first_frame, last_frame)
-                    if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
-                ]
-                print(f'ccd:{i},rad:{rad}')
-                print(missing_files)
-                if missing_files:
-                    missing = True
-                else:
-                    pass
-        if missing:
-            print(f"Photometry for this set of radius is incomplete")
-        else:
+        # Assume the same available radius for all CCDs
+        apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
+        available_rad = [p.name[3:] for p in Path(apphot_base).glob("*/")] if Path(apphot_base).exists() else []
+
+        # Check for missing photometry files
+        missing, missing_files_per_ccd = self.check_missing_photometry(rads)
+
+        if not missing:
             print(f"Photometry is already available for radius: {available_rad}")
             sys.exit()
 
-        if method=='mapping':
-            script = 'scripts/auto_apphot_mapping.pl'  
-        elif method=='centroid':
-            script = 'scripts/auto_apphot_centroid.pl'
+        # Determine script to use
+        script = f"scripts/auto_apphot_{method}.pl"
+
+        # Run photometry for missing files
+        self.run_photometry_if_missing(script, nstars, rads, missing_files_per_ccd)
+
+    def check_missing_photometry(self, rads):
+        """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
+        missing = False
+        missing_files_per_ccd = {}
 
         for i in range(self.nccd):
-            appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
+            appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
             first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
-            last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
-            for j in range(len(rads)):
-                rad = float(rads[j])
-                missing_files = [
-                    f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                    for frame in range(first_frame, last_frame)
-                    if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
-                ]
-                if missing_files:
-                    cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {drad} > /dev/null"
+            last_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
+
+            missing_files = [
+                f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                for rad in rads
+                for frame in range(first_frame, last_frame)
+                if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
+            ]
+
+            if missing_files:
+                missing = True
+                missing_files_per_ccd[i] = missing_files
+                print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
+
+        return missing, missing_files_per_ccd
+
+    def run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
+        """Runs photometry for CCDs where files are missing."""
+        for i, missing_files in missing_files_per_ccd.items():
+            appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
+
+            for rad in rads:
+                if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
+                    cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {self.drad} > /dev/null"
                     subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                    print(f'Completed aperture photometry for CCD={i}, rad={rad}')
+                    print(f"Completed aperture photometry for CCD={i}, rad={rad}")
                 else:
-                    print(f"Photometry is already available for CCD={i}", rad={rad})
+                    print(f"Photometry already available for CCD={i}, rad={rad}")
 
 
     def read_photometry(self, ccd, rad, add_metadata=False):
@@ -476,6 +478,63 @@ for i in range(nband):
     
 plt.show()
 
+    def run_apphot(self, nstars, rad1, rad2, drad, method="mapping"):
+        self.rad1 = float(rad1)
+        self.rad2 = float(rad2)
+        self.drad = float(drad)
+        self.method = method
+        self.nstars = int(nstars)
+        rads = np.arange(rad1, rad2+1, drad)
+
+        print(f"Performing photometry for radius: {rads}")
+        available_rad = [[p.name[3:] for p in Path(f"{self.obsdate}/{self.target}_{i}/apphot_{method}").glob("*/")] for i in range(self.nccd)][0]#assuming same radius for all bands
+
+        missing = False
+        for i in range(self.nccd):
+            for j in range(len(rads)):
+                rad = float(rads[j])
+                appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
+                first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
+                last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
+                missing_files = [
+                    f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                    for frame in range(first_frame, last_frame)
+                    if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
+                ]
+                print(f'ccd:{i},rad:{rad}')
+                print(missing_files)
+                if missing_files:
+                    missing = True
+                else:
+                    pass
+        if missing:
+            print(f"Photometry for this set of radius is incomplete")
+        else:
+            print(f"Photometry is already available for radius: {available_rad}")
+            sys.exit()
+
+        if method=='mapping':
+            script = 'scripts/auto_apphot_mapping.pl'  
+        elif method=='centroid':
+            script = 'scripts/auto_apphot_centroid.pl'
+
+        for i in range(self.nccd):
+            appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
+            first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
+            last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
+            for j in range(len(rads)):
+                rad = float(rads[j])
+                missing_files = [
+                    f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                    for frame in range(first_frame, last_frame)
+                    if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
+                ]
+                if missing_files:
+                    cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {drad} > /dev/null"
+                    subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                    print(f'Completed aperture photometry for CCD={i}, rad={rad}')
+                else:
+                    print(f"Photometry is already available for CCD={i}", rad={rad})
 
     
 '''
