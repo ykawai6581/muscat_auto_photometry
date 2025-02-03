@@ -256,6 +256,8 @@ class MuSCAT_PHOTOMETRY:
                 first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
                 last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
                 missing_files = [f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(appphot_directory, f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"))]
+                print(f'ccd:{i},rad:{rad}')
+                print(missing_files)
                 if missing_files:
                     missing = True
                 else:
