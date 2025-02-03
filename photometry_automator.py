@@ -363,7 +363,7 @@ class MuSCAT_PHOTOMETRY:
                     pass
                 df[key] = metadata[key]
         
-        return df, metadata# if add_metadata else df[['ID', 'peak']]
+        return df, metadata if add_metadata else df#[['ID', 'peak']]
 
     def process_single_ccd(self, ccd, rad):
         """
