@@ -381,20 +381,19 @@ class MuSCAT_PHOTOMETRY:
             all_metadata = []
             
             for frame in range(first_frame, last_frame + 1):
-                result = self.read_photometry(filepath=None, ccd=ccd, rad=rad, frame=frame, add_metadata=False)
+                result = self.read_photometry(ccd=ccd, rad=rad, frame=frame, add_metadata=False)
                 if result is not None:
-                    df = result  # Properly unpack the tuple
+                    df = result 
                     df['frame'] = frame
                     all_frames.append(df)
 
             if all_frames:
                 combined_df = pd.concat(all_frames, ignore_index=True)
-                metadata_df = pd.DataFrame(all_metadata)
                 
                 # Add CCD identifier
                 combined_df['ccd'] = ccd
                 
-                return (combined_df, metadata_df)  # Return as tuple to match format
+                return combined_df  
             return None
         except Exception as e:
             print(f"Error reading: {e}")
@@ -422,26 +421,12 @@ class MuSCAT_PHOTOMETRY:
         # Filter out None results and separate data and metadata
         valid_results = [result for result in results if result is not None]
         
-        if valid_results:
-            # Unzip the results into separate lists for data and metadata
-            all_data_dfs, all_metadata_dfs = zip(*valid_results)
-            
-            # Combine all results
-            final_data_df = pd.concat(all_data_dfs, ignore_index=True)
-            final_metadata_df = pd.concat(all_metadata_dfs, ignore_index=True)
-            
-            # Optional: sort by CCD and ID
-            final_data_df.sort_values(['ccd', 'ID'], inplace=True)
-            final_metadata_df.sort_values(['ccd', 'frame'], inplace=True)
-            
-            return final_data_df, final_metadata_df
-        else:
-            return pd.DataFrame(), pd.DataFrame()
+        return valid_results
 
             
     def check_saturation(self, rad):
         self.saturation_cids = []
-        df, meta = self.read_photometry_parallel(rad=rad)
+        df = self.read_photometry_parallel(rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
         for i in range(self.nccd):
             saturation_cids_per_ccd = []
