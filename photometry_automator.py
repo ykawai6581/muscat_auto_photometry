@@ -177,7 +177,7 @@ class MuSCAT_PHOTOMETRY:
             last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
             print(first_frame)
             print(last_frame)
-            missing_files = [f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}0_{self.obsdate}{frame:04d}.df.fits"))]
+            missing_files = [f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits"))]
 
             if missing_files:
                 print("Reducing object images ...")
