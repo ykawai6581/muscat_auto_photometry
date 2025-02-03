@@ -196,8 +196,14 @@ class MuSCAT_PHOTOMETRY:
         refid= int(self.obslog[ref_ccd][self.obslog[ref_ccd]["OBJECT"] == self.target]["FRAME#1"])#if you are okay with setting the first frame as reference
         refid+=refid_delta
         #======
-        cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid}"
-        subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+        ref_file = set([Path(f'{self.obsdate}/{self.target}_{i}/').glob("*.lst") for i in range(self.nccd)])[0]
+        ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/*.lst") for i in range(self.nccd)])
+        if not ref_exists:
+            cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid}"
+            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        else:
+            print(f'Ref file: {ref_file} exists.')
 
     def show_reference(self, rad=10):
         ## Showing reference image
@@ -229,29 +235,51 @@ class MuSCAT_PHOTOMETRY:
             ax.add_patch(circ)
             plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
 
-        dec_str = f"+{self.dec}" if self.dec > 0 else f"-{self.dec}"
-
-        IFrame(f"https://aladin.u-strasbg.fr/AladinLite/?target={self.ra}{dec_str}&fov=0.2", width=700, height=500)
-
     ## Performing aperture photometry
     @time_keeper
     def run_apphot(self, nstars, rad1, rad2, drad, method="mapping"):
         self.rad1 = float(rad1)
         self.rad2 = float(rad2)
-        self.drad = int(drad)
+        self.drad = float(drad)
         self.method = method
         self.nstars = int(nstars)
+        rads = np.arange(rad1, rad2+1, drad)
+
+        print(f"Performing photometry for radius: {rads}")
+        available_rad = set([[p.name[3:] for p in Path(f"{self.obsdate}/{self.target}_{i}/apphot_{method}").glob("*/")] for i in range(self.nccd)])
+
+        missing = False
+        for i in range(self.nccd):
+            appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
+            first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
+            last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
+            missing_files = [f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(appphot_directory, f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits"))]
+            if missing_files:
+                missing = True
+            else:
+                pass
+        if missing:
+            print(f"Photometry for this set of radius is incomplete")
+            print(f"Photometry is already available for radius: {available_rad}")
+
         if method=='mapping':
             script = 'scripts/auto_apphot_mapping.pl'  
         elif method=='centroid':
             script = 'scripts/auto_apphot_centroid.pl'
-        rads = np.arange(rad1, rad2+1, drad)
+
         for i in range(self.nccd):
+            appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
+            first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
+            last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
             for j in range(len(rads)):
                 rad = rads[j]
-                cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {drad} > /dev/null"
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                print('Completed aperture photometry for CCD={i}, rad={rad1}')
+                missing_files = [f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits" for frame in range(first_frame, last_frame) if not os.path.exists(os.path.join(appphot_directory, f"rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.fits"))]
+                if missing_files:
+                    cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {drad} > /dev/null"
+                    subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                    print(f'Completed aperture photometry for CCD={i}, rad={rad}')
+                else:
+                    print(f"Photometry is already available for CCD={i}", rad={rad})
 
 
     def read_photometry(self, ccd, rad, add_metadata=False):
