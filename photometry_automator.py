@@ -91,8 +91,8 @@ class MuSCAT_PHOTOMETRY:
 
             self.obslog.append(obslog_perccd_df)
             self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
-            pick_target = input(f"Available object names {[f'{i}| {item}' for item in enumerate(self.obj_names)]}")
-            self.target = self.obj_names[pick_target]
+            pick_target = input(f"Available object names {[f'{item}' for item in enumerate(self.obj_names)]}")
+            self.target = pick_target[1]#self.obj_names[pick_target[0]
             print(f"Continuing photometry for {self.target}")
 
     def config_flat(self):
