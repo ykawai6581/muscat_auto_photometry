@@ -242,8 +242,8 @@ class MuSCAT_PHOTOMETRY:
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
-        available_rad = [float(p.name[3:]) for p in Path(apphot_base).glob("*/")].sort() if Path(apphot_base).exists() else []
-        print(available_rad)
+        available_rad = [float(p.name[3:]) for p in Path(apphot_base).glob("*/")] if Path(apphot_base).exists() else []
+        available_rad.sort()
 
         if available_rad and rad1==None and rad2==None and drad==None:
             self.rad1, self.rad2, self.drad, self.method = available_rad[0], available_rad[-1], (available_rad[-1]-available_rad[0])/len(available_rad), method
