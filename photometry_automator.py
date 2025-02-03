@@ -121,29 +121,33 @@ class MuSCAT_PHOTOMETRY:
         #======
 
         for i in range(self.nccd):
+            if not os.path.exists("/FLAT/list/flat_ccd{i}.conf"):
+                cmd = f'perl scripts/config_flat.pl {self.obsdate} {i} -set_dir_only'
+                subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-            cmd = f'perl scripts/config_flat.pl {self.obsdate} {i} -set_dir_only'
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-            flat_conf = self.obsdate + f'/FLAT/list/flat_ccd{i}.conf'
-            print(flat_conf)
-            text = f'flat {self.flat_first_frameIDs[i]} {self.flat_first_frameIDs[i]+49}\nflat_dark {self.flat_first_frameIDs[i]+50} {self.flat_first_frameIDs[i]+54}'
-            with open(flat_conf, mode='w') as f:
-                f.write(text)
-            result = subprocess.run(['cat', flat_conf], capture_output=True, text=True)
-            print(result.stdout)
-            print('\n')
+                flat_conf = self.obsdate + f'/FLAT/list/flat_ccd{i}.conf'
+                print(flat_conf)
+                text = f'flat {self.flat_first_frameIDs[i]} {self.flat_first_frameIDs[i]+49}\nflat_dark {self.flat_first_frameIDs[i]+50} {self.flat_first_frameIDs[i]+54}'
+                with open(flat_conf, mode='w') as f:
+                    f.write(text)
+                result = subprocess.run(['cat', flat_conf], capture_output=True, text=True)
+                print(result.stdout)
+                print('\n')
+            else:
+                print(f"config file already exisits under /FLAT/list/flat_ccd{i}.conf")
 
     @time_keeper
     def config_object(self):
         ## Setting configure files for object
-
         exposure = [float(ccd["EXPTIME(s)"][ccd["OBJECT"] == self.target]) for ccd in self.obslog]  # exposure times (sec) for object
         for i in range(self.nccd):
-            exp=exposure[i]
-            cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {i} -auto_obj -auto_dark {exp}'
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            print(result.stdout)
+            if not os.path.exists(f"/FLAT/list/object_ccd{i}.conf"):
+                exp=exposure[i]
+                cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {i} -auto_obj -auto_dark {exp}'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                print(result.stdout)
+            else:
+                print(f"config file already exisits under /FLAT/list/object_ccd{i}.conf")
 
     @time_keeper
     def reduce_flat(self):
