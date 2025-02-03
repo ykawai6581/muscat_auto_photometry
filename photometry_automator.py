@@ -251,7 +251,7 @@ class MuSCAT_PHOTOMETRY:
             df, meta = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
             self.nstars = meta['nstars'] 
             print(f"Previously attempted photometry with {available_rad}, nstars={self.nstars}")
-            pass
+            sys.exit()
         else:
             self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
 
@@ -263,7 +263,7 @@ class MuSCAT_PHOTOMETRY:
 
         if not missing:
             print(f"Photometry is already available for radius: {available_rad}")
-            pass
+            sys.exit()
 
         # Determine script to use
         script = f"scripts/auto_apphot_{method}.pl"
@@ -437,7 +437,7 @@ class MuSCAT_PHOTOMETRY:
                     saturation_cids_per_ccd.append(star_id)
             self.saturation_cids.append(saturation_cids_per_ccd)
 
-        for i in range(self.nccds):
+        for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
             
     '''
