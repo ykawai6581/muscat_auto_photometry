@@ -244,13 +244,14 @@ class MuSCAT_PHOTOMETRY:
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
         available_rad = sorted([float(p.name[3:]) for p in Path(apphot_base).glob("*/")]) if Path(apphot_base).exists() else []
 
-        print(available_rad)
         if available_rad and rad1==None and rad2==None and drad==None:
             self.rad1, self.rad2, self.method = float(available_rad[0]), float(available_rad[-1]), (available_rad[-1]-available_rad[0])/len(available_rad), method
             random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
             random_frame = int(random_frame["FRAME#1"].iloc[0])
             df, meta = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
             self.nstars = meta['nstars'] 
+            print(f"Previously attempted photometry with {available_rad}, nstars={self.nstars}")
+            pass
         else:
             self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
 
@@ -262,7 +263,7 @@ class MuSCAT_PHOTOMETRY:
 
         if not missing:
             print(f"Photometry is already available for radius: {available_rad}")
-            sys.exit()
+            pass
 
         # Determine script to use
         script = f"scripts/auto_apphot_{method}.pl"
