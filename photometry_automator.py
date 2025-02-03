@@ -305,7 +305,7 @@ class MuSCAT_PHOTOMETRY:
                 else:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
 
-    def read_photometry(self, ccd, rad, frame, add_metadata=False):
+    def read_photometry(self, ccd, rad, frame, add_metadata=True):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
         try:
             metadata = {}
@@ -323,28 +323,46 @@ class MuSCAT_PHOTOMETRY:
                             if '=' in line:
                                 key, value = line.split('=')
                                 metadata[key.strip()] = value.strip()
+                            elif line.strip():
+                                parts = line.split()
+                                if len(parts) >= 2:
+                                    key = parts[0]
+                                    value = ' '.join(parts[1:])
+                                    metadata[key.strip()] = value.strip()
                     else:
-                        table_data.append(line.strip())
+                        # Replace "-nan" with "nan" in the data
+                        cleaned_line = line.replace("-nan", "nan")
+                        table_data.append(cleaned_line.strip())
             
             # Convert to DataFrame
             df = pd.DataFrame([row.split() for row in table_data], 
                             columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
                                     'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
             
-            # Convert numeric columns
+            # Convert numeric columns with proper NaN handling
             numeric_cols = df.columns.difference(['filename', 'ccd'])
-            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric)
+            for col in numeric_cols:
+                df[col] = pd.to_numeric(df[col], errors='coerce')  # 'coerce' will convert invalid parsing to NaN
             
             # Add file information
             df['filename'] = Path(filepath).name
-            df['ccd'] = Path(filepath).parent.name
+            df['ccd'] = ccd
             
+            # Convert numeric metadata values
             if add_metadata:
                 for key, value in metadata.items():
-                    df[key] = value
+                    try:
+                        # Handle -nan in metadata as well
+                        if value.strip().lower() == "-nan":
+                            metadata[key] = np.nan
+                        else:
+                            metadata[key] = float(value)
+                    except (ValueError, AttributeError):
+                        # Keep as string if conversion fails
+                        pass
+                    df[key] = metadata[key]
             
-            # Return DataFrame with ID and peak value
-            return df[['ID', 'peak']]
+            return df, metadata if add_metadata else df[['ID', 'peak']]
 
         except Exception as e:
             print(f"Error reading {filepath}: {e}")
