@@ -124,7 +124,7 @@ class MuSCAT_PHOTOMETRY:
 
         for i in range(self.nccd):
             flat_conf_path = f"{self.obsdate}/FLAT/list/flat_ccd{i}.conf"
-            print(flat_conf_path)
+            #print(flat_conf_path)
             if not os.path.exists(flat_conf_path):
                 cmd = f'perl scripts/config_flat.pl {self.obsdate} {i} -set_dir_only'
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -146,7 +146,7 @@ class MuSCAT_PHOTOMETRY:
         exposure = [float(ccd["EXPTIME(s)"][ccd["OBJECT"] == self.target]) for ccd in self.obslog]  # exposure times (sec) for object
         for i in range(self.nccd):
             obj_conf_path = f"{self.obsdate}/{self.target}_{i}/list/object_ccd{i}.conf"
-            print(obj_conf_path)
+            #print(obj_conf_path)
             if not os.path.exists(obj_conf_path):
                 exp=exposure[i]
                 cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {i} -auto_obj -auto_dark {exp}'
@@ -160,7 +160,7 @@ class MuSCAT_PHOTOMETRY:
         ## Reducing FLAT images 
         for i in range(self.nccd):
             flat_path = f"{self.obsdate}/FLAT/flat/flat_ccd{i}.fits"
-            print(flat_path)
+            #print(flat_path)
             if not os.path.exists(flat_path):
                 print(f'>> Reducing FLAT images of CCD{i} ... (it may take tens of seconds)')
                 cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {i} > /dev/null"
@@ -173,8 +173,8 @@ class MuSCAT_PHOTOMETRY:
     def run_auto_mkdf(self):
         for i in range(self.nccd):
             df_directory = f'{self.obsdate}/{self.target}_{i}/df'
-            first_frame = self.obslog[i][["OBJECT"] == self.target]["FRAME#1"]
-            last_frame = self.obslog[i][["OBJECT"] == self.target]["FRAME#2"]
+            first_frame = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"]
+            last_frame = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"]
             missing_files = [f"MCT{self.instid}0_{self.obsdate}{i:04d}.df.fits" for i in range(first_frame, last_frame) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}0_{self.obsdate}{i:04d}.df.fits"))]
 
             if missing_files:
