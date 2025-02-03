@@ -250,7 +250,7 @@ class MuSCAT_PHOTOMETRY:
             random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
             random_frame = int(random_frame["FRAME#1"].iloc[0])
             a = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
-            print(a)
+            print(a.columns)
             print(type(a))
             self.nstars = metadata['nstars'] 
         else:
