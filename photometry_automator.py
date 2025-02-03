@@ -245,7 +245,7 @@ class MuSCAT_PHOTOMETRY:
         available_rad = sorted([float(p.name[3:]) for p in Path(apphot_base).glob("*/")]) if Path(apphot_base).exists() else []
 
         if available_rad and rad1==None and rad2==None and drad==None:
-            self.rad1, self.rad2, self.method = float(available_rad[0]), float(available_rad[-1]), (available_rad[-1]-available_rad[0])/len(available_rad), method
+            self.rad1, self.rad2, self.method = float(available_rad[0]), float(available_rad[-1]), method
             random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
             random_frame = int(random_frame["FRAME#1"].iloc[0])
             df, meta = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
@@ -377,6 +377,7 @@ class MuSCAT_PHOTOMETRY:
         
         for frame in range(first_frame, last_frame + 1):
             result = self.read_photometry(ccd=ccd, rad=rad, frame=frame, add_metadata=False)
+            print(result)
             if result is not None:
                 df = result 
                 df['frame'] = frame
