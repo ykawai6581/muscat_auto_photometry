@@ -173,8 +173,8 @@ class MuSCAT_PHOTOMETRY:
     def run_auto_mkdf(self):
         for i in range(self.nccd):
             df_directory = f'{self.obsdate}/{self.target}_{i}/df'
-            first_frame = list(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
-            last_frame = list(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
+            first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
+            last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
             missing_files = [f"MCT{self.instid}0_{self.obsdate}{i:04d}.df.fits" for i in range(first_frame, last_frame) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}0_{self.obsdate}{i:04d}.df.fits"))]
 
             if missing_files:
