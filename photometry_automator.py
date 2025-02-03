@@ -351,7 +351,7 @@ class MuSCAT_PHOTOMETRY:
         
         # Convert numeric metadata values
         if add_metadata:
-            df.attrs(metadata)
+            df.attrs = metadata
                 
         return df
 
