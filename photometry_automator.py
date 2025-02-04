@@ -205,7 +205,7 @@ class MuSCAT_PHOTOMETRY:
         else:
             with open(Path(f"{self.obsdate}/{self.target}_0/list/ref.lst"), 'r') as f:
                 ref_file = f.read()
-                print(f'Ref file: {ref_file} exists.')
+                print(f'Ref file:\n {ref_file} exists.')
 
     def show_reference(self, rad=10):
         ## Showing reference image
@@ -252,7 +252,7 @@ class MuSCAT_PHOTOMETRY:
             df, meta = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
             self.nstars = meta['nstars'] 
             print(f"Previously attempted photometry with {available_rad}, nstars={self.nstars}")
-            sys.exit()
+            return
         else:
             self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
 
@@ -264,7 +264,7 @@ class MuSCAT_PHOTOMETRY:
 
         if not missing:
             print(f"Photometry is already available for radius: {available_rad}")
-            sys.exit()
+            return
 
         # Determine script to use
         script = f"scripts/auto_apphot_{method}.pl"
