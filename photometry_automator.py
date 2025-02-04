@@ -481,7 +481,7 @@ class MuSCAT_PHOTOMETRY:
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv"
-                print(os.curdir)
+                print(os.getcwd())
                 print(outfile)
 
                 if os.path.isfile(f"{obj_dir}_{i}/{outfile}"):
