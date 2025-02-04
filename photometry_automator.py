@@ -484,13 +484,13 @@ class MuSCAT_PHOTOMETRY:
 
                 outfile = f"apphot_{self.method}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 #print(os.getcwd())
-                print(outfile)
+                #print(outfile)
                 outfile_path = os.path.join(os.getcwd(), outfile)
-                print(outfile_path)
+                #print(outfile_path)
 
                 if os.path.isfile(outfile_path):
                     #outfile2 = f"{instdir}/{date}/{obj}/lcf_{inst}_{bands[i]}_{obj}_{date}_t{tid}_c{suffix}_r{rad1}-{rad2}.csv"
-                    subprocess.run(f"mv {obj_dir}_{i}/apphot_{self.method}/{outfile} {obj_dir}/apphot_{self.method}/{outfile}", shell=True)
+                    subprocess.run(f"mv {obj_dir}_{i}/{outfile} {obj_dir}/{outfile}", shell=True)
                     print("\n")
                     print(f"## >> Created photometry for cIDs:{cid}")
                 else:
