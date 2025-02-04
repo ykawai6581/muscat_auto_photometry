@@ -546,10 +546,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 condition = np.ones_like(self.phot[i][j][key], dtype=bool)  # Start with all True
 
                 if lower is not None:
-                    condition &= (self.phot[i][j][key] > lower[j] if isinstance(lower, list) else self.phot[i][j][key] > lower)
+                    condition &= (self.phot[i][j][key] > lower[i] if isinstance(lower, list) else self.phot[i][j][key] > lower)
                     
                 if upper is not None:
-                    condition &= (self.phot[i][j][key] < upper[j] if isinstance(upper, list) else self.phot[i][j][key] < upper)
+                    condition &= (self.phot[i][j][key] < upper[i] if isinstance(upper, list) else self.phot[i][j][key] < upper)
                 
                 mask_ccd.append(condition)  # Store per source
             self.mask[i].append(mask_ccd)  # Store per CCD
