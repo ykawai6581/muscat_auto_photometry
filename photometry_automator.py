@@ -24,6 +24,8 @@ import astropy.units as u
 import barycorr
 from multiprocessing import Process, Pool, Array, Manager
 import math
+import matplotlib.patches as patches
+
 
 import itertools
 
@@ -509,6 +511,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.bands = ["g","r","i","z"]
         self.mask = [[],[],[],[]]
 
+        self.min_rms_idx_list = []
         self.phot=[]
         phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
 
@@ -557,10 +560,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
         fig, axes = plt.subplots(2, 2, figsize=(12, 10))  # 2x2 subplots for 4 CCDs
         axes = axes.flatten()  # Flatten to 1D array for easy access
-        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers...  (it may take a few minutes)")
+        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers...")
 
         for i in range(self.nccd):
-            print(f"Computing outliers for CCD{i}")
+            print(f"Computing outliers for CCD{i} (it may take a few minutes)")
             n_cids = len(self.cids_list[i])
             n_ap = len(self.ap)
             
@@ -604,35 +607,47 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                         rms[j, k] = np.inf  # Handle edge case where not enough data points exist
 
             # **Find minimum RMS value for highlighting**
-            self.min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)  # Get (j, k) of min RMS
+            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)  # Get (j, k) of min RMS
+            self.min_rms_idx_list.append(min_rms_idx)
 
-            # **Plot ndata_diff and rms together in a diagonal layout**
+            print("Plotting results")
+            # **Plot diagonally split heatmap**
             ax = axes[i]  # Select subplot
-            im1 = ax.imshow(ndata_diff, aspect='auto', cmap='coolwarm', origin='lower')
-            im2 = ax.imshow(rms, aspect='auto', cmap='cividis', origin='lower', alpha=0.7)  # Overlay RMS
+            ax.set_xticks(range(n_ap))
+            ax.set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
+            ax.set_yticks(range(n_cids))
+            ax.set_yticklabels(self.cids_list[i])
 
-            # **Highlight the minimum RMS location**
-            ax.add_patch(plt.Rectangle((self.min_rms_idx[1] - 0.5, self.min_rms_idx[0] - 0.5), 1, 1, edgecolor='white', facecolor='none', linewidth=2))
+            for j in range(n_cids):
+                for k in range(n_ap):
+                    x = k
+                    y = j
+                    
+                    # **Draw upper triangle for ndata_diff**
+                    color1 = plt.cm.coolwarm((ndata_diff[j, k] - np.min(ndata_diff)) / (np.max(ndata_diff) - np.min(ndata_diff) + 1e-6))
+                    ax.add_patch(patches.Polygon([(x, y), (x+1, y), (x+1, y+1)], color=color1, edgecolor='gray'))
 
-            # **Format axes**
+                    # **Draw lower triangle for rms**
+                    color2 = plt.cm.cividis((rms[j, k] - np.min(rms)) / (np.max(rms) - np.min(rms) + 1e-6))
+                    ax.add_patch(patches.Polygon([(x, y), (x, y+1), (x+1, y+1)], color=color2, edgecolor='gray'))
+
+                    # **Highlight minimum RMS cell**
+                    if (j, k) == min_rms_idx:
+                        ax.add_patch(patches.Rectangle((x, y), 1, 1, edgecolor='white', facecolor='none', linewidth=2))
+
             ax.set_xlabel("Aperture Radius")
             ax.set_ylabel("cIDs")
             ax.set_title(f"CCD {i}")
 
-            # **Update x-ticks to show actual aperture radius values**
-            ax.set_xticks(range(n_ap))
-            ax.set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
-
-            # **Add colorbars for both datasets**
-            cbar1 = fig.colorbar(im1, ax=ax, fraction=0.046, pad=0.04)
+            # **Add colorbars for context**
+            cbar1 = fig.colorbar(plt.cm.ScalarMappable(cmap="coolwarm"), ax=ax, fraction=0.046, pad=0.04)
             cbar1.set_label("Number of cut data points")
-            cbar2 = fig.colorbar(im2, ax=ax, fraction=0.046, pad=0.04)
+            cbar2 = fig.colorbar(plt.cm.ScalarMappable(cmap="cividis"), ax=ax, fraction=0.046, pad=0.04)
             cbar2.set_label("RMS of flux differences")
 
         plt.tight_layout()
         plt.show()
 
-    
     '''
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2):
