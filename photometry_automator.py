@@ -558,7 +558,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2):
-        index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
+        self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
         fig, axes = plt.subplots(self.nccd, 2, figsize=(14, 4 * self.nccd))  # 2 columns per CCD
         print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...  (it may take a few minutes)")
 
@@ -569,7 +569,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
             ndata_diff = np.zeros((n_cids, n_ap))
             rms = np.zeros((n_cids, n_ap))
-            index[i] = [[] for _ in range(n_cids)]
+            self.index[i] = [[] for _ in range(n_cids)]
 
             for j in range(n_cids):
                 phot_j = self.phot[i][j]
@@ -588,10 +588,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 for k in range(n_ap):
                     if len(ye[k]) > 0:
                         p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
-                        index[i][j].append(np.isin(gjd_vals, tcut))
+                        self.index[i][j].append(np.isin(gjd_vals, tcut))
                         ndata_final = len(tcut)
                     else:
-                        index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
+                        self.index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
                         ndata_final = 0
 
                     ndata_diff[j, k] = ndata_final - ndata_init
@@ -635,6 +635,60 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         plt.tight_layout()
         plt.show()
 
+        self.cIDs_best     = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
+        self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
+        self.ap_best       = [self.ap[item[1]] for item in self.min_rms_idx_list]
+        self.ap_best_idx   = [item[1] for item in self.min_rms_idx_list]
+
+
+    def plot_lc(self):
+        binsize = 300/86400.
+        tbin=[]
+        ybin=[]
+        yebin=[]
+        band_names = ['g-band','r-band','i-band','z$_s$-band']
+        colors = ["blue","green","orange","red"]
+
+        offset=np.array((0,-0.1,-0.2,-0.3))
+
+        plt.figure(figsize=(10,12))
+        plt.rcParams['font.size']=18
+        for i in range(self.nccd):
+            
+            f_key = 'flux(r=' + '{0:.1f})'.format(self.ap_best[i])
+            e_key = 'flux(r=' + '{0:.1f})'.format(self.ap_best[i])
+
+            phot_per_ccd = self.phot[i][self.cIDs_best_idx[i]] 
+            best_idx = self.index[i][self.cIDs_best_idx[i]][self.ap_best_idx[i]]  # Store the best index mask
+
+            lc_time = phot_per_ccd['GJD-2450000'][best_idx]  
+            t0 = np.min(lc_time)
+
+            best_flux = phot_per_ccd[f_key][best_idx]
+            best_flux_err = phot_per_ccd[e_key][best_idx]
+
+            tbin_tmp, ybin_tmp, yebin_tmp = lc.binning_equal_interval(lc_time, best_flux, best_flux_err, binsize, t0)
+            
+            tbin.append(tbin_tmp)
+            ybin.append(ybin_tmp)
+            yebin.append(yebin_tmp)
+            
+            plt.plot(lc_time,best_flux+offset[i],'.k',alpha=0.3)
+        #    plt.ylim(0.985,1.015)
+            plt.plot(tbin[i], ybin[i]+offset[i],'o',color=colors[i], markersize=8)
+            tx=tbin[i][0]
+            ty=1.005+offset[i]
+            plt.text(tx,ty,band_names[i],color=colors[i])
+        #plt.xlabel('')
+        plt.title(self.target)
+        plt.xlabel('JD-2450000')
+        plt.ylabel('Relative flux')
+        outfile = '{0}_{1}.png'.format(self.target,self.obsdate)
+        plt.savefig(outfile,bbox_inches='tight',pad_inches=0.1)
+        plt.show()
+
+#cIDs_best = np.array((2,0,2,2)) 
+#ap_best = np.array((0,0,0,1))
 
     '''
     @time_keeper
