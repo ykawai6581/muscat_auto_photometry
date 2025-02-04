@@ -493,8 +493,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         for i in range(self.nccd):
             self.phot.append([])
-            for j in range(len(self.cids_list[i])):
-                infile = f'{phot_dir}/lcf_{self.instruments}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{self.cids[j]}_r{str(self.rad1)}-{str(self.rad2)}.csv'
+            for cid in self.cids_list[i]:
+                infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(self.rad1)}-{str(self.rad2)}.csv'
                 self.phot[i].append(Table.read(infile))
 
 '''
