@@ -85,14 +85,26 @@ print(f"Available obsdates {obsdates_from_filename()}")
 
 class MuSCAT_PHOTOMETRY:
     def __init__(self,instrument,obsdate):
+
+        instrument_id = {"muscat":1,"muscat2":2,"muscat3":3,"muscat4":4}
+        if instrument not in list(instrument_id.keys()):
+            print(f"Instrument has to be one of {list(instrument_id.keys())}")
+            return
+
         self.ra, self.dec = query_radec(target_from_filename())
 
         self.nccd = 3 if instrument == "muscat" else 4
         self.obslog = []
         self.obsdate = obsdate
         self.instrument = instrument
-        instrument_id = {"muscat":1,"muscat2":2,"muscat3":3,"muscat4":4}
         self.instid = instrument_id[instrument]
+        muscat_bands = {
+            "muscat" : ["g","r","z"],
+            "muscat2" :["g","r","i","z"],
+            "muscat3" :["r","i","g","z"],
+            "muscat4" :["g","r","i","z"],
+        }
+        self.bands = muscat_bands["instrument"]
         os.chdir('/home/muscat/reduction_afphot/'+instrument)
 
         for i in range(self.nccd):
@@ -442,103 +454,6 @@ class MuSCAT_PHOTOMETRY:
         for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
             
-    '''
-    def read_photometry(self, filepath, ccd, rad, frame, add_metadata=False):
-        filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
-        try:
-            metadata = {}
-            table_started = False
-            table_data = []
-            
-            with open(filepath, 'r') as file:
-                for line in file:
-                    if line.startswith('#'):
-                        if 'ID xcen ycen' in line:
-                            table_started = True
-                            continue
-                        if add_metadata and not table_started:
-                            line = line.strip('# \n')
-                            if '=' in line:
-                                key, value = line.split('=')
-                                metadata[key.strip()] = value.strip()
-                    else:
-                        table_data.append(line.strip())
-            
-            # Convert to DataFrame
-            df = pd.DataFrame([row.split() for row in table_data], 
-                            columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
-                                    'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
-            
-            # Convert numeric columns
-            numeric_cols = df.columns.difference(['filename', 'ccd'])
-            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric)
-            
-            # Add file information
-            df['filename'] = Path(filepath).name
-            df['ccd'] = Path(filepath).parent.name
-            
-            if add_metadata:
-                for key, value in metadata.items():
-                    df[key] = value
-            
-            # Return DataFrame with ID and peak value
-            return df[['ID', 'peak']]
-
-        except Exception as e:
-            print(f"Error reading {filepath}: {e}")
-            return None
-
-    def read_photometry_with_progress(self, files, ccd, rad, add_metadata=False):
-        with ProcessPoolExecutor() as executor:
-            total = len(files)
-            ccd_peak_data = []  # List to store DataFrames for each CCD
-            for i, df in enumerate(executor.map(partial(self.read_photometry, ccd=ccd, rad=rad, add_metadata=add_metadata), files)): 
-                if df is not None:
-                    ccd_peak_data.append(df)
-                print(f"Progress: {i+1}/{total} files processed", end='\r')
-        print("\nDone!")
-        return ccd_peak_data
-
-    def read_all_files_parallel(self, rad=None, add_metadata=False):
-        base_dir = f"{self.obsdate}/"
-        if rad is None:
-            rad = str(float(self.rad1))
-        # Iterate over each CCD folder and process files
-        ccd_peak_values = {}
-
-        # Get all file paths
-        start_time = time.time()
-        
-        for ccd_folder in Path(base_dir).glob(f"{self.target}_*"):
-            files = list((ccd_folder / f"apphot_{self.method}/rad{rad}").glob("*.dat"))
-            ccd = ccd_folder.name[-1]  # Extract CCD name from the folder]
-            ccd_peak_values[ccd] = self.read_photometry_with_progress(files, ccd, rad, add_metadata)
-
-        results = []
-        self.saturation_cids = []
-        for ccd, peak_data in ccd_peak_values.items():
-            # Pivot DataFrame to have star IDs as columns and peak values as rows
-            df_ccd = pd.concat(peak_data, axis=0).pivot(index=None, columns='ID', values='peak')
-            saturation_cids_per_ccd = []
-            # Identify IDs where peak count is over 60,000 in more than 5% of rows
-            for star_id in df_ccd.columns:
-                # Count the number of rows where peak > 60000 for this star ID
-                count_above_threshold = (df_ccd[star_id] > 60000).sum()
-                percentage_above_threshold = count_above_threshold / len(df_ccd) * 100
-                
-                # If more than 5% of the rows have a peak > 60000, add this star ID to the list
-                if percentage_above_threshold > 5:
-                    saturation_cids_per_ccd.append(star_id)
-            self.saturation_cids.append(saturation_cids_per_ccd)
-            results[ccd] = df_ccd
-
-        end_time = time.time()
-        for i in range(self.nccds):
-            print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
-        print(f"\nProcessing completed in {end_time - start_time:.2f} seconds")
-        
-        return results
-    '''
     def select_comparison(self, tid, cids = None):
         if cids == None:
             cids = get_combinations(1,5,tid)
@@ -551,6 +466,39 @@ class MuSCAT_PHOTOMETRY:
             print(f'>> Creating photometry file for cIDs=[{cid}] .. (it may take minutes)')
             cmd = f"perl scripts/auto_mklc.pl -date {self.obsdate} -obj {self.target} -ap_type {self.method} -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {self.tid} -cids {cid}"
             subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+    def select_comparison(self, tid):
+        self.check_saturation(self.rad1)
+        self.cids_list = []
+        for saturation_cid in self.saturation_cids:
+            brightest_star = max(saturation_cid) + 1
+            cids = get_combinations(brightest_star, brightest_star + 5, tid)
+            self.cids_list.append(cids)
+
+    def create_photometry(self, tid):
+        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
+        def run_command(i, cids):
+            for cid in cids:
+                cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
+                subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+        with ProcessPoolExecutor() as executor:
+            futures = [executor.submit(run_command, i, self.cids_list[i]) for i in range(self.nccd)]
+            for future in futures:
+                future.result()  # Ensures all tasks complete
+
+    def create_photometry_test(self, tid):
+        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
+        def run_command(i, cids):
+            for cid in cids:
+                cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
+                print(cmd)
+                #subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+        with ProcessPoolExecutor() as executor:
+            futures = [executor.submit(run_command, i, self.cids_list[i]) for i in range(self.nccd)]
+            for future in futures:
+                future.result()  # Ensures all tasks complete
 
 '''
 class MuSCAT_PHOTOMETRY_OPTIMIZATION:
