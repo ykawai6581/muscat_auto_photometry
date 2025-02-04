@@ -555,24 +555,20 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     condition &= self.phot[i][j][key] < (upper[i] if isinstance(upper, list) else upper)
                 
                 self.mask[i].append(condition)  # Directly store condition, keeping shape (4, 15)
-                
+
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2):
-        index = [[] for _ in range(self.nccd)]
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-        axes = axes.flatten()
+        index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
+        fig, axes = plt.subplots(self.nccd, 2, figsize=(14, 4 * self.nccd))  # 2 columns per CCD
         print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...  (it may take a few minutes)")
-
-        all_ndata_diff = []
-        all_rms = []
 
         for i in range(self.nccd):
             print(f"Computing outliers for CCD{i}")
             n_cids = len(self.cids_list[i])
             n_ap = len(self.ap)
-            
-            ndata_diff = np.zeros((n_cids, n_ap))  
-            rms = np.zeros((n_cids, n_ap))  
+
+            ndata_diff = np.zeros((n_cids, n_ap))
+            rms = np.zeros((n_cids, n_ap))
             index[i] = [[] for _ in range(n_cids)]
 
             for j in range(n_cids):
@@ -597,73 +593,39 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     else:
                         index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
                         ndata_final = 0
-                    
-                    ndata_diff[j, k] = ndata_final - ndata_init  
+
+                    ndata_diff[j, k] = ndata_final - ndata_init
 
                     if len(ycut) > 1:
-                        diff = np.diff(ycut)  
+                        diff = np.diff(ycut)
                         rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
                     else:
-                        rms[j, k] = np.inf  
+                        rms[j, k] = np.inf
 
             min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)
             self.min_rms_idx_list.append(min_rms_idx)
 
-            all_ndata_diff.append(ndata_diff)
-            all_rms.append(rms)
+            # Normalize color scales for consistency across CCDs
+            norm_diff = mcolors.Normalize(vmin=np.min(ndata_diff), vmax=np.max(ndata_diff))
+            norm_rms = mcolors.Normalize(vmin=np.min(rms[rms != np.inf]), vmax=np.max(rms[rms != np.inf]))
 
-            ax = axes[i]
-            ax.set_xticks(range(n_ap))
-            ax.set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
-            ax.set_yticks(range(n_cids))
-            ax.set_yticklabels(self.cids_list[i])
+            # **Left Plot: Number of cut data points**
+            im1 = axes[i, 0].imshow(ndata_diff, cmap="coolwarm", aspect="auto", norm=norm_diff)
+            axes[i, 0].set_title(f"CCD {i} - Cut Data Points")
+            axes[i, 0].set_xticks(range(n_ap))
+            axes[i, 0].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
+            axes[i, 0].set_yticks(range(n_cids))
+            axes[i, 0].set_yticklabels(self.cids_list[i])
+            fig.colorbar(im1, ax=axes[i, 0], label="Number of Cut Data Points")
 
-            for j in range(n_cids):
-                for k in range(n_ap):
-                    x = k
-                    y = j
-                    
-                    color1 = plt.cm.coolwarm(ndata_diff[j, k] / np.max(ndata_diff))
-                    color2 = plt.cm.cividis(rms[j, k] / np.max(rms[rms != np.inf]))
-
-                    ax.add_patch(patches.Polygon([(x, y), (x+1, y), (x+1, y+1)], color=color1))
-                    ax.add_patch(patches.Polygon([(x, y), (x, y+1), (x+1, y+1)], color=color2))
-
-                    if (j, k) == min_rms_idx:
-                        ax.add_patch(patches.Rectangle((x, y), 1, 1, edgecolor='white', facecolor='none', linewidth=5))
-
-            ax.set_xlabel("Aperture Radius")
-            ax.set_ylabel("cIDs")
-            ax.set_title(f"CCD {i}")
-
-        # **Create a shared colorbar with dual labels**
-        fig.subplots_adjust(right=0.8)
-
-        # Normalize the entire dataset for consistent color scaling
-        vmin_ndata = np.min(all_ndata_diff)
-        vmax_ndata = np.max(all_ndata_diff)
-        vmin_rms = np.min([r[r != np.inf] for r in all_rms])
-        vmax_rms = np.max([r[r != np.inf] for r in all_rms])
-
-        cmap_ndata = plt.cm.coolwarm
-        cmap_rms = plt.cm.cividis
-
-        norm_ndata = mcolors.Normalize(vmin=vmin_ndata, vmax=vmax_ndata)
-        norm_rms = mcolors.Normalize(vmin=vmin_rms, vmax=vmax_rms)
-
-        sm_ndata = plt.cm.ScalarMappable(norm=norm_ndata, cmap=cmap_ndata)
-        sm_rms = plt.cm.ScalarMappable(norm=norm_rms, cmap=cmap_rms)
-
-        cbar_ax = fig.add_axes([0.82, 0.2, 0.02, 0.6])  # Colorbar on the right
-        cbar = fig.colorbar(sm_ndata, cax=cbar_ax)
-        cbar.set_label("Number of Cut Data Points", fontsize=12)
-
-        # **Twin axis for the second color scale**
-        cbar_ax2 = cbar_ax.twinx()
-        cbar_ax2.set_ylim(vmin_rms, vmax_rms)
-        cbar_ax2.set_yticks(np.linspace(vmin_rms, vmax_rms, num=5))
-        cbar_ax2.set_yticklabels([f"{tick:.2f}" for tick in np.linspace(vmin_rms, vmax_rms, num=5)])
-        cbar_ax2.set_ylabel("RMS of Flux Differences", fontsize=12)
+            # **Right Plot: RMS of flux differences**
+            im2 = axes[i, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
+            axes[i, 1].set_title(f"CCD {i} - RMS of Flux Differences")
+            axes[i, 1].set_xticks(range(n_ap))
+            axes[i, 1].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
+            axes[i, 1].set_yticks(range(n_cids))
+            axes[i, 1].set_yticklabels(self.cids_list[i])
+            fig.colorbar(im2, ax=axes[i, 1], label="RMS of Flux Differences")
 
         plt.tight_layout()
         plt.show()
