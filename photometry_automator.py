@@ -484,7 +484,7 @@ class MuSCAT_PHOTOMETRY:
 
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 #print(os.getcwd())
-                print(f"Created {outfile}")
+                #print(f"Created {outfile}")
                 outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
                 #print(outfile_path)
 
@@ -504,10 +504,11 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def __init__(self, muscat_photometry):
         # Copy all attributes from the existing instance
         self.__dict__.update(muscat_photometry.__dict__)
-        self.r = np.arange(self.rad1, self.rad2+self.drad, self.drad)
+        self.ap = np.arange(self.rad1, self.rad2+self.drad, self.drad)
         self.cids_list = [[cid.replace(" ", "") for cid in cids] for cids in self.cids_list]
-        print('available aperture radii: ', self.r)
+        print('available aperture radii: ', self.ap)
         self.bands = ["g","r","i","z"]
+        self.mask = [None,None,None,None]
 
         self.phot=[]
         phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
@@ -518,7 +519,131 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv'
                 self.phot[i].append(Table.read(infile))
 
-'''
+    def add_mask_per_ccd(self, key, ccd, lower=None, upper=None):
+        """Applies a mask to all elements in the dataset for a given CCD."""
+        mask_ccd = []  # Initialize an empty list for masks
+
+        for j in range(len(self.phot[ccd])):  # Loop over j (e.g., different sources)
+            condition = np.ones_like(self.phot[ccd][j][key], dtype=bool)  # Start with all True
+            
+            if lower is not None:
+                condition &= (self.phot[ccd][j][key] > lower[ccd])  # Apply lower bound
+                
+            if upper is not None:
+                condition &= (self.phot[ccd][j][key] < upper[ccd])  # Apply upper bound
+            
+            mask_ccd.append(condition)  # Store mask for this j
+        self.mask[ccd].append(mask_ccd)
+
+
+    def add_mask(self, key, lower=None, upper=None):
+        """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
+        
+        for i in range(len(self.phot)):  # Loop over CCDs (if applicable)
+            mask_ccd = []  # Store masks per CCD
+            
+            for j in range(len(self.phot[i])):  # Loop over sources, stars, or apertures
+                condition = np.ones_like(self.phot[i][j][key], dtype=bool)  # Start with all True
+
+                if lower is not None:
+                    condition &= (self.phot[i][j][key] > lower[j] if isinstance(lower, list) else self.phot[i][j][key] > lower)
+                    
+                if upper is not None:
+                    condition &= (self.phot[i][j][key] < upper[j] if isinstance(upper, list) else self.phot[i][j][key] < upper)
+                
+                mask_ccd.append(condition)  # Store per source
+            self.mask[i].append(mask_ccd)  # Store per CCD
+
+    def outlier_cut(self, sigma_cut=3, order=2):
+        index = []
+        fig, axes = plt.subplots(2, 2, figsize=(12, 10))  # 2x2 subplots for 4 CCDs
+        axes = axes.flatten()  # Flatten to 1D array for easy access
+        
+        for i in range(self.nccd):
+            index.append([]) 
+            
+            ndata_diff = np.zeros((len(self.cids_list[i]), len(self.ap)))  # Grid for (j, k)
+
+            for j in range(len(self.cids_list[i])):
+                index[i].append([])
+                
+                for k in range(len(self.ap)):
+                    fcomp_key = f'flux_comp(r={self.ap[k]:.1f})'
+                    raw_norm = (self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime']) / np.median(self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime'])
+                    
+                    mask = self.mask[i][j]
+                    ndata_init = len(self.phot[i][j][fcomp_key])  # Initial data length
+                    
+                    if np.any(mask):
+                        ye = np.sqrt(self.phot[i][j][fcomp_key][mask]) / self.phot[i][j]['exptime'][mask] / np.median(self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime'])
+                        
+                        if len(ye) > 0:
+                            p, tcut, ycut, yecut = lc.outcut_polyfit(
+                                self.phot[i][j]['GJD-2450000'][mask], raw_norm[mask], ye, order, sigma_cut
+                            )
+                            index[i][j].append(np.isin(self.phot[i][j]['GJD-2450000'], tcut))
+                            ndata_final = len(tcut)
+                        else:
+                            index[i][j].append(np.isin(self.phot[i][j]['GJD-2450000'], np.empty(0)))
+                            ndata_final = 0
+                    else:
+                        ndata_final = 0
+                    
+                    ndata_diff[j, k] = ndata_final - ndata_init  # Store difference in grid
+
+            # **Plot heatmap for this CCD**
+            ax = axes[i]  # Select subplot
+            im = ax.imshow(ndata_diff, aspect='auto', cmap='coolwarm', origin='lower')
+            ax.set_xlabel("cIDs")
+            ax.set_ylabel("Aperture Radius")
+            ax.set_title(f"CCD {i}")
+            
+            # Add colorbar to each subplot
+            cbar = fig.colorbar(im, ax=ax)
+            cbar.set_label("Number of cut data points")
+
+        plt.tight_layout()
+        plt.show()
+
+
+    '''
+    def outlier_cut(self,sigma_cut=3,order=2):
+        index = []
+        #print('band, cIDs, apID, ndata_init, ndata_final') #ccd, rad, cidの3次元ある
+        for i in range(self.nccd):
+            index.append([]) 
+            for j in range(len(self.cids_list[i])):
+                index[i].append([])
+                for k in range(len(self.ap)):
+                    
+                    fcomp_key = f'flux_comp(r={self.ap[k]:.1f})'
+                    f_key = f'flux(r={self.ap[k]:.1f})'
+                    e_key = f'flux(r={self.ap[k]:.1f})'
+                    
+                    raw_norm = (self.phot[i][j][fcomp_key]/self.phot[i][j]['exptime']) / np.median(self.phot[i][j][fcomp_key]/self.phot[i][j]['exptime'])
+                    
+                    mask = self.mask[i][j]
+                        
+                    fcomp_median = np.median(self.phot[i][j][fcomp_key]/self.phot[i][j]['exptime'])
+                    ye = np.sqrt(self.phot[i][j][fcomp_key][mask])/self.phot[i][j]['exptime'][mask]/fcomp_median #shot noiseを載せるためにexptimeで割っている
+                    
+                    ndata_final = len(ye)
+                                
+                    if(len(ye)>0):
+                        p, tcut, ycut, yecut\
+                            = lc.outcut_polyfit(self.phot[i][j]['GJD-2450000'][mask], raw_norm[mask], ye, order, sigma_cut) #chi square を最小化している
+                        index[i][j].append(np.isin(self.phot[i][j]['GJD-2450000'], tcut))
+                        ndata_final = len(tcut)
+                    
+                    else:
+                        index[i][j].append(np.isin(self.phot[i][j]['GJD-2450000'], np.empty(0)))
+                    
+
+                    #print(i, j, k, len(self.phot[i][j]), ndata_final)
+
+
+
+
     def preview_photometry():
 
     
@@ -570,64 +695,5 @@ for i in range(nband):
     
     
 plt.show()
-
-    def run_apphot(self, nstars, rad1, rad2, drad, method="mapping"):
-        self.rad1 = float(rad1)
-        self.rad2 = float(rad2)
-        self.drad = float(drad)
-        self.method = method
-        self.nstars = int(nstars)
-        rads = np.arange(rad1, rad2+1, drad)
-
-        print(f"Performing photometry for radius: {rads}")
-        available_rad = [[p.name[3:] for p in Path(f"{self.obsdate}/{self.target}_{i}/apphot_{method}").glob("*/")] for i in range(self.nccd)][0]#assuming same radius for all bands
-
-        missing = False
-        for i in range(self.nccd):
-            for j in range(len(rads)):
-                rad = float(rads[j])
-                appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
-                first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
-                last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
-                missing_files = [
-                    f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                    for frame in range(first_frame, last_frame)
-                    if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
-                ]
-                print(f'ccd:{i},rad:{rad}')
-                print(missing_files)
-                if missing_files:
-                    missing = True
-                else:
-                    pass
-        if missing:
-            print(f"Photometry for this set of radius is incomplete")
-        else:
-            print(f"Photometry is already available for radius: {available_rad}")
-            sys.exit()
-
-        if method=='mapping':
-            script = 'scripts/auto_apphot_mapping.pl'  
-        elif method=='centroid':
-            script = 'scripts/auto_apphot_centroid.pl'
-
-        for i in range(self.nccd):
-            appphot_directory = f'{self.obsdate}/{self.target}_{i}/apphot_{method}'
-            first_frame = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#1"])
-            last_frame  = int(self.obslog[i][self.obslog[i]["OBJECT"] == self.target]["FRAME#2"])
-            for j in range(len(rads)):
-                rad = float(rads[j])
-                missing_files = [
-                    f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                    for frame in range(first_frame, last_frame)
-                    if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
-                ]
-                if missing_files:
-                    cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {drad} > /dev/null"
-                    subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                    print(f'Completed aperture photometry for CCD={i}, rad={rad}')
-                else:
-                    print(f"Photometry is already available for CCD={i}", rad={rad})
-
     
 '''
