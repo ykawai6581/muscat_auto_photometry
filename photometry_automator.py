@@ -492,17 +492,11 @@ class MuSCAT_PHOTOMETRY:
 
     def create_photometry_test(self, tid):
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
-        @staticmethod
-        def run_command(i, cids):
-            for cid in cids:
+        for ccd in range(self.nccd):
+            for cid in self.cids_list[ccd]:
                 cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
                 print(cmd)
                 #subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-        with ProcessPoolExecutor() as executor:
-            futures = [executor.submit(run_command, i, self.cids_list[i]) for i in range(self.nccd)]
-            for future in futures:
-                future.result()  # Ensures all tasks complete
 
 '''
 class MuSCAT_PHOTOMETRY_OPTIMIZATION:
