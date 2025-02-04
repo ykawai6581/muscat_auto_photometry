@@ -25,6 +25,7 @@ import barycorr
 from multiprocessing import Process, Pool, Array, Manager
 import math
 import matplotlib.patches as patches
+import matplotlib.colors as mcolors
 
 
 import itertools
@@ -560,35 +561,32 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
         fig, axes = plt.subplots(2, 2, figsize=(12, 10))  # 2x2 subplots for 4 CCDs
         axes = axes.flatten()  # Flatten to 1D array for easy access
-        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers...")
+        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...  (it may take a few minutes)")
 
         for i in range(self.nccd):
-            print(f"Computing outliers for CCD{i} (it may take a few minutes)")
+            print(f"Computing outliers for CCD{i}")
             n_cids = len(self.cids_list[i])
             n_ap = len(self.ap)
             
-            ndata_diff = np.zeros((n_cids, n_ap))  # Initialize grid for (cIDs, apertures)
-            rms = np.zeros((n_cids, n_ap))  # Initialize grid for (cIDs, apertures)
-            index[i] = [[] for _ in range(n_cids)]  # Pre-allocate storage for index[i]
+            ndata_diff = np.zeros((n_cids, n_ap))  
+            rms = np.zeros((n_cids, n_ap))  
+            index[i] = [[] for _ in range(n_cids)]  
 
             for j in range(n_cids):
-                phot_j = self.phot[i][j]  # Shortcut to reduce indexing operations
+                phot_j = self.phot[i][j]  
                 exptime = phot_j['exptime']
                 gjd_vals = phot_j['GJD-2450000']
-
-                # Use existing mask if available, otherwise process all data
                 mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
 
                 fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
-                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])  # Shape (n_ap, n_data)
+                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])  
 
-                # Normalize raw flux
                 raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
-                ndata_init = fcomp_data.shape[1]  # Number of time points
+                ndata_init = fcomp_data.shape[1]  
 
                 ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
                 
-                for k in range(n_ap):  # Only loop over apertures, reducing total iterations
+                for k in range(n_ap):  
                     if len(ye[k]) > 0:
                         p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
                         index[i][j].append(np.isin(gjd_vals, tcut))
@@ -597,22 +595,22 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                         index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
                         ndata_final = 0
                     
-                    ndata_diff[j, k] = ndata_final - ndata_init  # Store difference in grid
-                    
-                    # Compute RMS for flux differences
+                    ndata_diff[j, k] = ndata_final - ndata_init  
+
                     if len(ycut) > 1:
-                        diff = np.diff(ycut)  # Use np.diff instead of manual slicing
+                        diff = np.diff(ycut)  
                         rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
                     else:
-                        rms[j, k] = np.inf  # Handle edge case where not enough data points exist
+                        rms[j, k] = np.inf  
 
-            # **Find minimum RMS value for highlighting**
-            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)  # Get (j, k) of min RMS
+            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)  
             self.min_rms_idx_list.append(min_rms_idx)
 
-            print("Plotting results")
-            # **Plot diagonally split heatmap**
-            ax = axes[i]  # Select subplot
+            # **Set color normalization for accurate color bars**
+            norm_diff = mcolors.Normalize(vmin=np.min(ndata_diff), vmax=np.max(ndata_diff))
+            norm_rms = mcolors.Normalize(vmin=np.min(rms[rms != np.inf]), vmax=np.max(rms[rms != np.inf]))  
+
+            ax = axes[i]  
             ax.set_xticks(range(n_ap))
             ax.set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
             ax.set_yticks(range(n_cids))
@@ -623,15 +621,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     x = k
                     y = j
                     
-                    # **Draw upper triangle for ndata_diff**
-                    color1 = plt.cm.coolwarm((ndata_diff[j, k] - np.min(ndata_diff)) / (np.max(ndata_diff) - np.min(ndata_diff) + 1e-6))
-                    ax.add_patch(patches.Polygon([(x, y), (x+1, y), (x+1, y+1)], color=color1, edgecolor='gray'))
+                    color1 = plt.cm.coolwarm(norm_diff(ndata_diff[j, k]))  
+                    color2 = plt.cm.cividis(norm_rms(rms[j, k]))  
 
-                    # **Draw lower triangle for rms**
-                    color2 = plt.cm.cividis((rms[j, k] - np.min(rms)) / (np.max(rms) - np.min(rms) + 1e-6))
+                    ax.add_patch(patches.Polygon([(x, y), (x+1, y), (x+1, y+1)], color=color1, edgecolor='gray'))
                     ax.add_patch(patches.Polygon([(x, y), (x, y+1), (x+1, y+1)], color=color2, edgecolor='gray'))
 
-                    # **Highlight minimum RMS cell**
                     if (j, k) == min_rms_idx:
                         ax.add_patch(patches.Rectangle((x, y), 1, 1, edgecolor='white', facecolor='none', linewidth=2))
 
@@ -639,14 +634,14 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax.set_ylabel("cIDs")
             ax.set_title(f"CCD {i}")
 
-            # **Add colorbars for context**
-            cbar1 = fig.colorbar(plt.cm.ScalarMappable(cmap="coolwarm"), ax=ax, fraction=0.046, pad=0.04)
+            cbar1 = fig.colorbar(plt.cm.ScalarMappable(norm=norm_diff, cmap="coolwarm"), ax=ax, fraction=0.046, pad=0.04)
             cbar1.set_label("Number of cut data points")
-            cbar2 = fig.colorbar(plt.cm.ScalarMappable(cmap="cividis"), ax=ax, fraction=0.046, pad=0.04)
+            cbar2 = fig.colorbar(plt.cm.ScalarMappable(norm=norm_rms, cmap="cividis"), ax=ax, fraction=0.046, pad=0.04)
             cbar2.set_label("RMS of flux differences")
 
         plt.tight_layout()
         plt.show()
+
 
     '''
     @time_keeper
