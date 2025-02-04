@@ -620,13 +620,18 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
             # **Right Plot: RMS of flux differences**
             im2 = axes[i, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
-            axes[i, 1].set_title(f"CCD {i} - RMS of Flux Differences")
+            axes[i, 1].set_title(f"CCD {i} - RMS")
             axes[i, 1].set_xticks(range(n_ap))
             axes[i, 1].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
             axes[i, 1].set_yticks(range(n_cids))
             axes[i, 1].set_yticklabels(self.cids_list[i])
-            fig.colorbar(im2, ax=axes[i, 1], label="RMS of Flux Differences")
+            fig.colorbar(im2, ax=axes[i, 1], label="RMS")
 
+            # **Highlight the min RMS cell with a white square**
+            j_min, k_min = min_rms_idx
+            rect = patches.Rectangle((k_min - 0.5, j_min - 0.5), 1, 1, linewidth=3, edgecolor='white', facecolor='none')
+            axes[i, 1].add_patch(rect)
+        print("Plotting results")
         plt.tight_layout()
         plt.show()
 
