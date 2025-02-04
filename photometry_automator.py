@@ -198,7 +198,8 @@ class MuSCAT_PHOTOMETRY:
         refid+=refid_delta
         #======
 
-        ref_file = next(Path(f'{self.obsdate}/{self.target}_0/').glob("*.lst"), None)
+        ref_file = next(Path(f'{self.obsdate}/{self.target}_0').glob("*.lst"), None)
+        print(ref_file)
         if ref_file:
             ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/{ref_file.name}") for i in range(self.nccd)])
             if not ref_exists:
