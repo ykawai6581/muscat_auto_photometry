@@ -104,7 +104,7 @@ class MuSCAT_PHOTOMETRY:
             "muscat3" :["r","i","g","z"],
             "muscat4" :["g","r","i","z"],
         }
-        self.bands = muscat_bands["instrument"]
+        self.bands = muscat_bands[instrument]
         os.chdir('/home/muscat/reduction_afphot/'+instrument)
 
         for i in range(self.nccd):
