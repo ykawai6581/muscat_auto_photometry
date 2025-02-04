@@ -484,7 +484,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         # Copy all attributes from the existing instance
         self.__dict__.update(muscat_photometry.__dict__)
         self.r = np.arange(self.rad1, self.rad2+self.drad, self.drad)
-        self.cids_list = [[cid.replce(" ", "") for cid in cids] for cids in self.cids_list]
+        self.cids_list = [[cid.replace(" ", "") for cid in cids] for cids in self.cids_list]
         print('available aperture radii: ', self.r)
         self.bands = ["g","r","i","z"]
 
