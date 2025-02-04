@@ -467,14 +467,15 @@ class MuSCAT_PHOTOMETRY:
             self.cids_list.append(cids)
 
     @time_keeper
-    def create_photometry_test(self, tid):
+    def create_photometry(self, tid):
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
-        print(f"{self.target} | TID = {tid}")
+        print(">> Creating photometry file for")
+        print(f"### {self.target} | TID = {tid}| r1={self.rad1} r2={self.rad2} dr={self.drad} (it may take minutes)")
         for i in range(self.nccd):
-            print(f'>> Creating photometry file for CCD{i}] .. (it may take minutes)')
+            print(f'>> CCD{i}')
             for cid in self.cids_list[i]:
                 cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                print(f"## >> Created photometry for cIDs:{cid}, r1:{self.rad1} r2:{self.rad2} dr:{self.drad}")
+                print(f"## >> Created photometry for cIDs:{cid}")
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
 '''
