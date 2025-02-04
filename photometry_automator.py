@@ -492,6 +492,7 @@ class MuSCAT_PHOTOMETRY:
 
     def create_photometry_test(self, tid):
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
+        @staticmethod
         def run_command(i, cids):
             for cid in cids:
                 cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
