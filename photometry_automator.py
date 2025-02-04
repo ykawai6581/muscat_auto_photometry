@@ -486,7 +486,7 @@ class MuSCAT_PHOTOMETRY:
                 #print(os.getcwd())
                 #print(outfile)
 
-                if os.path.isfile(outfile):
+                if os.path.isfile(os.path.join(os.getcwd(), outfile)):
                     #outfile2 = f"{instdir}/{date}/{obj}/lcf_{inst}_{bands[i]}_{obj}_{date}_t{tid}_c{suffix}_r{rad1}-{rad2}.csv"
                     subprocess.run(f"mv {obj_dir}_{i}/apphot_{self.method}/{outfile} {obj_dir}/apphot_{self.method}/{outfile}", shell=True)
                     print("\n")
