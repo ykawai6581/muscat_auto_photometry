@@ -569,7 +569,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     fcomp_key = f'flux_comp(r={self.ap[k]:.1f})'
                     raw_norm = (self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime']) / np.median(self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime'])
                     
-                    mask = self.mask[i][0][j]
+                    mask = self.mask[i][j]
                     ndata_init = len(self.phot[i][j][fcomp_key])  # Initial data length
                     
                     if np.any(mask):
@@ -588,6 +588,64 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                         ndata_final = 0
                     
                     ndata_diff[j, k] = ndata_final - ndata_init  # Store difference in grid
+
+            # **Plot heatmap for this CCD**
+            ax = axes[i]  # Select subplot
+            im = ax.imshow(ndata_diff, aspect='auto', cmap='coolwarm', origin='lower')
+            ax.set_xlabel("cIDs")
+            ax.set_ylabel("Aperture Radius")
+            ax.set_title(f"CCD {i}")
+            
+            # Add colorbar to each subplot
+            cbar = fig.colorbar(im, ax=ax)
+            cbar.set_label("Number of cut data points")
+
+        plt.tight_layout()
+        plt.show()
+
+
+    def outlier_cut(self, sigma_cut=3, order=2):
+        index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
+        fig, axes = plt.subplots(2, 2, figsize=(12, 10))  # 2x2 subplots for 4 CCDs
+        axes = axes.flatten()  # Flatten to 1D array for easy access
+
+        for i in range(self.nccd):
+            n_cids = len(self.cids_list[i])
+            n_ap = len(self.ap)
+            
+            ndata_diff = np.zeros((n_cids, n_ap))  # Initialize grid for (j, k)
+            index[i] = [[] for _ in range(n_cids)]  # Pre-allocate storage for index[i]
+
+            for j in range(n_cids):
+                mask = self.mask[i][j]  # Extract precomputed mask
+                phot_j = self.phot[i][j]  # Shortcut to reduce indexing operations
+                
+                # Precompute common values
+                exptime = phot_j['exptime']
+                gjd_vals = phot_j['GJD-2450000']
+
+                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
+                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])  # Shape (n_ap, n_data)
+
+                # Normalize raw flux
+                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+                ndata_init = fcomp_data.shape[1]  # Number of time points
+
+                if np.any(mask):
+                    ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+                    
+                    for k in range(n_ap):  # Only loop over apertures, reducing total iterations
+                        if len(ye[k]) > 0:
+                            p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
+                            index[i][j].append(np.isin(gjd_vals, tcut))
+                            ndata_final = len(tcut)
+                        else:
+                            index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
+                            ndata_final = 0
+                        
+                        ndata_diff[j, k] = ndata_final - ndata_init  # Store difference in grid
+                else:
+                    index[i][j] = [np.zeros_like(gjd_vals, dtype=bool)] * n_ap  # If no mask, store empty arrays
 
             # **Plot heatmap for this CCD**
             ax = axes[i]  # Select subplot
