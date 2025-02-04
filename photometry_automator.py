@@ -481,6 +481,8 @@ class MuSCAT_PHOTOMETRY:
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv"
+                print(os.curdir)
+                print(outfile)
 
                 if os.path.isfile(outfile):
                     #outfile2 = f"{instdir}/{date}/{obj}/lcf_{inst}_{bands[i]}_{obj}_{date}_t{tid}_c{suffix}_r{rad1}-{rad2}.csv"
