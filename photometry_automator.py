@@ -469,7 +469,7 @@ class MuSCAT_PHOTOMETRY:
 
     @time_keeper
     def create_photometry(self):
-        script_path = "/ut3/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
+        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
         print(">> Creating photometry file for")
         print(f"| Target = {self.target} | TID = {self.tid} | r1={self.rad1} r2={self.rad2} dr={self.drad} | (it may take minutes)")
         for i in range(self.nccd):
@@ -495,7 +495,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         for i in range(self.nccd):
             self.phot.append([])
             for cid in self.cids_list[i]:
-                infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(self.rad1)}-{str(self.rad2)}.csv'
+                infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv'
                 self.phot[i].append(Table.read(infile))
 
 '''
