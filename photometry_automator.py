@@ -491,7 +491,6 @@ class MuSCAT_PHOTOMETRY:
                 if os.path.isfile(outfile_path):
                     #outfile2 = f"{instdir}/{date}/{obj}/lcf_{inst}_{bands[i]}_{obj}_{date}_t{tid}_c{suffix}_r{rad1}-{rad2}.csv"
                     subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)
-                    print("\n")
                     print(f"## >> Created photometry for cIDs:{cid}")
                 else:
                     print(f"## >> Failed to create photometry for cIDs:{cid}")
@@ -508,7 +507,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.cids_list = [[cid.replace(" ", "") for cid in cids] for cids in self.cids_list]
         print('available aperture radii: ', self.ap)
         self.bands = ["g","r","i","z"]
-        self.mask = [None,None,None,None]
+        self.mask = [[],[],[],[]]
 
         self.phot=[]
         phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
