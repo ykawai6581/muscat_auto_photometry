@@ -538,20 +538,19 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def add_mask(self, key, lower=None, upper=None):
         """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
         
-        for i in range(len(self.phot)):  # Loop over CCDs (if applicable)
-            mask_ccd = []  # Store masks per CCD
+        for i in range(len(self.phot)):  # Loop over CCDs
+            self.mask[i] = []  # Ensure mask[i] is a clean list
             
             for j in range(len(self.phot[i])):  # Loop over sources, stars, or apertures
                 condition = np.ones_like(self.phot[i][j][key], dtype=bool)  # Start with all True
 
                 if lower is not None:
-                    condition &= (self.phot[i][j][key] > lower[i] if isinstance(lower, list) else self.phot[i][j][key] > lower)
+                    condition &= self.phot[i][j][key] > (lower[i] if isinstance(lower, list) else lower)
                     
                 if upper is not None:
-                    condition &= (self.phot[i][j][key] < upper[i] if isinstance(upper, list) else self.phot[i][j][key] < upper)
+                    condition &= self.phot[i][j][key] < (upper[i] if isinstance(upper, list) else upper)
                 
-                mask_ccd.append(condition)  # Store per source
-            self.mask[i].append(mask_ccd)  # Store per CCD
+                self.mask[i].append(condition)  # Directly store condition, keeping shape (4, 15)
 
     def outlier_cut(self, sigma_cut=3, order=2):
         index = []
@@ -570,7 +569,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     fcomp_key = f'flux_comp(r={self.ap[k]:.1f})'
                     raw_norm = (self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime']) / np.median(self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime'])
                     
-                    mask = self.mask[i][j]
+                    mask = self.mask[i][0][j]
                     ndata_init = len(self.phot[i][j][fcomp_key])  # Initial data length
                     
                     if np.any(mask):
