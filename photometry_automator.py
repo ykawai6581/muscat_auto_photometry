@@ -475,10 +475,21 @@ class MuSCAT_PHOTOMETRY:
         for i in range(self.nccd):
             print(f'>> CCD{i}')
             for cid in self.cids_list[i]:
-                os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"))
+                obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
+                os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}"))
                 cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                print(f"## >> Created photometry for cIDs:{cid}")
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+                outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(" ","")}_r{int(self.rad1)}-{int(self.rad2)}.csv"
+
+                if os.path.isfile(outfile):
+                    #outfile2 = f"{instdir}/{date}/{obj}/lcf_{inst}_{bands[i]}_{obj}_{date}_t{tid}_c{suffix}_r{rad1}-{rad2}.csv"
+                    subprocess.run(f"mv {obj_dir}_{i}/apphot_{self.method}/{outfile} {obj_dir}/apphot_{self.method}/{outfile}", shell=True)
+                    print("\n")
+                    print(f"## >> Created photometry for cIDs:{cid}")
+                else:
+                    print(f"## >> Failed to create photometry for cIDs:{cid}")
+
         os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}"))
 
 
