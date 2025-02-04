@@ -471,8 +471,11 @@ class MuSCAT_PHOTOMETRY:
         self.check_saturation(self.rad1)
         self.cids_list = []
         for saturation_cid in self.saturation_cids:
-            brightest_star = max(saturation_cid) + 1
-            cids = get_combinations(brightest_star, brightest_star + 5, tid)
+            if saturation_cid:
+                brightest_star = max(saturation_cid) + 1
+            else:
+                brightest_star = 1
+            cids = get_combinations(brightest_star, brightest_star + 4, tid)
             self.cids_list.append(cids)
 
     def create_photometry(self, tid):
