@@ -475,7 +475,7 @@ class MuSCAT_PHOTOMETRY:
         for i in range(self.nccd):
             print(f'>> CCD{i}')
             for cid in self.cids_list[i]:
-                os.chdir(Path(f"home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"))
+                os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"))
                 cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
                 print(f"## >> Created photometry for cIDs:{cid}")
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
