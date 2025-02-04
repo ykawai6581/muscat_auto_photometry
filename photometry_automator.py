@@ -198,18 +198,14 @@ class MuSCAT_PHOTOMETRY:
         refid+=refid_delta
         #======
 
-        ref_file = next(Path(f'{self.obsdate}/{self.target}_0').glob("*.lst"), None)
-        print(ref_file)
-        if ref_file:
-            ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/{ref_file.name}") for i in range(self.nccd)])
-            if not ref_exists:
-                cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid}"
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            else:
-                print(f'Ref file: {ref_file} exists.')
-        else:
+        ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/list/ref.lst") for i in range(self.nccd)])
+        if not ref_exists:
             cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid}"
             subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        else:
+            with open(Path(f"{self.obsdate}/{self.target}_0/list/ref.lst"), 'r') as f:
+                ref_file = f.read()
+                print(f'Ref file: {ref_file} exists.')
 
     def show_reference(self, rad=10):
         ## Showing reference image
