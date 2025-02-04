@@ -453,21 +453,9 @@ class MuSCAT_PHOTOMETRY:
 
         for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
-            
-    def select_comparison(self, tid, cids = None):
-        if cids == None:
-            cids = get_combinations(1,5,tid)
-
-        self.cids = cids 
-        self.tid  = tid
-
-        for i in range(len(self.cids)):
-            cid = self.cids[i]
-            print(f'>> Creating photometry file for cIDs=[{cid}] .. (it may take minutes)')
-            cmd = f"perl scripts/auto_mklc.pl -date {self.obsdate} -obj {self.target} -ap_type {self.method} -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {self.tid} -cids {cid}"
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
     def select_comparison(self, tid):
+        print(f"{self.target} | TID = {tid}")
         self.check_saturation(self.rad1)
         self.cids_list = []
         for saturation_cid in self.saturation_cids:
@@ -478,25 +466,16 @@ class MuSCAT_PHOTOMETRY:
             cids = get_combinations(brightest_star, brightest_star + 4, tid)
             self.cids_list.append(cids)
 
-    def create_photometry(self, tid):
-        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
-        def run_command(i, cids):
-            for cid in cids:
-                cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-        with ProcessPoolExecutor() as executor:
-            futures = [executor.submit(run_command, i, self.cids_list[i]) for i in range(self.nccd)]
-            for future in futures:
-                future.result()  # Ensures all tasks complete
-
+    @time_keeper
     def create_photometry_test(self, tid):
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
+        print(f"{self.target} | TID = {tid}")
         for i in range(self.nccd):
+            print(f'>> Creating photometry file for CCD{i}] .. (it may take minutes)')
             for cid in self.cids_list[i]:
                 cmd = f"perl {script_path} -apdir apphot_{self.method} -list path/object_ccd{i}.lst -r1 {self.rad1} -r2 {self.rad2} -dr {self.drad} -tid {tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                print(cmd)
-                #subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                print(f"## >> Created photometry for cIDs:{cid}, r1:{self.rad1} r2:{self.rad2} dr:{self.drad}")
+                subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
 '''
 class MuSCAT_PHOTOMETRY_OPTIMIZATION:
