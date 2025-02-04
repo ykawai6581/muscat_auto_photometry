@@ -198,13 +198,17 @@ class MuSCAT_PHOTOMETRY:
         refid+=refid_delta
         #======
 
-        ref_file = list(set([Path(f'{self.obsdate}/{self.target}_{i}/').glob("*.lst") for i in range(self.nccd)]))[0]
-        ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/*.lst") for i in range(self.nccd)])
-        if not ref_exists:
+        ref_file = next(Path(f'{self.obsdate}/{self.target}_0/').glob("*.lst"), None)
+        if ref_file:
+            ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/{ref_file.name}") for i in range(self.nccd)])
+            if not ref_exists:
+                cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid}"
+                subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            else:
+                print(f'Ref file: {ref_file} exists.')
+        else:
             cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid}"
             subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        else:
-            print(f'Ref file: {ref_file} exists.')
 
     def show_reference(self, rad=10):
         ## Showing reference image
@@ -423,10 +427,10 @@ class MuSCAT_PHOTOMETRY:
     @time_keeper
     def check_saturation(self, rad):
         self.saturation_cids = []
+        print(f'>> Checking for saturation ... (it may take a few seconds)')
         df = self.read_photometry_parallel(rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
         for i in range(self.nccd):
-            print(f'>> Checking saturation in CCD{i} ... (it may take tens of seconds)')
             saturation_cids_per_ccd = []
             for star_id in range(int(self.nstars)):
                 count_above_threshold = (df[i][df[i]["ID"] == star_id]["peak"] > 60000).sum()
@@ -435,6 +439,7 @@ class MuSCAT_PHOTOMETRY:
                 # If more than 5% of the rows have a peak > 60000, add this star ID to the list
                 if percentage_above_threshold > 5:
                     saturation_cids_per_ccd.append(star_id)
+            print(f'  >> CCD {i}: Done.')
             self.saturation_cids.append(saturation_cids_per_ccd)
 
         for i in range(self.nccd):
