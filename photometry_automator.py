@@ -470,7 +470,7 @@ class MuSCAT_PHOTOMETRY:
     def create_photometry(self, tid):
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
         print(">> Creating photometry file for")
-        print(f"### {self.target} | TID = {tid}| r1={self.rad1} r2={self.rad2} dr={self.drad} (it may take minutes)")
+        print(f"| Target = {self.target} | TID = {tid} | r1={self.rad1} r2={self.rad2} dr={self.drad} | (it may take minutes)")
         for i in range(self.nccd):
             print(f'>> CCD{i}')
             for cid in self.cids_list[i]:
@@ -478,25 +478,26 @@ class MuSCAT_PHOTOMETRY:
                 print(f"## >> Created photometry for cIDs:{cid}")
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-'''
+
 class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def __init__(self, muscat_photometry):
         # Copy all attributes from the existing instance
         self.__dict__.update(muscat_photometry.__dict__)
         self.r = np.arange(self.rad1, self.rad2+self.drad, self.drad)
-        self.cids = [item.replace(" ", "") for item in self.cids]
+        self.cids_list = [[cid.replce(" ", "") for cid in cids] for cids in self.cids_list]
         print('available aperture radii: ', self.r)
         self.bands = ["g","r","i","z"]
 
         self.phot=[]
-        phot_dir = '/home/muscat/reduction_afphot/' + {self.instrument} + '/' + {self.obsdate} + '/' + {self.target}
+        phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
+
         for i in range(self.nccd):
             self.phot.append([])
-            
             for j in range(len(self.cids)):
                 infile = f'{phot_dir}/lcf_{self.instruments}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{self.cids[j]}_r{str(self.rad1)}-{str(self.rad2)}.csv'
                 self.phot[i].append(Table.read(infile))
 
+'''
     def preview_photometry():
 
     
