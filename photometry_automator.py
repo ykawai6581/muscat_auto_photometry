@@ -551,65 +551,15 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     condition &= self.phot[i][j][key] < (upper[i] if isinstance(upper, list) else upper)
                 
                 self.mask[i].append(condition)  # Directly store condition, keeping shape (4, 15)
-
-    def outlier_cut(self, sigma_cut=3, order=2):
-        index = []
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))  # 2x2 subplots for 4 CCDs
-        axes = axes.flatten()  # Flatten to 1D array for easy access
-        
-        for i in range(self.nccd):
-            index.append([]) 
-            
-            ndata_diff = np.zeros((len(self.cids_list[i]), len(self.ap)))  # Grid for (j, k)
-
-            for j in range(len(self.cids_list[i])):
-                index[i].append([])
                 
-                for k in range(len(self.ap)):
-                    fcomp_key = f'flux_comp(r={self.ap[k]:.1f})'
-                    raw_norm = (self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime']) / np.median(self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime'])
-                    
-                    mask = self.mask[i][j]
-                    ndata_init = len(self.phot[i][j][fcomp_key])  # Initial data length
-                    
-                    if np.any(mask):
-                        ye = np.sqrt(self.phot[i][j][fcomp_key][mask]) / self.phot[i][j]['exptime'][mask] / np.median(self.phot[i][j][fcomp_key] / self.phot[i][j]['exptime'])
-                        
-                        if len(ye) > 0:
-                            p, tcut, ycut, yecut = lc.outcut_polyfit(
-                                self.phot[i][j]['GJD-2450000'][mask], raw_norm[mask], ye, order, sigma_cut
-                            )
-                            index[i][j].append(np.isin(self.phot[i][j]['GJD-2450000'], tcut))
-                            ndata_final = len(tcut)
-                        else:
-                            index[i][j].append(np.isin(self.phot[i][j]['GJD-2450000'], np.empty(0)))
-                            ndata_final = 0
-                    else:
-                        ndata_final = 0
-                    
-                    ndata_diff[j, k] = ndata_final - ndata_init  # Store difference in grid
-
-            # **Plot heatmap for this CCD**
-            ax = axes[i]  # Select subplot
-            im = ax.imshow(ndata_diff, aspect='auto', cmap='coolwarm', origin='lower')
-            ax.set_xlabel("cIDs")
-            ax.set_ylabel("Aperture Radius")
-            ax.set_title(f"CCD {i}")
-            
-            # Add colorbar to each subplot
-            cbar = fig.colorbar(im, ax=ax)
-            cbar.set_label("Number of cut data points")
-
-        plt.tight_layout()
-        plt.show()
-
-
+    @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2):
         index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
         fig, axes = plt.subplots(2, 2, figsize=(12, 10))  # 2x2 subplots for 4 CCDs
         axes = axes.flatten()  # Flatten to 1D array for easy access
-
+        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers...")
         for i in range(self.nccd):
+            print(f"Computing outliers for CCD{i} (it may take a few minutes)")
             n_cids = len(self.cids_list[i])
             n_ap = len(self.ap)
             
@@ -650,8 +600,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             # **Plot heatmap for this CCD**
             ax = axes[i]  # Select subplot
             im = ax.imshow(ndata_diff, aspect='auto', cmap='coolwarm', origin='lower')
-            ax.set_xlabel("cIDs")
-            ax.set_ylabel("Aperture Radius")
+            ax.set_xlabel("Aperture Radius")
+            ax.set_ylabel("cIDs")
             ax.set_title(f"CCD {i}")
             
             # Add colorbar to each subplot
