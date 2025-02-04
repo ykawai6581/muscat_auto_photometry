@@ -469,7 +469,7 @@ class MuSCAT_PHOTOMETRY:
 
     @time_keeper
     def create_photometry(self):
-        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
+        script_path = "/ut3/muscat/reduction_afphot/tools/afphot/script/auto_mklcmklc_flux_collect_csv.pl"
         print(">> Creating photometry file for")
         print(f"| Target = {self.target} | TID = {self.tid} | r1={self.rad1} r2={self.rad2} dr={self.drad} | (it may take minutes)")
         for i in range(self.nccd):
