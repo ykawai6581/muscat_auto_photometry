@@ -482,7 +482,7 @@ class MuSCAT_PHOTOMETRY:
                 #print(cmd)
                 #print(result.stdout)
 
-                outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
+                outfile = f"apphot_{self.method}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 #print(os.getcwd())
                 print(outfile)
                 outfile_path = os.path.join(os.getcwd(), outfile)
