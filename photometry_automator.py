@@ -551,7 +551,89 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     condition &= self.phot[i][j][key] < (upper[i] if isinstance(upper, list) else upper)
                 
                 self.mask[i].append(condition)  # Directly store condition, keeping shape (4, 15)
+
+    @time_keeper
+    def outlier_cut(self, sigma_cut=3, order=2):
+        index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
+        fig, axes = plt.subplots(2, 2, figsize=(12, 10))  # 2x2 subplots for 4 CCDs
+        axes = axes.flatten()  # Flatten to 1D array for easy access
+        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers...  (it may take a few minutes)")
+
+        for i in range(self.nccd):
+            print(f"Computing outliers for CCD{i}")
+            n_cids = len(self.cids_list[i])
+            n_ap = len(self.ap)
+            
+            ndata_diff = np.zeros((n_cids, n_ap))  # Initialize grid for (cIDs, apertures)
+            rms = np.zeros((n_cids, n_ap))  # Initialize grid for (cIDs, apertures)
+            index[i] = [[] for _ in range(n_cids)]  # Pre-allocate storage for index[i]
+
+            for j in range(n_cids):
+                phot_j = self.phot[i][j]  # Shortcut to reduce indexing operations
+                exptime = phot_j['exptime']
+                gjd_vals = phot_j['GJD-2450000']
+
+                # Use existing mask if available, otherwise process all data
+                mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
+
+                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
+                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])  # Shape (n_ap, n_data)
+
+                # Normalize raw flux
+                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+                ndata_init = fcomp_data.shape[1]  # Number of time points
+
+                ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
                 
+                for k in range(n_ap):  # Only loop over apertures, reducing total iterations
+                    if len(ye[k]) > 0:
+                        p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
+                        index[i][j].append(np.isin(gjd_vals, tcut))
+                        ndata_final = len(tcut)
+                    else:
+                        index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
+                        ndata_final = 0
+                    
+                    ndata_diff[j, k] = ndata_final - ndata_init  # Store difference in grid
+                    
+                    # Compute RMS for flux differences
+                    if len(ycut) > 1:
+                        diff = np.diff(ycut)  # Use np.diff instead of manual slicing
+                        rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
+                    else:
+                        rms[j, k] = np.inf  # Handle edge case where not enough data points exist
+
+            # **Find minimum RMS value for highlighting**
+            self.min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)  # Get (j, k) of min RMS
+
+            # **Plot ndata_diff and rms together in a diagonal layout**
+            ax = axes[i]  # Select subplot
+            im1 = ax.imshow(ndata_diff, aspect='auto', cmap='coolwarm', origin='lower')
+            im2 = ax.imshow(rms, aspect='auto', cmap='cividis', origin='lower', alpha=0.7)  # Overlay RMS
+
+            # **Highlight the minimum RMS location**
+            ax.add_patch(plt.Rectangle((self.min_rms_idx[1] - 0.5, self.min_rms_idx[0] - 0.5), 1, 1, edgecolor='white', facecolor='none', linewidth=2))
+
+            # **Format axes**
+            ax.set_xlabel("Aperture Radius")
+            ax.set_ylabel("cIDs")
+            ax.set_title(f"CCD {i}")
+
+            # **Update x-ticks to show actual aperture radius values**
+            ax.set_xticks(range(n_ap))
+            ax.set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
+
+            # **Add colorbars for both datasets**
+            cbar1 = fig.colorbar(im1, ax=ax, fraction=0.046, pad=0.04)
+            cbar1.set_label("Number of cut data points")
+            cbar2 = fig.colorbar(im2, ax=ax, fraction=0.046, pad=0.04)
+            cbar2.set_label("RMS of flux differences")
+
+        plt.tight_layout()
+        plt.show()
+
+    
+    '''
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2):
         index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
@@ -564,6 +646,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             n_ap = len(self.ap)
             
             ndata_diff = np.zeros((n_cids, n_ap))  # Initialize grid for (j, k)
+            rms        = np.zeros((n_cids, n_ap))  # Initialize grid for (j, k)
             index[i] = [[] for _ in range(n_cids)]  # Pre-allocate storage for index[i]
 
             for j in range(n_cids):
@@ -594,6 +677,13 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                             ndata_final = 0
                         
                         ndata_diff[j, k] = ndata_final - ndata_init  # Store difference in grid
+                        ycut_temp1 = ycut[1:]
+                        ycut_temp2 = ycut[:-1]
+                        diff = ycut_temp1 - ycut_temp2
+                        if(np.std(diff)>0):
+                            rms[j, k] = np.std(diff)  # store rms of difference in consecutive fluxes 
+                        else:
+                            rms[j, k] = np.inf  # np.inf for invalid results
                 else:
                     index[i][j] = [np.zeros_like(gjd_vals, dtype=bool)] * n_ap  # If no mask, store empty arrays
 
@@ -610,7 +700,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         plt.tight_layout()
         plt.show()
-
+    '''
 
     '''
     def outlier_cut(self,sigma_cut=3,order=2):
