@@ -281,7 +281,7 @@ class MuSCAT_PHOTOMETRY:
             self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
 
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
-        print(f"Performing photometry for radius: {rads}")
+        print(f"Performing photometry for radius: {rads} | nstars = {nstars} | method = {method}")
 
         # Check for missing photometry files
         missing, missing_files_per_ccd = self.check_missing_photometry(rads)
@@ -317,7 +317,7 @@ class MuSCAT_PHOTOMETRY:
             if missing_files:
                 missing = True
                 missing_files_per_ccd[i] = missing_files
-                print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
+                #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
 
         return missing, missing_files_per_ccd
 
@@ -614,8 +614,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     else:
                         rms[j, k] = np.inf
 
-            self.min_rms = np.argmin(rms, axis=None)
-            min_rms_idx = np.unravel_index(self.min_rms, rms.shape)
+            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)
+            self.min_rms = rms[min_rms_idx]
             self.min_rms_idx_list.append(min_rms_idx)
 
             if plot:
