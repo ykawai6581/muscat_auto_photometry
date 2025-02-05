@@ -324,11 +324,12 @@ class MuSCAT_PHOTOMETRY:
                 missing = True
                 missing_files_per_ccd[i] = missing_files
                 #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
-        print("Checking for missing photometry")
-        print(f"Missing {missing}")
+        #print("Checking for missing photometry")
+        #print(f"Missing {missing}")
         return missing, missing_files_per_ccd
 
     def run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
+        '''
         tasks = []
         # Create a list of tasks to run in parallel
         print("Here")
@@ -354,8 +355,7 @@ class MuSCAT_PHOTOMETRY:
                     print(f"Completed aperture photometry for CCD={i}, rad={rad}")
                 else:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
-        '''
-        """Runs photometry for CCDs where files are missing using parallel processing."""
+        
 
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
