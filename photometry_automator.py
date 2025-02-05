@@ -88,6 +88,9 @@ print(f"Available obsdates {obsdates_from_filename()}")
 
 class MuSCAT_PHOTOMETRY:
     def __init__(self,instrument,obsdate,parent=None):
+        if not ((instrument is not None and obsdate is not None) or parent is not None):
+            raise ValueError("Either both 'instrument' and 'obsdate' or 'parent' must be provided.")
+
         if parent:
             # Copy attributes from the parent if given
             self.__dict__.update(parent.__dict__)
