@@ -657,10 +657,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         while min_rms_list[-1] < min_rms_list[-2]: #whle the rms keeps improving
             print(f"Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1}")
             drad = 1
-            if any(idx in self.ap[0] for idx in self.ap_best): #if the lowest rms is the smallest aperture 
+            if any(idx in {self.ap[0]} for idx in self.ap_best): #if the lowest rms is the smallest aperture 
                 rad1 = self.ap[0] - drad
                 rad2 = rad1
-            elif any(idx in self.ap[-1] for idx in self.ap_best): #if the lowest rms is the largest aperture 
+            elif any(idx in {self.ap[-1]} for idx in self.ap_best): #if the lowest rms is the largest aperture 
                 rad1 = self.ap[0] + drad
                 rad2 = rad1
             else:
