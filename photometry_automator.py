@@ -87,7 +87,7 @@ print(f"Ra, Dec: {ra, dec}")
 print(f"Available obsdates {obsdates_from_filename()}")
 
 class MuSCAT_PHOTOMETRY:
-    def __init__(self,instrument,obsdate,parent=None):
+    def __init__(self,instrument=None,obsdate=None,parent=None):
         if not ((instrument is not None and obsdate is not None) or parent is not None):
             raise ValueError("Either both 'instrument' and 'obsdate' or 'parent' must be provided.")
 
