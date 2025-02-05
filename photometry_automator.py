@@ -567,7 +567,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2, plot=True):
         self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
-        fig, axes = plt.subplots(self.nccd, 2, figsize=(14, 4 * self.nccd))  # 2 columns per CCD
+        if plot:
+            fig, axes = plt.subplots(self.nccd, 2, figsize=(14, 4 * self.nccd))  # 2 columns per CCD
         print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...  (it may take a few minutes)")
 
         for i in range(self.nccd):
@@ -658,13 +659,13 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         best_optimization = None
 
         while min_rms_list[-1] < min_rms_list[-2]: #whle the rms keeps improving
-            print(f"Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1}")
+            print(f"Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
             drad = 1
             if any(idx in {self.ap[0]} for idx in self.ap_best): #if the lowest rms is the smallest aperture 
                 rad1 = self.ap[0] - drad
                 rad2 = rad1
             elif any(idx in {self.ap[-1]} for idx in self.ap_best): #if the lowest rms is the largest aperture 
-                rad1 = self.ap[0] + drad
+                rad1 = self.ap[-1] + drad
                 rad2 = rad1
             else:
                 if self.drad == 1:
