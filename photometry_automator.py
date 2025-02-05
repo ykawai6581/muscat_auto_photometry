@@ -683,8 +683,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             
         elif any(idx in {self.ap[-1]} for idx in self.ap_best): #if the lowest rms is the largest aperture 
             rad_increment = 1
-            rad1 = self.ap[-1] + drad
-            rad2 = self.ap[0]
+            rad1 = self.ap[0]
+            rad2 = self.ap[-1] + drad
         else:
             if self.drad == 1:
                 print("Already optimal")
