@@ -90,48 +90,48 @@ class MuSCAT_PHOTOMETRY:
     def __init__(self,instrument=None,obsdate=None,parent=None):
         if not ((instrument is not None and obsdate is not None) or parent is not None):
             raise ValueError("Either both 'instrument' and 'obsdate' or 'parent' must be provided.")
-
+        
         if parent:
             # Copy attributes from the parent if given
             self.__dict__.update(parent.__dict__)
+        else:
 
-        instrument_id = {"muscat":1,"muscat2":2,"muscat3":3,"muscat4":4}
-        if instrument not in list(instrument_id.keys()):
-            print(f"Instrument has to be one of {list(instrument_id.keys())}")
-            return
+            instrument_id = {"muscat":1,"muscat2":2,"muscat3":3,"muscat4":4}
 
-        self.ra, self.dec = query_radec(target_from_filename())
+            if self.instrument not in list(instrument_id.keys()):
+                print(f"Instrument has to be one of {list(instrument_id.keys())}")
+                return
+            
+            self.ra, self.dec = query_radec(target_from_filename())
 
-        self.nccd = 3 if instrument == "muscat" else 4
-        self.obslog = []
-        self.obsdate = obsdate
-        self.instrument = instrument
-        self.instid = instrument_id[instrument]
-        muscat_bands = {
-            "muscat" : ["g","r","z"],
-            "muscat2" :["g","r","i","z"],
-            "muscat3" :["r","i","g","z"],
-            "muscat4" :["g","r","i","z"],
-        }
-        self.bands = muscat_bands[instrument]
-        os.chdir('/home/muscat/reduction_afphot/'+instrument)
+            self.nccd = 3 if self.instrument == "muscat" else 4
+            self.obslog = []
+            self.instid = instrument_id[self.instrument]
+            muscat_bands = {
+                "muscat" : ["g","r","z"],
+                "muscat2" :["g","r","i","z"],
+                "muscat3" :["r","i","g","z"],
+                "muscat4" :["g","r","i","z"],
+            }
+            self.bands = muscat_bands[self.instrument]
+            os.chdir('/home/muscat/reduction_afphot/'+self.instrument)
 
-        for i in range(self.nccd):
-            print(f'\n=== CCD{i} ===')
-            cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {instrument} {obsdate} {i}'
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            for i in range(self.nccd):
+                print(f'\n=== CCD{i} ===')
+                cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {self.instrument} {obsdate} {i}'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-            obslog_perccd = result.stdout
-            print(obslog_perccd)  # Optional: Print to verify
-            obslog_perccd = obslog_perccd.lstrip("# ")
-            obslog_perccd_df = pd.read_csv(StringIO(obslog_perccd), delim_whitespace=True)
+                obslog_perccd = result.stdout
+                print(obslog_perccd)  # Optional: Print to verify
+                obslog_perccd = obslog_perccd.lstrip("# ")
+                obslog_perccd_df = pd.read_csv(StringIO(obslog_perccd), delim_whitespace=True)
 
-            self.obslog.append(obslog_perccd_df)
-        self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
-        pick_target = input(f"Available object names {[f'{i}|{item}' for i, item in enumerate(self.obj_names)]}")
-        print(pick_target)
-        self.target = self.obj_names[int(pick_target[0])]
-        print(f"Continuing photometry for {self.target}")
+                self.obslog.append(obslog_perccd_df)
+            self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
+            pick_target = input(f"Available object names {[f'{i}|{item}' for i, item in enumerate(self.obj_names)]}")
+            print(pick_target)
+            self.target = self.obj_names[int(pick_target[0])]
+            print(f"Continuing photometry for {self.target}")
 
     @time_keeper
     def config_flat(self):
