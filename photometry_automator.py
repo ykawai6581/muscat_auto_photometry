@@ -87,7 +87,10 @@ print(f"Ra, Dec: {ra, dec}")
 print(f"Available obsdates {obsdates_from_filename()}")
 
 class MuSCAT_PHOTOMETRY:
-    def __init__(self,instrument,obsdate):
+    def __init__(self,instrument,obsdate,parent=None):
+        if parent:
+            # Copy attributes from the parent if given
+            self.__dict__.update(parent.__dict__)
 
         instrument_id = {"muscat":1,"muscat2":2,"muscat3":3,"muscat4":4}
         if instrument not in list(instrument_id.keys()):
@@ -457,7 +460,7 @@ class MuSCAT_PHOTOMETRY:
         for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
 
-    def select_comparison(self, tid):
+    def select_comparison(self, tid, nstars=5):
         self.tid = tid
         print(f"{self.target} | TID = {tid}")
         self.check_saturation(self.rad1)
@@ -467,11 +470,13 @@ class MuSCAT_PHOTOMETRY:
                 brightest_star = max(saturation_cid) + 1
             else:
                 brightest_star = 1
-            cids = get_combinations(brightest_star, brightest_star + 4, tid)
+            cids = get_combinations(brightest_star, brightest_star + nstars - 1, tid)
             self.cids_list.append(cids)
 
     @time_keeper
-    def create_photometry(self):
+    def create_photometry(self, given_cids=None):
+        if given_cids:
+            self.cids_list = given_cids
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
         print(">> Creating photometry file for")
         print(f"| Target = {self.target} | TID = {self.tid} | r1={self.rad1} r2={self.rad2} dr={self.drad} | (it may take minutes)")
@@ -479,9 +484,9 @@ class MuSCAT_PHOTOMETRY:
             print(f'>> CCD{i}')
             for cid in self.cids_list[i]:
                 obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
-                os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}"))
+                os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}")) 
                 cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
                 #print(cmd)
                 #print(result.stdout)
 
@@ -501,13 +506,12 @@ class MuSCAT_PHOTOMETRY:
         os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}"))
 
 
-
 class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def __init__(self, muscat_photometry):
         # Copy all attributes from the existing instance
         self.__dict__.update(muscat_photometry.__dict__)
         self.ap = np.arange(self.rad1, self.rad2+self.drad, self.drad)
-        self.cids_list = [[cid.replace(" ", "") for cid in cids] for cids in self.cids_list]
+        self.cids_list_opt = [[cid.replace(" ", "") for cid in cids] for cids in self.cids_list] #optphot takes cids with no space
         print('available aperture radii: ', self.ap)
         self.bands = ["g","r","i","z"]
         self.mask = [[],[],[],[]]
@@ -518,7 +522,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         for i in range(self.nccd):
             self.phot.append([])
-            for cid in self.cids_list[i]:
+            for cid in self.cids_list_opt[i]:#self.cids_list_opt is only needed to access the files here
                 infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv'
                 self.phot[i].append(Table.read(infile))
 
@@ -537,7 +541,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             
             mask_ccd.append(condition)  # Store mask for this j
         self.mask[ccd].append(mask_ccd)
-
+        print(f"Added mask to {key} for CCD{ccd}")
 
     def add_mask(self, key, lower=None, upper=None):
         """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
@@ -555,9 +559,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     condition &= self.phot[i][j][key] < (upper[i] if isinstance(upper, list) else upper)
                 
                 self.mask[i].append(condition)  # Directly store condition, keeping shape (4, 15)
+        print(f"Added mask to {key}")
 
     @time_keeper
-    def outlier_cut(self, sigma_cut=3, order=2):
+    def outlier_cut(self, sigma_cut=3, order=2, plot=True):
         self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
         fig, axes = plt.subplots(self.nccd, 2, figsize=(14, 4 * self.nccd))  # 2 columns per CCD
         print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...  (it may take a few minutes)")
@@ -602,44 +607,85 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     else:
                         rms[j, k] = np.inf
 
-            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)
+            self.min_rms = np.argmin(rms, axis=None)
+            min_rms_idx = np.unravel_index(self.min_rms, rms.shape)
             self.min_rms_idx_list.append(min_rms_idx)
 
-            # Normalize color scales for consistency across CCDs
-            norm_diff = mcolors.Normalize(vmin=np.min(ndata_diff), vmax=np.max(ndata_diff))
-            norm_rms = mcolors.Normalize(vmin=np.min(rms[rms != np.inf]), vmax=np.max(rms[rms != np.inf]))
+            if plot:
+                # Normalize color scales for consistency across CCDs
+                norm_diff = mcolors.Normalize(vmin=np.min(ndata_diff), vmax=np.max(ndata_diff))
+                norm_rms = mcolors.Normalize(vmin=np.min(rms[rms != np.inf]), vmax=np.max(rms[rms != np.inf]))
 
-            # **Left Plot: Number of cut data points**
-            im1 = axes[i, 0].imshow(ndata_diff, cmap="coolwarm", aspect="auto", norm=norm_diff)
-            axes[i, 0].set_title(f"CCD {i} - Cut Data Points")
-            axes[i, 0].set_xticks(range(n_ap))
-            axes[i, 0].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
-            axes[i, 0].set_yticks(range(n_cids))
-            axes[i, 0].set_yticklabels(self.cids_list[i])
-            fig.colorbar(im1, ax=axes[i, 0], label="Number of Cut Data Points")
+                # **Left Plot: Number of cut data points**
+                im1 = axes[i, 0].imshow(ndata_diff, cmap="coolwarm", aspect="auto", norm=norm_diff)
+                axes[i, 0].set_title(f"CCD {i} - Cut Data Points")
+                axes[i, 0].set_xticks(range(n_ap))
+                axes[i, 0].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
+                axes[i, 0].set_yticks(range(n_cids))
+                axes[i, 0].set_yticklabels(self.cids_list[i])
+                fig.colorbar(im1, ax=axes[i, 0], label="Number of Cut Data Points")
 
-            # **Right Plot: RMS of flux differences**
-            im2 = axes[i, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
-            axes[i, 1].set_title(f"CCD {i} - RMS")
-            axes[i, 1].set_xticks(range(n_ap))
-            axes[i, 1].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
-            axes[i, 1].set_yticks(range(n_cids))
-            axes[i, 1].set_yticklabels(self.cids_list[i])
-            fig.colorbar(im2, ax=axes[i, 1], label="RMS")
+                # **Right Plot: RMS of flux differences**
+                im2 = axes[i, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
+                axes[i, 1].set_title(f"CCD {i} - RMS")
+                axes[i, 1].set_xticks(range(n_ap))
+                axes[i, 1].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
+                axes[i, 1].set_yticks(range(n_cids))
+                axes[i, 1].set_yticklabels(self.cids_list[i])
+                fig.colorbar(im2, ax=axes[i, 1], label="RMS")
 
-            # **Highlight the min RMS cell with a white square**
-            j_min, k_min = min_rms_idx
-            rect = patches.Rectangle((k_min - 0.5, j_min - 0.5), 1, 1, linewidth=3, edgecolor='white', facecolor='none')
-            axes[i, 1].add_patch(rect)
-        print("Plotting results")
-        plt.tight_layout()
-        plt.show()
+                # **Highlight the min RMS cell with a white square**
+                j_min, k_min = min_rms_idx
+                rect = patches.Rectangle((k_min - 0.5, j_min - 0.5), 1, 1, linewidth=3, edgecolor='white', facecolor='none')
+                axes[i, 1].add_patch(rect)
+
+        if plot:
+            print("Plotting results")
+            plt.tight_layout()
+            plt.show()
 
         self.cIDs_best     = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
         self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
         self.ap_best       = [self.ap[item[1]] for item in self.min_rms_idx_list]
         self.ap_best_idx   = [item[1] for item in self.min_rms_idx_list]
 
+    def iterate_optimization(self):
+        min_rms = np.inf
+        min_rms_list = [np.inf,self.min_rms]
+        best_optimization = None
+
+        while min_rms_list[-1] < min_rms_list[-2]: #whle the rms keeps improving
+            print(f"Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1}")
+            drad = 1
+            if any(idx in self.ap[0] for idx in self.ap_best): #if the lowest rms is the smallest aperture 
+                rad1 = self.ap[0] - drad
+                rad2 = rad1
+            elif any(idx in self.ap[-1] for idx in self.ap_best): #if the lowest rms is the largest aperture 
+                rad1 = self.ap[0] + drad
+                rad2 = rad1
+            else:
+                if self.drad == 1:
+                    print("Already optimal")
+                    return
+                else:
+                    rad1 = min(self.ap_best) - drad#the smallest aperture
+                    rad2 = max(self.ap_best) + drad #the largest aperture
+
+            photometry = MuSCAT_PHOTOMETRY(parent=self)
+            photometry.run_apphot(nstars=self.nstars, rad1=rad1, rad2=rad2, drad=drad, method="mapping")
+            photometry.cids_list = self.cIDs_best
+            photometry.create_photometry()
+
+            optimization = MuSCAT_PHOTOMETRY_OPTIMIZATION(photometry)
+            optimization.mask = self.mask #adds the same mask
+            optimization.outlier_cut(plot=False)
+            min_rms = optimization.min_rms
+            min_rms_list.append(min_rms)
+            print(f"Minimum rms: {min_rms_list[-2]} -> {min_rms_list[-1]}")
+            if min_rms_list[-1] < min_rms_list[-2]:  
+                best_optimization = optimization
+
+        return best_optimization
 
     def plot_lc(self):
         binsize = 300/86400.
