@@ -329,33 +329,22 @@ class MuSCAT_PHOTOMETRY:
         return missing, missing_files_per_ccd
 
     def run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
-        '''
-        tasks = []
-        # Create a list of tasks to run in parallel
-        print("Here")
-        for ccd, missing_files in missing_files_per_ccd.items():
-            print("Looping through missing files")
-            for rad in rads:
-                if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
-                    tasks.append((script, self.obsdate, self.target, ccd, nstars, rad, self.drad))
-                else:
-                    print(f"Photometry already available for CCD={ccd}, rad={rad}")
+        """Runs photometry for CCDs where files are missing in parallel."""
+        processes = []  # Store running processes
 
-        # Run tasks in parallel
-        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
-            executor.map(lambda args: run_photometry(*args), tasks)
-
-        '''
-        """Runs photometry for CCDs where files are missing."""
         for i, missing_files in missing_files_per_ccd.items():
             for rad in rads:
                 if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
                     cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {self.drad} > /dev/null"
-                    subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                    print(f"Completed aperture photometry for CCD={i}, rad={rad}")
+                    process = subprocess.Popen(cmd, shell=True, capture_output=True, text=True)
+                    processes.append((process, i, rad))  # Store process info
                 else:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
-        
+
+        # Wait for all processes to finish
+        for process, i, rad in processes:
+            process.wait()  # Blocks until process completes
+            print(f"Completed aperture photometry for CCD={i}, rad={rad}")
 
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
@@ -690,12 +679,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         if any(idx in {self.ap[0]} for idx in self.ap_best): #if the lowest rms is the smallest aperture 
             rad_increment = -1
             rad1 = self.ap[0] - drad
-            rad2 = rad1
+            rad2 = self.ap[-1]
             
         elif any(idx in {self.ap[-1]} for idx in self.ap_best): #if the lowest rms is the largest aperture 
             rad_increment = 1
             rad1 = self.ap[-1] + drad
-            rad2 = rad1
+            rad2 = self.ap[0]
         else:
             if self.drad == 1:
                 print("Already optimal")
