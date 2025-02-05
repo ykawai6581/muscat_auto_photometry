@@ -351,7 +351,7 @@ class MuSCAT_PHOTOMETRY:
                     print(f"Photometry already available for CCD={ccd}, rad={rad}")
 
         # Run tasks in parallel
-        with ProcessPoolExecutor(max_workers=len(self.nccd)) as executor:
+        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
             executor.map(lambda args: run_photometry(*args), tasks)
 
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
