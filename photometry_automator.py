@@ -59,6 +59,12 @@ def time_keeper(func):
         return result
     return wrapper
 
+def run_photometry(script, obsdate, target, ccd, nstars, rad, drad):
+    """Runs the photometry script for a given CCD and radius."""
+    cmd = f"perl {script} {obsdate} {target} {ccd} {nstars} {rad} {rad} {drad} > /dev/null"
+    subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    print(f"Completed aperture photometry for CCD={ccd}, rad={rad}")
+
 def ra_to_hms(ra_deg):
     ra_hours = ra_deg / 15
     ra_deg_part, ra_min_part = divmod(ra_hours, 1)
@@ -322,6 +328,7 @@ class MuSCAT_PHOTOMETRY:
         return missing, missing_files_per_ccd
 
     def run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
+        '''
         """Runs photometry for CCDs where files are missing."""
         for i, missing_files in missing_files_per_ccd.items():
             for rad in rads:
@@ -331,6 +338,21 @@ class MuSCAT_PHOTOMETRY:
                     print(f"Completed aperture photometry for CCD={i}, rad={rad}")
                 else:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
+        '''
+        """Runs photometry for CCDs where files are missing using parallel processing."""
+        tasks = []
+
+        # Create a list of tasks to run in parallel
+        for ccd, missing_files in missing_files_per_ccd.items():
+            for rad in rads:
+                if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
+                    tasks.append((script, self.obsdate, self.target, ccd, nstars, rad, self.drad))
+                else:
+                    print(f"Photometry already available for CCD={ccd}, rad={rad}")
+
+        # Run tasks in parallel
+        with ProcessPoolExecutor(max_workers=len(self.nccd)) as executor:
+            executor.map(lambda args: run_photometry(*args), tasks)
 
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
@@ -660,23 +682,34 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         min_rms = np.inf
         min_rms_list = [np.inf,self.min_rms]
         best_optimization = None
+        drad = 1
+
+        if any(idx in {self.ap[0]} for idx in self.ap_best): #if the lowest rms is the smallest aperture 
+            rad_increment = -1
+            rad1 = self.ap[0] - drad
+            rad2 = rad1
+            
+        elif any(idx in {self.ap[-1]} for idx in self.ap_best): #if the lowest rms is the largest aperture 
+            rad_increment = 1
+            rad1 = self.ap[-1] + drad
+            rad2 = rad1
+        else:
+            if self.drad == 1:
+                print("Already optimal")
+                return
+            else:
+                rad_increment = 1
+                rad1 = min(self.ap_best) - drad #the smallest aperture
+                rad2 = max(self.ap_best) + drad #the largest aperture
 
         while min_rms_list[-1] < min_rms_list[-2]: #whle the rms keeps improving
             print(f"Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
-            drad = 1
-            if any(idx in {self.ap[0]} for idx in self.ap_best): #if the lowest rms is the smallest aperture 
-                rad1 = self.ap[0] - drad
-                rad2 = rad1
-            elif any(idx in {self.ap[-1]} for idx in self.ap_best): #if the lowest rms is the largest aperture 
-                rad1 = self.ap[-1] + drad
+            if rad1 == rad2:
+                rad1 += rad_increment
                 rad2 = rad1
             else:
-                if self.drad == 1:
-                    print("Already optimal")
-                    return
-                else:
-                    rad1 = min(self.ap_best) - drad#the smallest aperture
-                    rad2 = max(self.ap_best) + drad #the largest aperture
+                rad1 += rad_increment
+                rad2 -= rad_increment
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
             photometry.run_apphot(nstars=self.nstars, rad1=rad1, rad2=rad2, drad=drad, method="mapping")
