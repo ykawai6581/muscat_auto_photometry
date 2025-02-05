@@ -98,6 +98,8 @@ class MuSCAT_PHOTOMETRY:
 
             instrument_id = {"muscat":1,"muscat2":2,"muscat3":3,"muscat4":4}
 
+            self.instrument = instrument
+
             if self.instrument not in list(instrument_id.keys()):
                 print(f"Instrument has to be one of {list(instrument_id.keys())}")
                 return
@@ -105,6 +107,7 @@ class MuSCAT_PHOTOMETRY:
             self.ra, self.dec = query_radec(target_from_filename())
 
             self.nccd = 3 if self.instrument == "muscat" else 4
+            self.obsdate = obsdate
             self.obslog = []
             self.instid = instrument_id[self.instrument]
             muscat_bands = {
