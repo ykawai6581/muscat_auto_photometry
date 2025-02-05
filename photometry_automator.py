@@ -324,10 +324,26 @@ class MuSCAT_PHOTOMETRY:
                 missing = True
                 missing_files_per_ccd[i] = missing_files
                 #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
-
+        print("Checking for missing photometry")
+        print(f"Missing {missing}")
         return missing, missing_files_per_ccd
 
     def run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
+        tasks = []
+        # Create a list of tasks to run in parallel
+        print("Here")
+        for ccd, missing_files in missing_files_per_ccd.items():
+            print("Looping through missing files")
+            for rad in rads:
+                if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
+                    tasks.append((script, self.obsdate, self.target, ccd, nstars, rad, self.drad))
+                else:
+                    print(f"Photometry already available for CCD={ccd}, rad={rad}")
+
+        # Run tasks in parallel
+        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
+            executor.map(lambda args: run_photometry(*args), tasks)
+
         '''
         """Runs photometry for CCDs where files are missing."""
         for i, missing_files in missing_files_per_ccd.items():
@@ -340,19 +356,6 @@ class MuSCAT_PHOTOMETRY:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
         '''
         """Runs photometry for CCDs where files are missing using parallel processing."""
-        tasks = []
-
-        # Create a list of tasks to run in parallel
-        for ccd, missing_files in missing_files_per_ccd.items():
-            for rad in rads:
-                if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
-                    tasks.append((script, self.obsdate, self.target, ccd, nstars, rad, self.drad))
-                else:
-                    print(f"Photometry already available for CCD={ccd}, rad={rad}")
-
-        # Run tasks in parallel
-        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
-            executor.map(lambda args: run_photometry(*args), tasks)
 
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
