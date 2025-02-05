@@ -704,12 +704,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         while min_rms_list[-1] < min_rms_list[-2]: #whle the rms keeps improving
             print(f"Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
-            if rad1 == rad2:
-                rad1 += rad_increment
-                rad2 = rad1
-            else:
-                rad1 += rad_increment
-                rad2 -= rad_increment
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
             photometry.run_apphot(nstars=self.nstars, rad1=rad1, rad2=rad2, drad=drad, method="mapping")
@@ -721,6 +715,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             optimization.outlier_cut(plot=False)
             min_rms = optimization.min_rms
             min_rms_list.append(min_rms)
+            if rad1 == rad2:
+                rad1 += rad_increment
+                rad2 = rad1
+            else:
+                rad1 += rad_increment
+                rad2 -= rad_increment
             print(f"Minimum rms: {min_rms_list[-2]} -> {min_rms_list[-1]}")
             if min_rms_list[-1] < min_rms_list[-2]:  
                 best_optimization = optimization
