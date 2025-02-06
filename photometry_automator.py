@@ -706,9 +706,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             min_rms_list.append(min_rms)
 
             if any(idx in {self.ap[0]} for idx in self.ap_best):
-                rad1 += 1
-            elif any(idx in {self.ap[-1]} for idx in self.ap_best):
                 rad1 -= 1
+            elif any(idx in {self.ap[-1]} for idx in self.ap_best):
+                rad2 += 1
             else:
                 rad1 -= 1
                 rad2 += 1
