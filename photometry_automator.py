@@ -311,8 +311,8 @@ class MuSCAT_PHOTOMETRY:
             
             metadata, data = _parse_obj_file(f"{self.obsdate}/{self.target}/reference/ref-{ref_frame}.objects")
 
-            xylist = f"{ref_frame}.df-indx.xyls"
-            rdlist = f"{ref_frame}.df.rdls"
+            xylist = f"{ref_file_dir}/df/{ref_frame}.df-indx.xyls"
+            rdlist = f"{ref_file_dir}/df/{ref_frame}.df.rdls"
             with fits.open(xylist) as hdul:
                 header = hdul[1].data  # BINTABLE is in the second HDU
             xy_array = np.array([list(row) for row in header])
