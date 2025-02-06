@@ -312,12 +312,19 @@ class MuSCAT_PHOTOMETRY:
             frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
-            
+
+            def file_does_not_exist(rad, frame): #nested helper function to help judge if photometry exists
+                file_path = f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                if not os.path.exists(file_path):
+                    return True  # Missing file
+                df, meta = self.read_photometry(ccd=0, rad=rad, frame=frame, add_metadata=True)
+                return meta['nstars'] < self.nstars  # previous photometry has less number of stars than requested
+                
             missing_files = [
                 f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 for rad in rads
                 for frame in range(first_frame, last_frame+1)
-                if not os.path.exists(f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
+                if file_does_not_exist(rad, frame)
             ]
 
             if missing_files:
@@ -506,9 +513,9 @@ class MuSCAT_PHOTOMETRY:
             dimmest_star = brightest_star + nstars
             cids = list(range(brightest_star,dimmest_star))
             if tid in cids:
-                cids = cids.remove(tid)
+                cids.remove(tid)
                 cids.append(dimmest_star+1)                
-            self.cids_list.append(cids)
+            self.cids_list.append(cids) #if too many stars are saturated, there is a risk of not having the photometry for the star
 
     @time_keeper
     def create_photometry(self, given_cids=None):
@@ -808,7 +815,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             dimmest_star = brightest_star + nstars
             cids = list(range(brightest_star,dimmest_star))
             if self.tid in cids:
-                cids = cids.remove(self.tid)
+                cids.remove(self.tid)
                 cids.append(dimmest_star+1)    
             cids.remove(brightest_star)
             for r in range(0,nstars): #nstars choose r
