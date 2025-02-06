@@ -312,7 +312,7 @@ class MuSCAT_PHOTOMETRY:
             frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
-            df, meta = self.read_photometry(ccd=i, rad=rads[0], frame=first_frame, add_metadata=True)
+            df, meta = self.read_photometry(ccd=i, rad=rads[0], frame=first_frame, add_metadata=True) #it takes too long to scan through all ccds, rad and frames
 
             def file_does_not_exist(rad, frame): #nested helper function to help judge if photometry exists
                 file_path = f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
@@ -514,7 +514,8 @@ class MuSCAT_PHOTOMETRY:
             cids = list(range(brightest_star,dimmest_star))
             if tid in cids:
                 cids.remove(tid)
-                cids.append(dimmest_star+1)                
+                cids.append(dimmest_star+1)   
+                cids = ' '.join(str(x) for x in cids)
             self.cids_list.append(cids) #if too many stars are saturated, there is a risk of not having the photometry for the star
 
     @time_keeper
