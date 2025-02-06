@@ -290,7 +290,7 @@ class MuSCAT_PHOTOMETRY:
         print(f"Performing photometry for radius: {rads} | nstars = {nstars} | method = {method}")
 
         # Check for missing photometry files
-        missing, missing_files_per_ccd = self.check_missing_photometry(rads)
+        missing, missing_files_per_ccd = self._check_missing_photometry(rads)
 
         if not missing:
             print(f"Photometry is already available for radius: {available_rad}")
@@ -300,9 +300,9 @@ class MuSCAT_PHOTOMETRY:
         script = f"scripts/auto_apphot_{method}.pl"
 
         # Run photometry for missing files
-        self.run_photometry_if_missing(script, nstars, rads, missing_files_per_ccd)
+        self._run_photometry_if_missing(script, nstars, rads, missing_files_per_ccd)
 
-    def check_missing_photometry(self, rads):
+    def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
         missing = False
         missing_files_per_ccd = {}
@@ -328,7 +328,7 @@ class MuSCAT_PHOTOMETRY:
         #print(f"Missing {missing}")
         return missing, missing_files_per_ccd
 
-    def run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
+    def _run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
         """Runs photometry for CCDs where files are missing in parallel."""
         processes = []  # Store running processes
 
@@ -404,7 +404,7 @@ class MuSCAT_PHOTOMETRY:
         
         return df, metadata if add_metadata else df#[['ID', 'peak']]
 
-    def process_single_ccd(self, ccd, rad):
+    def _process_single_ccd(self, ccd, rad):
         """
         Process photometry data for a single CCD with metadata.
         """
@@ -435,7 +435,7 @@ class MuSCAT_PHOTOMETRY:
             return None
 
         
-    def read_photometry_parallel(self, rad, num_processes=4):
+    def _read_photometry_parallel(self, rad, num_processes=4): #underscore suggests the function should not be called outside the class
         """
         Read photometry data for multiple CCDs in parallel.
         
@@ -448,7 +448,7 @@ class MuSCAT_PHOTOMETRY:
         """
         
         # Create partial function with fixed parameters
-        process_func = partial(self.process_single_ccd, rad=rad)
+        process_func = partial(self._process_single_ccd, rad=rad)
         
         # Process CCDs in parallel
         with Pool(processes=num_processes) as pool:
@@ -463,7 +463,7 @@ class MuSCAT_PHOTOMETRY:
     def check_saturation(self, rad):
         self.saturation_cids = []
         print(f'>> Checking for saturation ... (it may take a few seconds)')
-        df = self.read_photometry_parallel(rad=rad)
+        df = self._read_photometry_parallel(rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
         for i in range(self.nccd):
             saturation_cids_per_ccd = []
@@ -479,7 +479,7 @@ class MuSCAT_PHOTOMETRY:
 
         for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
-
+    '''
     def select_comparison(self, tid, nstars=5):
         self.tid = tid
         print(f"{self.target} | TID = {tid}")
@@ -491,6 +491,23 @@ class MuSCAT_PHOTOMETRY:
             else:
                 brightest_star = 1
             cids = get_combinations(brightest_star, brightest_star + nstars - 1, tid)
+            self.cids_list.append(cids)
+    '''
+    def select_comparison(self, tid, nstars=5):
+        self.tid = tid
+        print(f"{self.target} | TID = {tid}")
+        self.check_saturation(self.rad1)
+        self.cids_list = []
+        for saturation_cid in self.saturation_cids:
+            if saturation_cid:
+                brightest_star = max(saturation_cid) + 1
+            else:
+                brightest_star = 1
+            dimmest_star = brightest_star + nstars
+            cids = list(range(brightest_star,dimmest_star))
+            if tid in cids:
+                cids = cids.remove(tid)
+                cids.append(dimmest_star+1)                
             self.cids_list.append(cids)
 
     @time_keeper
@@ -505,23 +522,26 @@ class MuSCAT_PHOTOMETRY:
             for cid in self.cids_list[i]:
                 obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
                 os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}")) 
-                cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
-                #print(cmd)
-                #print(result.stdout)
-
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
-                #print(os.getcwd())
-                #print(f"Created {outfile}")
-                outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
-                #print(outfile_path)
+                if not os.path.isfile(outfile): #if the photometry file does not exist
+                    cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
+                    #print(cmd)
+                    #print(result.stdout)
 
-                if os.path.isfile(outfile_path):
-                    #outfile2 = f"{instdir}/{date}/{obj}/lcf_{inst}_{bands[i]}_{obj}_{date}_t{tid}_c{suffix}_r{rad1}-{rad2}.csv"
-                    subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)
-                    print(f"## >> Created photometry for cIDs:{cid}")
+                    #print(os.getcwd())
+                    #print(f"Created {outfile}")
+                    outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
+                    #print(outfile_path)
+
+                    if os.path.isfile(outfile_path): #if the photometry file now exists
+                        #outfile2 = f"{instdir}/{date}/{obj}/lcf_{inst}_{bands[i]}_{obj}_{date}_t{tid}_c{suffix}_r{rad1}-{rad2}.csv"
+                        subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)
+                        print(f"## >> Created photometry for cIDs:{cid}")
+                    else:
+                        print(f"## >> Failed to create photometry for cIDs:{cid}")
                 else:
-                    print(f"## >> Failed to create photometry for cIDs:{cid}")
+                    print(f"## >> Photometry for cIDs:{cid} already exists.")
 
         os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}"))
 
@@ -580,7 +600,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 
                 self.mask[i].append(condition)  # Directly store condition, keeping shape (4, 15)
         print(f"Added mask to {key}")
-
+    '''
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2, plot=True):
         self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
@@ -669,7 +689,135 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
         self.ap_best       = [self.ap[item[1]] for item in self.min_rms_idx_list]
         self.ap_best_idx   = [item[1] for item in self.min_rms_idx_list]
+    '''
+    @time_keeper
+    def outlier_cut(self, sigma_cut=3, order=2, plot=True):
+        """Performs outlier detection using polynomial fitting and sigma clipping."""
+        
+        self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
+        self.ndata_diff = []  # Stores data difference arrays for each CCD
+        self.rms = []  # Stores RMS arrays for each CCD
+        self.min_rms_idx_list = []  # Stores min RMS indices per CCD
 
+        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (it may take a few minutes)")
+
+        for i in range(self.nccd):
+            print(f"Computing outliers for CCD {i}")
+            
+            n_cids = len(self.cids_list[i])
+            n_ap = len(self.ap)
+            
+            ndata_diff = np.zeros((n_cids, n_ap))
+            rms = np.zeros((n_cids, n_ap))
+            self.index[i] = [[] for _ in range(n_cids)]
+
+            for j in range(n_cids):
+                phot_j = self.phot[i][j]
+                exptime = phot_j['exptime']
+                gjd_vals = phot_j['GJD-2450000']
+                mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
+
+                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
+                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
+
+                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+                ndata_init = fcomp_data.shape[1]
+
+                ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+
+                for k in range(n_ap):
+                    if len(ye[k]) > 0:
+                        p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
+                        self.index[i][j].append(np.isin(gjd_vals, tcut))
+                        ndata_final = len(tcut)
+                    else:
+                        self.index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
+                        ndata_final = 0
+
+                    ndata_diff[j, k] = ndata_final - ndata_init
+
+                    if len(ycut) > 1:
+                        diff = np.diff(ycut)
+                        rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
+                    else:
+                        rms[j, k] = np.inf
+
+            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)
+            self.min_rms_idx_list.append(min_rms_idx)
+            self.min_rms = rms[min_rms_idx]
+
+            self.ndata_diff.append(ndata_diff)
+            self.rms.append(rms)
+
+        # Store best candidate values
+        self.cIDs_best = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
+        self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
+        self.ap_best = [self.ap[item[1]] for item in self.min_rms_idx_list]
+        self.ap_best_idx = [item[1] for item in self.min_rms_idx_list]
+
+        if plot:
+            self.plot_outlier_cut_results()
+
+
+    def plot_outlier_cut_results(self):
+        """Plots the results of the outlier detection process."""
+
+        fig, axes = plt.subplots(self.nccd, 2, figsize=(14, 4 * self.nccd))  # 2 columns per CCD
+
+        for i in range(self.nccd):
+            ndata_diff = self.ndata_diff[i]
+            rms = self.rms[i]
+            min_rms_idx = self.min_rms_idx_list[i]
+
+            norm_diff = mcolors.Normalize(vmin=np.min(ndata_diff), vmax=np.max(ndata_diff))
+            norm_rms = mcolors.Normalize(vmin=np.min(rms[rms != np.inf]), vmax=np.max(rms[rms != np.inf]))
+
+            # **Left Plot: Number of cut data points**
+            im1 = axes[i, 0].imshow(ndata_diff, cmap="coolwarm", aspect="auto", norm=norm_diff)
+            axes[i, 0].set_title(f"CCD {i} - Cut Data Points")
+            axes[i, 0].set_xticks(range(len(self.ap)))
+            axes[i, 0].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(len(self.ap))])
+            axes[i, 0].set_yticks(range(len(self.cids_list[i])))
+            axes[i, 0].set_yticklabels(self.cids_list[i])
+            fig.colorbar(im1, ax=axes[i, 0], label="Number of Cut Data Points")
+
+            # **Right Plot: RMS of flux differences**
+            im2 = axes[i, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
+            axes[i, 1].set_title(f"CCD {i} - RMS")
+            axes[i, 1].set_xticks(range(len(self.ap)))
+            axes[i, 1].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(len(self.ap))])
+            axes[i, 1].set_yticks(range(len(self.cids_list[i])))
+            axes[i, 1].set_yticklabels(self.cids_list[i])
+            fig.colorbar(im2, ax=axes[i, 1], label="RMS")
+
+            # **Highlight the min RMS cell with a white square**
+            j_min, k_min = min_rms_idx
+            rect = patches.Rectangle((k_min - 0.5, j_min - 0.5), 1, 1, linewidth=3, edgecolor='white', facecolor='none')
+            axes[i, 1].add_patch(rect)
+
+        print("Plotting results")
+        plt.tight_layout()
+        plt.show()
+
+    def _reselect_comparison(self):
+        reselected_cids_list = []
+        for cid in self.cIDs_best:
+            reselected_cids = []
+            brightest_star = int(cid)
+            nstars = 6
+            dimmest_star = brightest_star + nstars
+            cids = list(range(brightest_star,dimmest_star))
+            if self.tid in cids:
+                cids = cids.remove(self.tid)
+                cids.append(dimmest_star+1)    
+            cids.remove(brightest_star)
+            for r in range(0,nstars): #nstars choose r
+                for combo in itertools.combinations(cids, r):
+                    current_combo = ' '.join(str(x) for x in sorted([brightest_star] + list(combo)))
+                    reselected_cids.append(current_combo)
+            reselected_cids_list.append(reselected_cids)
+        return reselected_cids_list
+    
     def iterate_optimization(self):
         min_rms = np.inf
         min_rms_list = [np.inf,self.min_rms]
@@ -696,7 +844,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
             photometry.run_apphot(nstars=self.nstars, rad1=rad1, rad2=rad2, drad=drad, method="mapping")
-            photometry.cids_list = self.cIDs_best
+            photometry.cids_list = self._reselect_comparison()
             photometry.create_photometry()
 
             optimization = MuSCAT_PHOTOMETRY_OPTIMIZATION(photometry)
@@ -712,14 +860,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             else:
                 rad1 -= 1
                 rad2 += 1
-
-            '''
-            ここにradを更新するロジックを入れる
-            '''
             print(f"Minimum rms: {min_rms_list[-2]} -> {min_rms_list[-1]}")
             if min_rms_list[-1] < min_rms_list[-2]:  
                 best_optimization = optimization
-
+        best_optimization.plot_outlier_cut_results()
         return best_optimization
 
     def plot_lc(self):
