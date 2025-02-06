@@ -312,20 +312,14 @@ class MuSCAT_PHOTOMETRY:
             frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
+            df, meta = self.read_photometry(ccd=i, rad=rads[0], frame=first_frame, add_metadata=True)
 
             def file_does_not_exist(rad, frame): #nested helper function to help judge if photometry exists
                 file_path = f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 if not os.path.exists(file_path):
                     return True  # Missing file
-                df, meta = self.read_photometry(ccd=i, rad=rad, frame=frame, add_metadata=True)
-                if meta['nstars'] < self.nstars:  #if previous photometry has smaller number of stars than requested
-                    print(meta['nstars'])
-                    print("Need to redo")
-                    return True #-> need for redo
-                else:
-                    print(meta['nstars'])
-                    print("No need to redo")
-                    return False
+                return meta['nstars'] < self.nstars  #if previous photometry has smaller number of stars than requested -> need to redo
+                
             missing_files = [
                 f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 for rad in rads
