@@ -770,7 +770,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
         self.ap_best       = [self.ap[item[1]] for item in self.min_rms_idx_list]
         self.ap_best_idx   = [item[1] for item in self.min_rms_idx_list]
-    '''
+    
     '''
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2, plot=True):
@@ -921,7 +921,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         if plot:
             self.plot_outlier_cut_results()
 
-
+    '''
     def plot_outlier_cut_results(self):
         """Plots the results of the outlier detection process."""
 
