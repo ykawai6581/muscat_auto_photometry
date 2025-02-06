@@ -22,6 +22,7 @@ from astropy.table import Table
 from astropy.coordinates import Angle
 import astropy.units as u
 import barycorr
+from joblib import Parallel, delayed
 from multiprocessing import Process, Pool, Array, Manager
 import math
 import matplotlib.patches as patches
@@ -770,6 +771,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.ap_best       = [self.ap[item[1]] for item in self.min_rms_idx_list]
         self.ap_best_idx   = [item[1] for item in self.min_rms_idx_list]
     '''
+    '''
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2, plot=True):
         """Performs outlier detection using polynomial fitting and sigma clipping."""
@@ -828,6 +830,85 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
             self.ndata_diff.append(ndata_diff)
             self.rms.append(rms)
+
+        # Store best candidate values
+        self.cIDs_best = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
+        self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
+        self.ap_best = [self.ap[item[1]] for item in self.min_rms_idx_list]
+        self.ap_best_idx = [item[1] for item in self.min_rms_idx_list]
+
+        if plot:
+            self.plot_outlier_cut_results()
+    '''
+
+    @time_keeper
+    def outlier_cut(self, sigma_cut=3, order=2, plot=True):
+        """Performs outlier detection using polynomial fitting and sigma clipping in parallel."""
+        
+        self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
+        self.ndata_diff = []  # Stores data difference arrays for each CCD
+        self.rms = []  # Stores RMS arrays for each CCD
+        self.min_rms_idx_list = []  # Stores min RMS indices per CCD
+
+        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (it may take a few minutes)")
+
+        def process_ccd(i):
+            """Processes a single CCD's outlier detection."""
+            print(f"Computing outliers for CCD {i}")
+
+            n_cids = len(self.cids_list[i])
+            n_ap = len(self.ap)
+            
+            ndata_diff = np.zeros((n_cids, n_ap))
+            rms = np.zeros((n_cids, n_ap))
+            index_i = [[] for _ in range(n_cids)]  # Local index storage
+
+            for j in range(n_cids):
+                phot_j = self.phot[i][j]
+                exptime = phot_j['exptime']
+                gjd_vals = phot_j['GJD-2450000']
+                mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
+
+                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
+                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
+
+                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+                ndata_init = fcomp_data.shape[1]
+
+                ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+
+                for k in range(n_ap):
+                    if len(ye[k]) > 0:
+                        p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
+                        index_i[j].append(np.isin(gjd_vals, tcut))
+                        ndata_final = len(tcut)
+                    else:
+                        index_i[j].append(np.zeros_like(gjd_vals, dtype=bool))
+                        ndata_final = 0
+
+                    ndata_diff[j, k] = ndata_final - ndata_init
+
+                    if len(ycut) > 1:
+                        diff = np.diff(ycut)
+                        rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
+                    else:
+                        rms[j, k] = np.inf
+
+            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)
+            min_rms = rms[min_rms_idx]
+
+            return i, index_i, ndata_diff, rms, min_rms_idx, min_rms
+
+        # Run parallel processing for each CCD
+        results = Parallel(n_jobs=4)(delayed(process_ccd)(i) for i in range(self.nccd))
+
+        # Collect results
+        for i, index_i, ndata_diff, rms, min_rms_idx, min_rms in results:
+            self.index[i] = index_i
+            self.ndata_diff.append(ndata_diff)
+            self.rms.append(rms)
+            self.min_rms_idx_list.append(min_rms_idx)
+            self.min_rms = min_rms
 
         # Store best candidate values
         self.cIDs_best = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
@@ -899,7 +980,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         return reselected_cids_list
     
     def iterate_optimization(self):
-        min_rms = np.inf
         min_rms_list = [np.inf,self.min_rms]
         drad = 1
 
