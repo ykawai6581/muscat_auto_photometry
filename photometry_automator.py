@@ -26,6 +26,7 @@ from multiprocessing import Process, Pool, Array, Manager
 import math
 import matplotlib.patches as patches
 import matplotlib.colors as mcolors
+import re
 
 
 import itertools
@@ -267,6 +268,74 @@ class MuSCAT_PHOTOMETRY:
             ax.add_patch(circ)
             plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
 
+    def find_tid(self):
+        with open(Path(f"{self.obsdate}/{self.target}/list/ref.lst"), 'r') as f:
+            ref_file = f.read()
+
+        ref_frame = ref_file.replace('\n','')
+        ref_ccd = ref_frame[4]
+        ref_file_dir = f"{self.obsdate}/{self.target}_{ref_ccd}/df/"
+        ref_file = f"{ref_file_dir}/{ref_frame}.fits"
+        pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
+        buffer = 0.02
+
+        print("Running WCS Calculation of reference file...")
+        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {15/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file}"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        print(result.stdout)
+        print("Complete")
+
+        if os.path.exists(f"{ref_file_dir}/ref.lst"):
+            def _parse_obj_file(input_file): #helper function to parse objectfile
+                """Parses the .df file to extract metadata and tabular data."""
+                metadata = {}
+                data_rows = []
+
+                with open(input_file, 'r') as file:
+                    for line in file:
+                        line = line.strip()
+                        if line.startswith("#"):  # Metadata lines
+                            key_value = re.match(r"#\s*(.+?)\s*=\s*(.+)", line)
+                            if key_value:
+                                key, value = key_value.groups()
+                                metadata[key.strip()] = value.strip()
+                        elif line and not line.startswith("#"):  # Data rows
+                            parts = line.split()
+                            if len(parts) >= 7:  # Ensure it matches expected column structure
+                                data_rows.append(list(map(float, parts)))
+
+                col_names = ['ID', 'x', 'y', 'x_int', 'y_int', 'Flux', 'Peak']
+                data = pd.DataFrame(data_rows,columns=col_names)
+                return metadata, data
+            
+            metadata, data = _parse_obj_file(f"{self.obsdate}/{self.target}/reference/ref-{ref_frame}.objects")
+
+            xylist = f"{ref_frame}.df-indx.xyls"
+            rdlist = f"{ref_frame}.df.rdls"
+            with fits.open(xylist) as hdul:
+                header = hdul[1].data  # BINTABLE is in the second HDU
+            xy_array = np.array([list(row) for row in header])
+
+            with fits.open(rdlist) as hdul:
+                header = hdul[1].data  # BINTABLE is in the second HDU
+            rd_array = np.array([list(row) for row in header])
+
+            threshold = 2
+            threshold_deg = threshold*pixscale/3600
+
+            for (x,y), (r,d) in zip(xy_array,rd_array):
+                #print(x,y)
+                mask = (data["x"] - x < threshold) & (data["x"] - x > -threshold) & (data["y"] - y < threshold) & (data["y"] - y > -threshold)
+                filtered_data = data[["ID", "x", "y"]][mask]
+                match = (self.ra - r < threshold_deg) and (self.ra - r > -threshold_deg) and (self.dec - d < threshold_deg) and (self.dec - d > -threshold_deg)
+                if match:
+                    tid = int(filtered_data[['ID']].iloc[0])
+                    print(f"Target ID: {tid}")
+                    self.tid = tid
+                    return
+        else:
+            print("Target search unsuccessful")
+
     ## Performing aperture photometry
     @time_keeper
     def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping"):
@@ -500,9 +569,12 @@ class MuSCAT_PHOTOMETRY:
             cids = get_combinations(brightest_star, brightest_star + nstars - 1, tid)
             self.cids_list.append(cids)
     '''
-    def select_comparison(self, tid, nstars=5):
-        self.tid = tid
-        print(f"{self.target} | TID = {tid}")
+    def select_comparison(self, tid=None, nstars=5):
+        if tid is None:
+            self.find_tid()
+        else:
+            self.tid = tid
+        print(f"{self.target} | TID = {self.tid}")
         self.check_saturation(self.rad1)
         self.cids_list = []
         for saturation_cid in self.saturation_cids:
@@ -512,8 +584,8 @@ class MuSCAT_PHOTOMETRY:
                 brightest_star = 1
             dimmest_star = brightest_star + nstars
             cids = list(range(brightest_star,dimmest_star))
-            if tid in cids:
-                cids.remove(tid)
+            if self.tid in cids:
+                cids.remove(self.tid)
                 cids.append(dimmest_star+1)   
                 cids = [str(cid) for cid in cids]
             self.cids_list.append(cids) #if too many stars are saturated, there is a risk of not having the photometry for the star. need to add logic for this
@@ -829,7 +901,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def iterate_optimization(self):
         min_rms = np.inf
         min_rms_list = [np.inf,self.min_rms]
-        best_optimization = None
         drad = 1
 
         if any(idx in {self.ap[0]} for idx in self.ap_best): #if the lowest rms is the smallest aperture 
@@ -847,19 +918,28 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 rad1 = min(self.ap_best) - drad #the smallest aperture
                 rad2 = max(self.ap_best) + drad #the largest aperture
 
+        reselected_cids = self._reselect_comparison()
+
         while min_rms_list[-1] < min_rms_list[-2]: #whle the rms keeps improving
             print(f"Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
             photometry.run_apphot(nstars=self.nstars, rad1=rad1, rad2=rad2, drad=drad, method="mapping")
-            photometry.cids_list = self._reselect_comparison()
+            photometry.cids_list = reselected_cids
             photometry.create_photometry()
 
+            saved_mask = self.mask
+            '''
             optimization = MuSCAT_PHOTOMETRY_OPTIMIZATION(photometry)
             optimization.mask = self.mask #adds the same mask
             optimization.outlier_cut(plot=False)
             min_rms = optimization.min_rms
             min_rms_list.append(min_rms)
+            '''
+            self.__init__(photometry)
+            self.mask = saved_mask
+            self.outlier_cut(plot=False)
+            min_rms_list.append(self.min_rms)
 
             if any(idx in {self.ap[0]} for idx in self.ap_best):
                 rad1 -= 1
@@ -869,10 +949,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 rad1 -= 1
                 rad2 += 1
             print(f"Minimum rms: {min_rms_list[-2]} -> {min_rms_list[-1]}")
-            if min_rms_list[-1] < min_rms_list[-2]:  
-                best_optimization = optimization
-        best_optimization.plot_outlier_cut_results()
-        return best_optimization
+        self.plot_outlier_cut_results()
 
     def plot_lc(self):
         binsize = 300/86400.
