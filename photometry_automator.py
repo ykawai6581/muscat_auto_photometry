@@ -515,8 +515,8 @@ class MuSCAT_PHOTOMETRY:
             if tid in cids:
                 cids.remove(tid)
                 cids.append(dimmest_star+1)   
-                cids = ' '.join(str(x) for x in cids)
-            self.cids_list.append(cids) #if too many stars are saturated, there is a risk of not having the photometry for the star
+                cids = [str(cid) for cid in cids]
+            self.cids_list.append(cids) #if too many stars are saturated, there is a risk of not having the photometry for the star. need to add logic for this
 
     @time_keeper
     def create_photometry(self, given_cids=None):
