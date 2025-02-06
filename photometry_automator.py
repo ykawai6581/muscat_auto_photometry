@@ -336,7 +336,7 @@ class MuSCAT_PHOTOMETRY:
             for rad in rads:
                 if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
                     cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {self.drad} > /dev/null"
-                    process = subprocess.Popen(cmd, shell=True, capture_output=True, text=True)
+                    process = subprocess.Popen(cmd, shell=True, text=True)
                     processes.append((process, i, rad))  # Store process info
                 else:
                     print(f"Photometry already available for CCD={i}, rad={rad}")
