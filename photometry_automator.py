@@ -852,24 +852,24 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (it may take a few minutes)")
 
-        def process_ccd(i):
+        def process_ccd(i, cids_list, ap, phot, mask, order, sigma_cut): #self is not picklable, so you have to manually pass the arguments
             """Processes a single CCD's outlier detection."""
             print(f"Computing outliers for CCD {i}")
 
-            n_cids = len(self.cids_list[i])
-            n_ap = len(self.ap)
+            n_cids = len(cids_list[i])
+            n_ap = len(ap)
             
             ndata_diff = np.zeros((n_cids, n_ap))
             rms = np.zeros((n_cids, n_ap))
             index_i = [[] for _ in range(n_cids)]  # Local index storage
 
             for j in range(n_cids):
-                phot_j = self.phot[i][j]
+                phot_j = phot[i][j]
                 exptime = phot_j['exptime']
                 gjd_vals = phot_j['GJD-2450000']
-                mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
+                mask = mask[i][j] if (i < len(mask) and j < len(mask[i])) else np.ones_like(gjd_vals, dtype=bool)
 
-                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
+                fcomp_keys = [f'flux_comp(r={ap[k]:.1f})' for k in range(n_ap)]
                 fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
 
                 raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
@@ -900,7 +900,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             return i, index_i, ndata_diff, rms, min_rms_idx, min_rms
 
         # Run parallel processing for each CCD
-        results = Parallel(n_jobs=4)(delayed(process_ccd)(i) for i in range(self.nccd))
+        #results = Parallel(n_jobs=4)(delayed(process_ccd)(i) for i in range(self.nccd))
+        results = Parallel(n_jobs=4)(delayed(process_ccd)(i, self.cids_list, self.ap, self.phot, self.mask, order, sigma_cut) for i in range(self.nccd))
+
 
         # Collect results
         for i, index_i, ndata_diff, rms, min_rms_idx, min_rms in results:
