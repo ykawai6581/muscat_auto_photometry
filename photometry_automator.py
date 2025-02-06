@@ -677,12 +677,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         drad = 1
 
         if any(idx in {self.ap[0]} for idx in self.ap_best): #if the lowest rms is the smallest aperture 
-            rad_increment = -1
             rad1 = self.ap[0] - drad
             rad2 = self.ap[-1]
             
         elif any(idx in {self.ap[-1]} for idx in self.ap_best): #if the lowest rms is the largest aperture 
-            rad_increment = 1
             rad1 = self.ap[0]
             rad2 = self.ap[-1] + drad
         else:
@@ -690,7 +688,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 print("Already optimal")
                 return
             else:
-                rad_increment = 1
                 rad1 = min(self.ap_best) - drad #the smallest aperture
                 rad2 = max(self.ap_best) + drad #the largest aperture
 
@@ -707,12 +704,18 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             optimization.outlier_cut(plot=False)
             min_rms = optimization.min_rms
             min_rms_list.append(min_rms)
-            if rad1 == rad2:
-                rad1 += rad_increment
-                rad2 = rad1
+
+            if any(idx in {self.ap[0]} for idx in self.ap_best):
+                rad1 += 1
+            elif any(idx in {self.ap[-1]} for idx in self.ap_best):
+                rad1 -= 1
             else:
-                rad1 += rad_increment
-                rad2 -= rad_increment
+                rad1 -= 1
+                rad2 += 1
+
+            '''
+            ここにradを更新するロジックを入れる
+            '''
             print(f"Minimum rms: {min_rms_list[-2]} -> {min_rms_list[-1]}")
             if min_rms_list[-1] < min_rms_list[-2]:  
                 best_optimization = optimization
