@@ -317,11 +317,15 @@ class MuSCAT_PHOTOMETRY:
                 file_path = f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 if not os.path.exists(file_path):
                     return True  # Missing file
+                df, meta = self.read_photometry(ccd=i, rad=rad, frame=frame, add_metadata=True)
+                if meta['nstars'] < self.nstars:  #if previous photometry has smaller number of stars than requested
+                    print(meta['nstars'])
+                    print("Need to redo")
+                    return True #-> need for redo
                 else:
+                    print(meta['nstars'])
+                    print("No need to redo")
                     return False
-                #df, meta = self.read_photometry(ccd=i, rad=rad, frame=frame, add_metadata=True)
-                #return meta['nstars'] < self.nstars  # return False if previous photometry has smaller number of stars than requested
-                
             missing_files = [
                 f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 for rad in rads
