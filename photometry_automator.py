@@ -665,112 +665,87 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
     def add_mask(self, key, lower=None, upper=None):
         """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
-        
+
         for i in range(len(self.phot)):  # Loop over CCDs
             self.mask[i] = []  # Ensure mask[i] is a clean list
             
             for j in range(len(self.phot[i])):  # Loop over sources, stars, or apertures
                 condition = np.ones_like(self.phot[i][j][key], dtype=bool)  # Start with all True
-
+                if key == "raw":
+                    fcomp_key = f'flux_comp(r={self.ap[0]:.1f})'#this currently assumes the first aperture for raw flux cut
+                    target_array = self.phot[i][j][fcomp_key]/self.phot[i][j]['exptime'] 
+                    target_array /= np.median(target_array) #this is the normalized flux
+                else:
+                    target_array = self.phot[i][j][key]
                 if lower is not None:
-                    condition &= self.phot[i][j][key] > (lower[i] if isinstance(lower, list) else lower)
+                        condition &= target_array > (lower[i] if isinstance(lower, list) else lower)
                     
                 if upper is not None:
-                    condition &= self.phot[i][j][key] < (upper[i] if isinstance(upper, list) else upper)
+                    condition &= target_array < (upper[i] if isinstance(upper, list) else upper)
                 
                 self.mask[i].append(condition)  # Directly store condition, keeping shape (4, 15)
         print(f"Added mask to {key}")
-    '''
-    @time_keeper
-    def outlier_cut(self, sigma_cut=3, order=2, plot=True):
-        self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
-        if plot:
-            fig, axes = plt.subplots(self.nccd, 2, figsize=(14, 4 * self.nccd))  # 2 columns per CCD
-        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...  (it may take a few minutes)")
+
+
+    def preview_photometry(self, cid=0, k=0, order=2, sigma_cut=3):
+        j = self.cids_list_opt[cid]
+        fcomp_key = f'flux_comp(r={self.ap[k]:.1f})' # Use the aperture given in the argument
+        fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True)
 
         for i in range(self.nccd):
-            print(f"Computing outliers for CCD{i}")
-            n_cids = len(self.cids_list[i])
-            n_ap = len(self.ap)
+            
+            phot_j = self.phot[i][j]
+            exptime = phot_j['exptime']
+            gjd_vals = phot_j['GJD-2450000']
+            raw_norm = phot_j[fcomp_key] / exptime
+            raw_norm /= np.median(raw_norm)
+            fcomp_data = phot_j[fcomp_key]
 
-            ndata_diff = np.zeros((n_cids, n_ap))
-            rms = np.zeros((n_cids, n_ap))
-            self.index[i] = [[] for _ in range(n_cids)]
+            mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
 
-            for j in range(n_cids):
-                phot_j = self.phot[i][j]
-                exptime = phot_j['exptime']
-                gjd_vals = phot_j['GJD-2450000']
-                mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
+            ye = np.sqrt(fcomp_data[mask]) / exptime[mask] / np.median(fcomp_data[mask] / exptime[mask], axis=1, keepdims=True)
 
-                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
-                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
+            if len(ye) > 0:
+                print(">> Performing preliminary outlier detection ...")
+                print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
+                p, tcut, ycut, yecut, index = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
+                mask &= index
+                omittied_points = (~mask) & (~index)
+                ax[0, i].plot(gjd_vals[omittied_points], raw_norm[omittied_points], 'x', c="gray")
+                ax[1, i].plot(gjd_vals[omittied_points], phot_j[i][j]['airmass'][omittied_points], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
+                ax[2, i].plot(gjd_vals[omittied_points], phot_j[i][j]['dx(pix)'][omittied_points], 'x', c="gray")
+                ax[3, i].plot(gjd_vals[omittied_points], phot_j[i][j]['dy(pix)'][omittied_points], 'x', c="gray")
+                ax[4, i].plot(gjd_vals[omittied_points], phot_j[i][j]['fwhm(pix)'][omittied_points], 'x', c="gray")
+                ax[5, i].plot(gjd_vals[omittied_points], phot_j[i][j]['peak(ADU)'][omittied_points], 'x', c="gray")
+                for j in range(len(self.cids_list_opt)):
+                    self.mask[i][j] &= index  # In-place modification of mask
+                    print("## >> Complete and mask is updated.")
 
-                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
-                ndata_init = fcomp_data.shape[1]
+            print(f">> Ploting the photometry data for cID:{cid}, ap:{k}")
+            ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
+            ax[1, i].plot(gjd_vals[mask], phot_j[i][j]['airmass'][mask], '.', c="gray")
+            ax[2, i].plot(gjd_vals[mask], phot_j[i][j]['dx(pix)'][mask], '.', c="orange")
+            ax[3, i].plot(gjd_vals[mask], phot_j[i][j]['dy(pix)'][mask], '.', c="orange")
+            ax[4, i].plot(gjd_vals[mask], phot_j[i][j]['fwhm(pix)'][mask], '.', c="blue")
+            ax[5, i].plot(gjd_vals[mask], phot_j[i][j]['peak(ADU)'][mask], '.', c="red")
 
-                ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+        # Set labels only on the first column
+        ax[0, 0].set_ylabel('Relative flux')
+        ax[1, 0].set_ylabel('Airmass')
+        ax[2, 0].set_ylabel('dX')
+        ax[3, 0].set_ylabel('dY')
+        ax[4, 0].set_ylabel('FWHM')
+        ax[5, 0].set_ylabel('Peak')
 
-                for k in range(n_ap):
-                    if len(ye[k]) > 0:
-                        p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
-                        self.index[i][j].append(np.isin(gjd_vals, tcut))
-                        ndata_final = len(tcut)
-                    else:
-                        self.index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
-                        ndata_final = 0
+        # Set common x-axis label
+        for i in range(self.nccd):
+            ax[-1, i].set_xlabel('GJD - 2450000')
 
-                    ndata_diff[j, k] = ndata_final - ndata_init
 
-                    if len(ycut) > 1:
-                        diff = np.diff(ycut)
-                        rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
-                    else:
-                        rms[j, k] = np.inf
+        plt.tight_layout(h_pad=0)  # Remove spacing between rows
+        plt.legend()
+        plt.show()
 
-            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)
-            self.min_rms = rms[min_rms_idx]
-            self.min_rms_idx_list.append(min_rms_idx)
-
-            if plot:
-                # Normalize color scales for consistency across CCDs
-                norm_diff = mcolors.Normalize(vmin=np.min(ndata_diff), vmax=np.max(ndata_diff))
-                norm_rms = mcolors.Normalize(vmin=np.min(rms[rms != np.inf]), vmax=np.max(rms[rms != np.inf]))
-
-                # **Left Plot: Number of cut data points**
-                im1 = axes[i, 0].imshow(ndata_diff, cmap="coolwarm", aspect="auto", norm=norm_diff)
-                axes[i, 0].set_title(f"CCD {i} - Cut Data Points")
-                axes[i, 0].set_xticks(range(n_ap))
-                axes[i, 0].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
-                axes[i, 0].set_yticks(range(n_cids))
-                axes[i, 0].set_yticklabels(self.cids_list[i])
-                fig.colorbar(im1, ax=axes[i, 0], label="Number of Cut Data Points")
-
-                # **Right Plot: RMS of flux differences**
-                im2 = axes[i, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
-                axes[i, 1].set_title(f"CCD {i} - RMS")
-                axes[i, 1].set_xticks(range(n_ap))
-                axes[i, 1].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(n_ap)])
-                axes[i, 1].set_yticks(range(n_cids))
-                axes[i, 1].set_yticklabels(self.cids_list[i])
-                fig.colorbar(im2, ax=axes[i, 1], label="RMS")
-
-                # **Highlight the min RMS cell with a white square**
-                j_min, k_min = min_rms_idx
-                rect = patches.Rectangle((k_min - 0.5, j_min - 0.5), 1, 1, linewidth=3, edgecolor='white', facecolor='none')
-                axes[i, 1].add_patch(rect)
-
-        if plot:
-            print("Plotting results")
-            plt.tight_layout()
-            plt.show()
-
-        self.cIDs_best     = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
-        self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
-        self.ap_best       = [self.ap[item[1]] for item in self.min_rms_idx_list]
-        self.ap_best_idx   = [item[1] for item in self.min_rms_idx_list]
-    
-    '''
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2, plot=True):
         """Performs outlier detection using polynomial fitting and sigma clipping."""
@@ -808,7 +783,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
                 for k in range(n_ap):
                     if len(ye[k]) > 0:
-                        p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
+                        p, tcut, ycut, yecut, index = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
                         self.index[i][j].append(np.isin(gjd_vals, tcut))
                         ndata_final = len(tcut)
                     else:
@@ -838,89 +813,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         if plot:
             self.plot_outlier_cut_results()
-    '''
-
-    @time_keeper
-    def outlier_cut(self, sigma_cut=3, order=2, plot=True):
-        """Performs outlier detection using polynomial fitting and sigma clipping in parallel."""
-        
-        self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
-        self.ndata_diff = []  # Stores data difference arrays for each CCD
-        self.rms = []  # Stores RMS arrays for each CCD
-        self.min_rms_idx_list = []  # Stores min RMS indices per CCD
-
-        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (it may take a few minutes)")
-
-        def process_ccd(i, cids_list, ap, phot, mask, order, sigma_cut): #self is not picklable, so you have to manually pass the arguments
-            """Processes a single CCD's outlier detection."""
-            print(f"Computing outliers for CCD {i}")
-
-            n_cids = len(cids_list[i])
-            n_ap = len(ap)
-            
-            ndata_diff = np.zeros((n_cids, n_ap))
-            rms = np.zeros((n_cids, n_ap))
-            index_i = [[] for _ in range(n_cids)]  # Local index storage
-
-            for j in range(n_cids):
-                phot_j = phot[i][j]
-                exptime = phot_j['exptime']
-                gjd_vals = phot_j['GJD-2450000']
-                mask = mask[i][j] if (i < len(mask) and j < len(mask[i])) else np.ones_like(gjd_vals, dtype=bool)
-
-                fcomp_keys = [f'flux_comp(r={ap[k]:.1f})' for k in range(n_ap)]
-                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
-
-                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
-                ndata_init = fcomp_data.shape[1]
-
-                ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
-
-                for k in range(n_ap):
-                    if len(ye[k]) > 0:
-                        p, tcut, ycut, yecut = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
-                        index_i[j].append(np.isin(gjd_vals, tcut))
-                        ndata_final = len(tcut)
-                    else:
-                        index_i[j].append(np.zeros_like(gjd_vals, dtype=bool))
-                        ndata_final = 0
-
-                    ndata_diff[j, k] = ndata_final - ndata_init
-
-                    if len(ycut) > 1:
-                        diff = np.diff(ycut)
-                        rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
-                    else:
-                        rms[j, k] = np.inf
-
-            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)
-            min_rms = rms[min_rms_idx]
-
-            return i, index_i, ndata_diff, rms, min_rms_idx, min_rms
-
-        # Run parallel processing for each CCD
-        #results = Parallel(n_jobs=4)(delayed(process_ccd)(i) for i in range(self.nccd))
-        results = Parallel(n_jobs=4)(delayed(process_ccd)(i, self.cids_list, self.ap, self.phot, self.mask, order, sigma_cut) for i in range(self.nccd))
-
-
-        # Collect results
-        for i, index_i, ndata_diff, rms, min_rms_idx, min_rms in results:
-            self.index[i] = index_i
-            self.ndata_diff.append(ndata_diff)
-            self.rms.append(rms)
-            self.min_rms_idx_list.append(min_rms_idx)
-            self.min_rms = min_rms
-
-        # Store best candidate values
-        self.cIDs_best = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
-        self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
-        self.ap_best = [self.ap[item[1]] for item in self.min_rms_idx_list]
-        self.ap_best_idx = [item[1] for item in self.min_rms_idx_list]
-
-        if plot:
-            self.plot_outlier_cut_results()
-
-    '''
+    
     def plot_outlier_cut_results(self):
         """Plots the results of the outlier detection process."""
 
@@ -947,7 +840,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             im2 = axes[i, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
             axes[i, 1].set_title(f"CCD {i} - RMS")
             axes[i, 1].set_xticks(range(len(self.ap)))
-            axes[i, 1].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(len(self.ap))])
+            axes[i, 1].set_xticklabels([f"{int(self.ap[k])}" for k in range(len(self.ap))])
             axes[i, 1].set_yticks(range(len(self.cids_list[i])))
             axes[i, 1].set_yticklabels(self.cids_list[i])
             fig.colorbar(im2, ax=axes[i, 1], label="RMS")
@@ -966,7 +859,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         for cid in self.cIDs_best:
             reselected_cids = []
             brightest_star = int(cid)
-            nstars = 6
+            nstars = 5
             dimmest_star = brightest_star + nstars
             cids = list(range(brightest_star,dimmest_star))
             if self.tid in cids:
@@ -1075,7 +968,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         plt.xlabel('JD-2450000')
         plt.ylabel('Relative flux')
         outfile = '{0}_{1}.png'.format(self.target,self.obsdate)
-        plt.savefig(outfile,bbox_inches='tight',pad_inches=0.1)
+        plt.savefig(f"ut3/muscat/reduction_afphot/notebooks/general/{self.target}/{outfile}",bbox_inches='tight',pad_inches=0.1)
         plt.show()
 
 #cIDs_best = np.array((2,0,2,2)) 
