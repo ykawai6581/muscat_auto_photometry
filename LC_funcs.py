@@ -136,7 +136,7 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         ycut = ycut[index[0]]
         yecut = yecut[index[0]]
         index_return.extend(index[0])
-    return result.x, tcut+tint, ycut, yecut, np.array(index_return)
+    return result.x, tcut+tint, ycut, yecut, np.unique(np.array(index_return))
 
 
 def outcut_smoothing(t, y, nsample, sigma_cut):
