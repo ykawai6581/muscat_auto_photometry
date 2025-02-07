@@ -643,10 +643,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         for i in range(self.nccd):
             self.phot.append([])
-            for cid in self.cids_list_opt[i]:#self.cids_list_opt is only needed to access the files here
+            for j, cid in enumerate(self.cids_list_opt[i]):#self.cids_list_opt is only needed to access the files here
                 infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv'
                 self.phot[i].append(Table.read(infile))
-                self.mask[i][cid] = np.ones_like(self.phot[i][cid]['GJD-2450000'], dtype=bool) #add mask depending on the number of ccds and their number of exposures
+                self.mask[i][j] = np.ones_like(self.phot[i][j]['GJD-2450000'], dtype=bool) #add mask depending on the number of ccds and their number of exposures
 
     def add_mask_per_ccd(self, key, ccd, lower=None, upper=None):
         """Applies a mask to all elements in the dataset for a given CCD."""
@@ -769,7 +769,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 exptime = phot_j['exptime']
                 gjd_vals = phot_j['GJD-2450000']
                 mask = self.mask[i][j]
-                
+
                 fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
                 fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
 
