@@ -712,22 +712,22 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 omittied_points = (~mask) & (~outlier_mask) #points that are either manually masked or are outliers
                 mask &= outlier_mask #update the mask to exclude the outliers
                 ax[0, i].plot(gjd_vals[omittied_points], raw_norm[omittied_points], 'x', c="gray")
-                ax[1, i].plot(gjd_vals[omittied_points], phot_j[i][j]['airmass'][omittied_points], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
-                ax[2, i].plot(gjd_vals[omittied_points], phot_j[i][j]['dx(pix)'][omittied_points], 'x', c="gray")
-                ax[3, i].plot(gjd_vals[omittied_points], phot_j[i][j]['dy(pix)'][omittied_points], 'x', c="gray")
-                ax[4, i].plot(gjd_vals[omittied_points], phot_j[i][j]['fwhm(pix)'][omittied_points], 'x', c="gray")
-                ax[5, i].plot(gjd_vals[omittied_points], phot_j[i][j]['peak(ADU)'][omittied_points], 'x', c="gray")
-                for j in range(len(self.cids_list_opt)):
-                    self.mask[i][j] &= index  # In-place modification of mask
+                ax[1, i].plot(gjd_vals[omittied_points], phot_j['airmass'][omittied_points], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
+                ax[2, i].plot(gjd_vals[omittied_points], phot_j['dx(pix)'][omittied_points], 'x', c="gray")
+                ax[3, i].plot(gjd_vals[omittied_points], phot_j['dy(pix)'][omittied_points], 'x', c="gray")
+                ax[4, i].plot(gjd_vals[omittied_points], phot_j['fwhm(pix)'][omittied_points], 'x', c="gray")
+                ax[5, i].plot(gjd_vals[omittied_points], phot_j['peak(ADU)'][omittied_points], 'x', c="gray")
+                for cid in range(len(self.cids_list_opt)):
+                    self.mask[i][cid] = mask  # In-place modification of mask
                     print("## >> Complete and mask is updated.")
 
             print(f">> Ploting the photometry data for cID:{j}, ap:{k}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
-            ax[1, i].plot(gjd_vals[mask], phot_j[i][j]['airmass'][mask], '.', c="gray")
-            ax[2, i].plot(gjd_vals[mask], phot_j[i][j]['dx(pix)'][mask], '.', c="orange")
-            ax[3, i].plot(gjd_vals[mask], phot_j[i][j]['dy(pix)'][mask], '.', c="orange")
-            ax[4, i].plot(gjd_vals[mask], phot_j[i][j]['fwhm(pix)'][mask], '.', c="blue")
-            ax[5, i].plot(gjd_vals[mask], phot_j[i][j]['peak(ADU)'][mask], '.', c="red")
+            ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
+            ax[2, i].plot(gjd_vals[mask], phot_j['dx(pix)'][mask], '.', c="orange")
+            ax[3, i].plot(gjd_vals[mask], phot_j['dy(pix)'][mask], '.', c="orange")
+            ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
+            ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
