@@ -714,7 +714,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 ax[3, i].plot(gjd_vals[omittied_points], phot_j['dy(pix)'][omittied_points], 'x', c="gray")
                 ax[4, i].plot(gjd_vals[omittied_points], phot_j['fwhm(pix)'][omittied_points], 'x', c="gray")
                 ax[5, i].plot(gjd_vals[omittied_points], phot_j['peak(ADU)'][omittied_points], 'x', c="gray")
-                for cid in range(len(self.cids_list_opt)):
+                for cid in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
                     self.mask[i][cid] = mask  # In-place modification of mask
                     print("## >> Complete and mask is updated.")
 
