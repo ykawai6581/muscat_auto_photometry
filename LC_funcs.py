@@ -128,13 +128,15 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         resi = ycut - ymodel
         sdev = np.sqrt(np.sum(resi**2)/float(len(resi)))
         sigma = np.abs(resi/sdev)
-        index = np.where(sigma < sigma_cut)
+        condition = sigma < sigma_cut
+        index = np.where(condition)
         nout = len(tcut) - len(index[0])
         tcut = tcut[index[0]]
         ycut = ycut[index[0]]
         yecut = yecut[index[0]]
+        mask = condition.astype(bool)
 
-    return result.x, tcut+tint, ycut, yecut, index[0]
+    return result.x, tcut+tint, ycut, yecut, mask
 
 
 def outcut_smoothing(t, y, nsample, sigma_cut):
