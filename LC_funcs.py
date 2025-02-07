@@ -119,6 +119,7 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
     nout = 1
     p0 = np.zeros(order+1)
     p0[-1] = np.median(y)
+    index_return = []
     result = minimize(calc_chi2_polyfit, p0, args=(tcut, ycut, yecut), method='Nelder-Mead')
 
     while(nout > 0):
@@ -134,9 +135,8 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         tcut = tcut[index[0]]
         ycut = ycut[index[0]]
         yecut = yecut[index[0]]
-        mask = condition.astype(bool)
-
-    return result.x, tcut+tint, ycut, yecut, mask
+        index_return.extend(index[0])
+    return result.x, tcut+tint, ycut, yecut, np.array(index_return)
 
 
 def outcut_smoothing(t, y, nsample, sigma_cut):
