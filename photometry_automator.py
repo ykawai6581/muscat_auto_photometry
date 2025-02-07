@@ -324,7 +324,7 @@ class MuSCAT_PHOTOMETRY:
             threshold = 2
             threshold_deg = threshold*pixscale/3600
 
-            for (x,y), (r,d) in zip(xy_array,rd_array):
+            for (x,y), (r,d) in zip(xy_array,rd_array): #astrometryの出力にtargetが入っているかは自明ではない
                 #print(x,y)
                 mask = (data["x"] - x < threshold) & (data["x"] - x > -threshold) & (data["y"] - y < threshold) & (data["y"] - y > -threshold)
                 filtered_data = data[["ID", "x", "y"]][mask]
@@ -367,7 +367,7 @@ class MuSCAT_PHOTOMETRY:
             return
 
         # Determine script to use
-        script = f"scripts/auto_apphot_{method}.pl"
+        script = f"scripts/auto_apphot_{method}.pl" #starfindは一回だけで十分なのでauto_apphot.plではなくapphot.plを使えば早い
 
         # Run photometry for missing files
         self._run_photometry_if_missing(script, nstars, rads, missing_files_per_ccd)
@@ -633,8 +633,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.ap = np.arange(self.rad1, self.rad2+self.drad, self.drad)
         self.cids_list_opt = [[cid.replace(" ", "") for cid in cids] for cids in self.cids_list] #optphot takes cids with no space
         print('available aperture radii: ', self.ap)
-        self.bands = ["g","r","i","z"]
-        self.mask = [[],[],[],[]]
+        self.bands = ["g","r","i","z"] #muscat1に対応していない
+        self.mask = [[[] for _ in range(len(self.cids_list_opt[i]))] for i in range(self.nccd)]
+        self.mask = []
 
         self.min_rms_idx_list = []
         self.phot=[]
@@ -645,13 +646,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             for cid in self.cids_list_opt[i]:#self.cids_list_opt is only needed to access the files here
                 infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv'
                 self.phot[i].append(Table.read(infile))
+                self.mask[i][cid] = np.ones_like(self.phot[i][cid]['GJD-2450000'], dtype=bool) #add mask depending on the number of ccds and their number of exposures
 
     def add_mask_per_ccd(self, key, ccd, lower=None, upper=None):
         """Applies a mask to all elements in the dataset for a given CCD."""
-        mask_ccd = []  # Initialize an empty list for masks
-
         for j in range(len(self.phot[ccd])):  # Loop over j (e.g., different sources)
-            condition = np.ones_like(self.phot[ccd][j][key], dtype=bool)  # Start with all True
+            condition = self.mask[ccd][j]  # Start with the current mask
             
             if lower is not None:
                 condition &= (self.phot[ccd][j][key] > lower[ccd])  # Apply lower bound
@@ -659,18 +659,15 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             if upper is not None:
                 condition &= (self.phot[ccd][j][key] < upper[ccd])  # Apply upper bound
             
-            mask_ccd.append(condition)  # Store mask for this j
-        self.mask[ccd].append(mask_ccd)
+            self.mask[ccd][j] = condition  # Store mask for this j
         print(f"Added mask to {key} for CCD{ccd}")
 
     def add_mask(self, key, lower=None, upper=None):
         """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
 
-        for i in range(len(self.phot)):  # Loop over CCDs
-            self.mask[i] = []  # Ensure mask[i] is a clean list
-            
+        for i in range(len(self.phot)):  # Loop over CCDs            
             for j in range(len(self.phot[i])):  # Loop over sources, stars, or apertures
-                condition = np.ones_like(self.phot[i][j][key], dtype=bool)  # Start with all True
+                condition = self.mask[i][j]  # Start with the current mask
                 if key == "raw":
                     fcomp_key = f'flux_comp(r={self.ap[0]:.1f})'#this currently assumes the first aperture for raw flux cut
                     target_array = self.phot[i][j][fcomp_key]/self.phot[i][j]['exptime'] 
@@ -683,9 +680,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 if upper is not None:
                     condition &= target_array < (upper[i] if isinstance(upper, list) else upper)
                 
-                self.mask[i].append(condition)  # Directly store condition, keeping shape (4, 15)
+                self.mask[i][j] = condition  # Directly store condition, keeping shape (4, 15) 
         print(f"Added mask to {key}")
-
+    #need to make sure masking is correct (in dimensions)
 
     def preview_photometry(self, j=0, k=0, order=2, sigma_cut=3):
         fcomp_key = f'flux_comp(r={self.ap[k]:.1f})' # Use the aperture given in the argument
@@ -699,7 +696,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             raw_norm /= np.median(raw_norm)
             fcomp_data = phot_j[fcomp_key]
 
-            mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
+            mask = self.mask[i][j]
 
             ye = np.sqrt(fcomp_data[mask]) / exptime[mask] / np.median(fcomp_data[mask] / exptime[mask])
 
@@ -771,8 +768,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 phot_j = self.phot[i][j]
                 exptime = phot_j['exptime']
                 gjd_vals = phot_j['GJD-2450000']
-                mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
-
+                mask = self.mask[i][j]
+                
                 fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
                 fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
 
