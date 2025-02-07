@@ -687,13 +687,11 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         print(f"Added mask to {key}")
 
 
-    def preview_photometry(self, cid=0, k=0, order=2, sigma_cut=3):
-        j = self.cids_list_opt[cid]
+    def preview_photometry(self, j=0, k=0, order=2, sigma_cut=3):
         fcomp_key = f'flux_comp(r={self.ap[k]:.1f})' # Use the aperture given in the argument
         fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True)
 
         for i in range(self.nccd):
-            
             phot_j = self.phot[i][j]
             exptime = phot_j['exptime']
             gjd_vals = phot_j['GJD-2450000']
