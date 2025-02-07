@@ -635,7 +635,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         print('available aperture radii: ', self.ap)
         self.bands = ["g","r","i","z"] #muscat1に対応していない
         self.mask = [[[] for _ in range(len(self.cids_list_opt[i]))] for i in range(self.nccd)]
-        self.mask = []
 
         self.min_rms_idx_list = []
         self.phot=[]
