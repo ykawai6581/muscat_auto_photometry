@@ -701,7 +701,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
             mask = self.mask[i][j] if (i < len(self.mask) and j < len(self.mask[i])) else np.ones_like(gjd_vals, dtype=bool)
 
-            ye = np.sqrt(fcomp_data[mask]) / exptime[mask] / np.median(fcomp_data[mask] / exptime[mask], axis=1, keepdims=True)
+            ye = np.sqrt(fcomp_data[mask]) / exptime[mask] / np.median(fcomp_data[mask] / exptime[mask])
 
             if len(ye) > 0:
                 print(">> Performing preliminary outlier detection ...")
