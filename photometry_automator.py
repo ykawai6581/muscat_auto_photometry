@@ -557,9 +557,10 @@ class MuSCAT_PHOTOMETRY:
                 if percentage_above_threshold > 5:
                     saturation_cids_per_ccd.append(star_id)
                     color = 'red'
-                ax[i].hist(percentage_above_threshold,color=color)
+                ax[i].plot(df[i][df[i]["ID"] == star_id]["peak"],df[i][df[i]["ID"] == star_id]["peak"],list(range(len(df[i][df[i]["ID"] == star_id]))))
+                #ax[i].hist(percentage_above_threshold,color=color)
             print(f'  >> CCD {i}: Done.')
-            ax[i].set_ylim(0,100)
+            #ax[i].set_ylim(0,100)
             ax[i].set_title(f"CCD {i}")
             self.saturation_cids.append(saturation_cids_per_ccd)
 
