@@ -571,7 +571,7 @@ class MuSCAT_PHOTOMETRY:
                     label = None
                 ax[i].plot(frames,flux,label=label,zorder=1)
                 ax[i].plot(frames,median,color="white",alpha=0.5,zorder=2)
-                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker="x",zorder=3)
+                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker=".",zorder=3)
             print(f'## >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
             ax[i].set_title(f"CCD {i}")
