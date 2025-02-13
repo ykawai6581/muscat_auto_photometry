@@ -549,13 +549,14 @@ class MuSCAT_PHOTOMETRY:
             for star_id in range(int(self.nstars)):
                 count_above_threshold = (df[i][df[i]["ID"] == star_id]["peak"].dropna() > 60000).sum()
                 percentage_above_threshold = count_above_threshold / len(df[i][df[i]["ID"] == star_id]) * 100
+                print(df[i])
                 print(len(df[i][df[i]["ID"] == star_id]))  
                 color = 'green'
                 # If more than 5% of the rows have a peak > 60000, add this star ID to the list
                 if percentage_above_threshold > 5:
                     saturation_cids_per_ccd.append(star_id)
                     color = 'red'
-                ax[i].hist(percentage_above_threshold,color=color)
+                #ax[i].hist(percentage_above_threshold,color=color)
             print(f'  >> CCD {i}: Done.')
             ax[i].set_ylim(0,100)
             ax[i].set_title(f"CCD {i}")
