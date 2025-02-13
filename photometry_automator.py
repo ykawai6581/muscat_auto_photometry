@@ -574,7 +574,7 @@ class MuSCAT_PHOTOMETRY:
                     label = None
                 ax[i].plot(frames,flux,label=label)
                 ax[i].plot(frames,median,color="white",alpha=0.5)
-                ax[i].plot(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5)
+                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker="x")
                 #ax[i].hist(percentage_above_threshold,color=color)
             print(f'## >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
