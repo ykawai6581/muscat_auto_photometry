@@ -572,8 +572,8 @@ class MuSCAT_PHOTOMETRY:
                     label = f"Star {star_id}"
                 else:
                     label = None
-                ax[i].plot(frames,flux,label=label)
-                ax[i].plot(frames,median,color="white",alpha=0.5)
+                ax[i].plot(frames,flux,label=label,zorder=3)
+                ax[i].plot(frames,median,color="white",alpha=0.5,zorder=2)
                 ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker=".",s=10,zorder=1)
                 #ax[i].hist(percentage_above_threshold,color=color)
             print(f'## >> CCD {i}: Done.')
