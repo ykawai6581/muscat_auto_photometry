@@ -549,7 +549,7 @@ class MuSCAT_PHOTOMETRY:
             for star_id in range(int(self.nstars)):
                 count_above_threshold = (df[i][df[i]["ID"] == star_id]["peak"] > 60000).sum()
                 percentage_above_threshold = count_above_threshold / len(df[i][df[i]["ID"] == star_id]) * 100
-                print(percentage_above_threshold)
+                print(df[i][df[i]["ID"] == star_id]["peak"])
                 color = 'green'
                 # If more than 5% of the rows have a peak > 60000, add this star ID to the list
                 if percentage_above_threshold > 5:
