@@ -540,7 +540,7 @@ class MuSCAT_PHOTOMETRY:
     @time_keeper
     def check_saturation(self, rad):
         self.saturation_cids = []
-        saturation_threshold = 58000
+        saturation_threshold = 60000
         fig, ax = plt.subplots(self.nccd,1, figsize=(15, 10))
         print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
         df = self._read_photometry_parallel(rad=rad)
@@ -548,21 +548,24 @@ class MuSCAT_PHOTOMETRY:
         for i in range(self.nccd):
             saturation_cids_per_ccd = []
             for star_id in range(1,int(self.nstars)+1):
-                count_above_threshold = (df[i][df[i]["ID"] == star_id]["peak"] > saturation_threshold).sum()
-                percentage_above_threshold = count_above_threshold / len(df[i][df[i]["ID"] == star_id]) * 100
+                flux = df[i][df[i]["ID"] == star_id]["peak"].iloc[::-1]
+                frames = list(range(len(df[i][df[i]["ID"] == star_id])))
+                median = lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/20))
+
+                count_above_threshold = (flux > saturation_threshold-np.std(flux-median)).sum()
+                percentage_above_threshold = (count_above_threshold / frames) * 100
                 #print(df[i])
                 #print((df[i][df[i]["ID"] == star_id]["peak"] > 58000).sum())
                 #print(len(df[i][df[i]["ID"] == star_id]))  
-                color = 'green'
                 # If more than 5% of the rows have a peak > 60000, add this star ID to the list
                 if percentage_above_threshold > 5:
                     saturation_cids_per_ccd.append(star_id)
-                    color = 'red'
                 if i == 0:
                     label = f"Star {star_id}"
                 else:
                     label = None
-                ax[i].plot(list(range(len(df[i][df[i]["ID"] == star_id]))),df[i][df[i]["ID"] == star_id]["peak"].iloc[::-1],label=label)
+                ax[i].plot(frames,flux,label=label)
+                ax[i].plot(frames,median,color="white",alpha=0.5)
                 #ax[i].hist(percentage_above_threshold,color=color)
             print(f'  >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
