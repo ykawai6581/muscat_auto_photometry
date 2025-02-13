@@ -280,9 +280,10 @@ class MuSCAT_PHOTOMETRY:
         ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits"
         pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
         buffer = 0.02
+        search_radius = 15 #in arcmin
 
         print("Running WCS Calculation of reference file...")
-        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {15/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file}"
+        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file}"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         print(result.stdout)
         print("Complete")
@@ -316,6 +317,12 @@ class MuSCAT_PHOTOMETRY:
                 header = hdul[0].header
                 w = wcs.WCS(header)
                 ra_list, dec_list = w.all_pix2world(data["x"], data["y"], 0)
+                cd_matrix = w.pixel_scale_matrix
+                wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
+                wcs_pixscales *= 3600 #convert to arcsec
+                if wcs_pixscales[0] - pixscale > 0.01:
+                    print("WCS calculation unsuccessful (Pixel scale mismatch)\nTry again or enter tID manually")
+                    return
 
             threshold = 2
             threshold_deg = threshold*pixscale/3600
@@ -327,33 +334,9 @@ class MuSCAT_PHOTOMETRY:
                     print(f"Target ID: {tid}")
                     self.tid = tid
                     return
-            '''
-            xylist = f"{ref_file_dir}/df/{ref_frame}.df-indx.xyls"
-            rdlist = f"{ref_file_dir}/df/{ref_frame}.df.rdls"
-            with fits.open(xylist) as hdul:
-                header = hdul[1].data  # BINTABLE is in the second HDU
-            xy_array = np.array([list(row) for row in header])
-
-            with fits.open(rdlist) as hdul:
-                header = hdul[1].data  # BINTABLE is in the second HDU
-            rd_array = np.array([list(row) for row in header])
-
-            threshold = 2
-            threshold_deg = threshold*pixscale/3600
-
-            for (x,y), (r,d) in zip(xy_array,rd_array): #astrometryの出力にtargetが入っているかは自明ではない
-                #print(x,y)
-                mask = (data["x"] - x < threshold) & (data["x"] - x > -threshold) & (data["y"] - y < threshold) & (data["y"] - y > -threshold)
-                filtered_data = data[["ID", "x", "y"]][mask]
-                match = (self.ra - r < threshold_deg) and (self.ra - r > -threshold_deg) and (self.dec - d < threshold_deg) and (self.dec - d > -threshold_deg)
-                if match:
-                    tid = int(filtered_data[['ID']].iloc[0])
-                    print(f"Target ID: {tid}")
-                    self.tid = tid
-                    return
-            '''
         else:
-            print("Target search unsuccessful")
+            print("Target search unsuccessful (Reference file not found)")
+            return
 
     ## Performing aperture photometry
     @time_keeper
@@ -594,7 +577,7 @@ class MuSCAT_PHOTOMETRY:
         else:
             self.tid = tid
         print(f"{self.target} | TID = {self.tid}")
-        self.check_saturation(self.rad1)
+        self.check_saturation(self.rad2)
         self.cids_list = []
         for saturation_cid in self.saturation_cids:
             if saturation_cid:
