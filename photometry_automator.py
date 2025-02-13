@@ -555,7 +555,9 @@ class MuSCAT_PHOTOMETRY:
                 flux = df[i][df[i]["ID"] == star_id]["peak"].iloc[::-1]
                 frames = list(range(len(df[i][df[i]["ID"] == star_id])))
                 median = lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50))
-                saturation_threshold_per_star = saturation_threshold - np.std(flux-median) #flux + typical scatter が60000を超えていたらsaturation zone
+                typical_scatter = np.std(flux-median)
+                saturation_threshold_per_star = saturation_threshold - typical_scatter #flux + typical scatter が60000を超えていたらsaturation zone
+                saturation_zone = np.where(median > saturation_threshold_per_star)[0]
                 count_above_threshold = (flux > saturation_threshold_per_star).sum()
                 percentage_above_threshold = (count_above_threshold / len(frames)) * 100
                 #print(df[i])
@@ -572,11 +574,12 @@ class MuSCAT_PHOTOMETRY:
                     label = None
                 ax[i].plot(frames,flux,label=label)
                 ax[i].plot(frames,median,color="white",alpha=0.5)
+                ax[i].plot(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5)
                 #ax[i].hist(percentage_above_threshold,color=color)
             print(f'## >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
             ax[i].set_title(f"CCD {i}")
-            ax[i].set_ylim(0,saturation_threshold)
+            ax[i].set_ylim(0,saturation_threshold+2000)
             ax[i].set_xlabel("Frame")
             ax[i].set_ylabel("Peak")
             fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.02), frameon=False, ncol=self.nstars)
