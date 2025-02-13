@@ -320,7 +320,7 @@ class MuSCAT_PHOTOMETRY:
             threshold = 2
             threshold_deg = threshold*pixscale/3600
 
-            for i, ra, dec in enumerate(zip(ra_list,dec_list)): 
+            for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
                 match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
                 if match:
                     tid = i
