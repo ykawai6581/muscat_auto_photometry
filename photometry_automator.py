@@ -684,19 +684,19 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         print(f"Added mask to {key}")
     #need to make sure masking is correct (in dimensions)
 
-    def preview_photometry(self, j=0, k=0, order=2, sigma_cut=3):
-        fcomp_key = f'flux_comp(r={self.ap[k]:.1f})' # Use the aperture given in the argument
-        fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True)
+    def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
+        fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
+        fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, height_ratios=[2, 1, 1, 1, 2, 2])
 
         for i in range(self.nccd):
-            phot_j = self.phot[i][j]
+            phot_j = self.phot[i][cid]
             exptime = phot_j['exptime']
             gjd_vals = phot_j['GJD-2450000']
             raw_norm = phot_j[fcomp_key] / exptime
             raw_norm /= np.median(raw_norm)
             fcomp_data = phot_j[fcomp_key] #コンパリゾンのフラックス
 
-            mask = self.mask[i][j]
+            mask = self.mask[i][cid]
 
             ye = np.sqrt(fcomp_data[mask]) / exptime[mask] / np.median(fcomp_data[mask] / exptime[mask])
 
@@ -714,8 +714,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 ax[3, i].plot(gjd_vals[omittied_points], phot_j['dy(pix)'][omittied_points], 'x', c="gray")
                 ax[4, i].plot(gjd_vals[omittied_points], phot_j['fwhm(pix)'][omittied_points], 'x', c="gray")
                 ax[5, i].plot(gjd_vals[omittied_points], phot_j['peak(ADU)'][omittied_points], 'x', c="gray")
-                for cid in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
-                    self.mask[i][cid] = mask  # In-place modification of mask
+                for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
+                    self.mask[i][j] = mask  # In-place modification of mask
                     print("## >> Complete and mask is updated.")
 
             print(f">> Ploting the photometry data for cID:{self.ap[j]}, ap:{self.ap[k]}")
