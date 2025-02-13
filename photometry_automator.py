@@ -323,7 +323,7 @@ class MuSCAT_PHOTOMETRY:
             for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
                 match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
                 if match:
-                    tid = i
+                    tid = i + 1 #(index starts from 1 for starfind)
                     print(f"Target ID: {tid}")
                     self.tid = tid
                     return
