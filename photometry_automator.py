@@ -21,6 +21,8 @@ import LC_funcs as lc
 from astropy.table import Table
 from astropy.coordinates import Angle
 import astropy.units as u
+from astropy import wcs
+from astropy.io import fits
 import barycorr
 from joblib import Parallel, delayed
 from multiprocessing import Process, Pool, Array, Manager
@@ -28,7 +30,6 @@ import math
 import matplotlib.patches as patches
 import matplotlib.colors as mcolors
 import re
-
 
 import itertools
 
@@ -310,7 +311,23 @@ class MuSCAT_PHOTOMETRY:
                 return metadata, data
             
             metadata, data = _parse_obj_file(f"{self.obsdate}/{self.target}/reference/ref-{ref_frame}.objects")
+            wcsfits = f"{ref_file_dir}/df/{ref_frame}.df.new"
+            with fits.open(wcsfits) as hdul:
+                header = hdul[0].header
+                w = wcs.WCS(header)
+                ra_list, dec_list = w.all_pix2world(data["x"], data["y"], 0)
 
+            threshold = 2
+            threshold_deg = threshold*pixscale/3600
+
+            for i, ra, dec in enumerate(zip(ra_list,dec_list)): 
+                match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
+                if match:
+                    tid = i
+                    print(f"Target ID: {tid}")
+                    self.tid = tid
+                    return
+            '''
             xylist = f"{ref_file_dir}/df/{ref_frame}.df-indx.xyls"
             rdlist = f"{ref_file_dir}/df/{ref_frame}.df.rdls"
             with fits.open(xylist) as hdul:
@@ -334,6 +351,7 @@ class MuSCAT_PHOTOMETRY:
                     print(f"Target ID: {tid}")
                     self.tid = tid
                     return
+            '''
         else:
             print("Target search unsuccessful")
 
@@ -693,7 +711,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             gjd_vals = phot_j['GJD-2450000']
             raw_norm = phot_j[fcomp_key] / exptime
             raw_norm /= np.median(raw_norm)
-            fcomp_data = phot_j[fcomp_key]
+            fcomp_data = phot_j[fcomp_key] #コンパリゾンのフラックス
 
             mask = self.mask[i][j]
 
@@ -717,7 +735,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     self.mask[i][cid] = mask  # In-place modification of mask
                     print("## >> Complete and mask is updated.")
 
-            print(f">> Ploting the photometry data for cID:{j}, ap:{k}")
+            print(f">> Ploting the photometry data for cID:{self.ap[j]}, ap:{self.ap[k]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
             ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
             ax[2, i].plot(gjd_vals[mask], phot_j['dx(pix)'][mask], '.', c="orange")
