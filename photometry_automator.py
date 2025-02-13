@@ -559,7 +559,9 @@ class MuSCAT_PHOTOMETRY:
                     color = 'red'
                 if i == 0:
                     label = f"Star {star_id}"
-                ax[i].plot(list(range(len(df[i][df[i]["ID"] == star_id]))),df[i][df[i]["ID"] == star_id]["peak"],label=label)
+                else:
+                    label = None
+                ax[i].plot(list(range(len(df[i][df[i]["ID"] == star_id]))),df[i][df[i]["ID"] == star_id]["peak"].iloc[::-1],label=label)
                 #ax[i].hist(percentage_above_threshold,color=color)
             print(f'  >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
