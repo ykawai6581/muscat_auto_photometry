@@ -540,6 +540,7 @@ class MuSCAT_PHOTOMETRY:
     @time_keeper
     def check_saturation(self, rad):
         self.saturation_cids = []
+        saturation_threshold = 58000
         fig, ax = plt.subplots(self.nccd,1, figsize=(15, 10))
         print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
         df = self._read_photometry_parallel(rad=rad)
@@ -547,11 +548,11 @@ class MuSCAT_PHOTOMETRY:
         for i in range(self.nccd):
             saturation_cids_per_ccd = []
             for star_id in range(1,int(self.nstars)+1):
-                count_above_threshold = (df[i][df[i]["ID"] == star_id]["peak"] > 60000).sum()
+                count_above_threshold = (df[i][df[i]["ID"] == star_id]["peak"] > saturation_threshold).sum()
                 percentage_above_threshold = count_above_threshold / len(df[i][df[i]["ID"] == star_id]) * 100
                 #print(df[i])
-                print((df[i][df[i]["ID"] == star_id]["peak"] > 60000).sum())
-                print(len(df[i][df[i]["ID"] == star_id]))  
+                #print((df[i][df[i]["ID"] == star_id]["peak"] > 58000).sum())
+                #print(len(df[i][df[i]["ID"] == star_id]))  
                 color = 'green'
                 # If more than 5% of the rows have a peak > 60000, add this star ID to the list
                 if percentage_above_threshold > 5:
@@ -566,7 +567,9 @@ class MuSCAT_PHOTOMETRY:
             print(f'  >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
             ax[i].set_title(f"CCD {i}")
-            fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.02), frameon=False)
+            ax[i].set_xlabel("Frame")
+            ax[i].set_ylabel("Peak")
+            fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.02), frameon=False, ncol=self.nstars)
             self.saturation_cids.append(saturation_cids_per_ccd)
 
         for i in range(self.nccd):
