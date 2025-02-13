@@ -718,7 +718,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     self.mask[i][j] = mask  # In-place modification of mask
                     print("## >> Complete and mask is updated.")
 
-            print(f">> Ploting the photometry data for cID:{self.ap[j]}, ap:{self.ap[k]}")
+            print(f">> Ploting the photometry data for cID:{self.cids_list[cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
             ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
             ax[2, i].plot(gjd_vals[mask], phot_j['dx(pix)'][mask], '.', c="orange")
