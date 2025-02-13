@@ -550,9 +550,9 @@ class MuSCAT_PHOTOMETRY:
             for star_id in range(1,int(self.nstars)+1):
                 flux = df[i][df[i]["ID"] == star_id]["peak"].iloc[::-1]
                 frames = list(range(len(df[i][df[i]["ID"] == star_id])))
-                median = lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/20))
-
-                count_above_threshold = (flux > saturation_threshold-np.std(flux-median)).sum()
+                median = lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50))
+                saturation_threshold_per_star = saturation_threshold - np.std(flux-median) #flux + typical scatter が60000を超えていたらsaturation zone
+                count_above_threshold = (flux > saturation_threshold_per_star).sum()
                 percentage_above_threshold = (count_above_threshold / len(frames)) * 100
                 #print(df[i])
                 #print((df[i][df[i]["ID"] == star_id]["peak"] > 58000).sum())
