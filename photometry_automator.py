@@ -552,7 +552,7 @@ class MuSCAT_PHOTOMETRY:
             for star_id in range(1,int(self.nstars)+1):
                 if stop_processing:
                     break  # Exit the loop completely
-                flux = df[i][df[i]["ID"] == star_id]["peak"].iloc[::-1]
+                flux = df[i][df[i]["ID"] == star_id]["peak"]
                 frames = np.array(list(range(len(df[i][df[i]["ID"] == star_id]))))
                 median = np.array(lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50)))
                 typical_scatter = np.std(flux-median)
@@ -571,7 +571,7 @@ class MuSCAT_PHOTOMETRY:
                     label = None
                 ax[i].plot(frames,flux,label=label,zorder=1)
                 ax[i].plot(frames,median,color="white",alpha=0.5,zorder=2)
-                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker=".",zorder=3)
+                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker=".",s=10,zorder=3)
             print(f'## >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
             ax[i].set_title(f"CCD {i}")
