@@ -560,10 +560,7 @@ class MuSCAT_PHOTOMETRY:
                 saturation_zone = np.where(median > saturation_threshold_per_star)[0]
                 count_above_threshold = (flux > saturation_threshold_per_star).sum()
                 percentage_above_threshold = (count_above_threshold / len(frames)) * 100
-                #print(df[i])
-                #print((df[i][df[i]["ID"] == star_id]["peak"] > 58000).sum())
-                #print(len(df[i][df[i]["ID"] == star_id]))  
-                # If more than 5% of the rows have a peak > 60000, add this star ID to the list
+                # If more than 5% of the rows are in saturation zone , add this star ID to the list
                 if percentage_above_threshold > 5:
                     saturation_cids_per_ccd.append(star_id)
                 else:
@@ -574,8 +571,7 @@ class MuSCAT_PHOTOMETRY:
                     label = None
                 ax[i].plot(frames,flux,label=label,zorder=3)
                 ax[i].plot(frames,median,color="white",alpha=0.5,zorder=2)
-                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker=".",s=10,zorder=1)
-                #ax[i].hist(percentage_above_threshold,color=color)
+                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker="x",zorder=1)
             print(f'## >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
             ax[i].set_title(f"CCD {i}")
