@@ -540,7 +540,8 @@ class MuSCAT_PHOTOMETRY:
     @time_keeper
     def check_saturation(self, rad):
         self.saturation_cids = []
-        print(f'>> Checking for saturation ... (it may take a few seconds)')
+        fig, ax = plt.subplots(1, self.nccd, figsize=(15, 5))
+        print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
         df = self._read_photometry_parallel(rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
         for i in range(self.nccd):
@@ -548,15 +549,21 @@ class MuSCAT_PHOTOMETRY:
             for star_id in range(int(self.nstars)):
                 count_above_threshold = (df[i][df[i]["ID"] == star_id]["peak"] > 60000).sum()
                 percentage_above_threshold = count_above_threshold / len(df[i][df[i]["ID"] == star_id]) * 100
-                
+                color = 'green'
                 # If more than 5% of the rows have a peak > 60000, add this star ID to the list
                 if percentage_above_threshold > 5:
                     saturation_cids_per_ccd.append(star_id)
+                    color = 'red'
+                ax[i].hist(percentage_above_threshold,color=color)
             print(f'  >> CCD {i}: Done.')
+            ax[i].set_ylim(0,100)
+            ax[i].set_title(f"CCD {i}")
             self.saturation_cids.append(saturation_cids_per_ccd)
 
         for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
+
+        plt.show()
     '''
     def select_comparison(self, tid, nstars=5):
         self.tid = tid
@@ -718,7 +725,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     self.mask[i][j] = mask  # In-place modification of mask
                     print("## >> Complete and mask is updated.")
 
-            print(f">> Ploting the photometry data for cID:{self.cids_list[cid]}, ap:{self.ap[ap]}")
+            print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
             ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
             ax[2, i].plot(gjd_vals[mask], phot_j['dx(pix)'][mask], '.', c="orange")
