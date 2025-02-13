@@ -553,8 +553,8 @@ class MuSCAT_PHOTOMETRY:
                 if stop_processing:
                     break  # Exit the loop completely
                 flux = df[i][df[i]["ID"] == star_id]["peak"].iloc[::-1]
-                frames = list(range(len(df[i][df[i]["ID"] == star_id])))
-                median = lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50))
+                frames = np.array(list(range(len(df[i][df[i]["ID"] == star_id]))))
+                median = np.array(lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50)))
                 typical_scatter = np.std(flux-median)
                 saturation_threshold_per_star = saturation_threshold - typical_scatter #flux + typical scatter が60000を超えていたらsaturation zone
                 saturation_zone = np.where(median > saturation_threshold_per_star)[0]
