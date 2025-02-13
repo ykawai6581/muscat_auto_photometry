@@ -282,11 +282,11 @@ class MuSCAT_PHOTOMETRY:
         buffer = 0.02
         search_radius = 15 #in arcmin
 
-        print("Running WCS Calculation of reference file...")
+        print(">> Running WCS Calculation of reference file...")
         cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file}"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         print(result.stdout)
-        print("Complete")
+        print("## >> Complete.")
 
         if os.path.exists(f"{ref_file_dir}/list/ref.lst"):
             def _parse_obj_file(input_file): #helper function to parse objectfile
@@ -321,7 +321,7 @@ class MuSCAT_PHOTOMETRY:
                 wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
                 wcs_pixscales *= 3600 #convert to arcsec
                 if wcs_pixscales[0] - pixscale > 0.01:
-                    print("WCS calculation unsuccessful (Pixel scale mismatch)\nTry again or enter tID manually")
+                    print("## >> WCS calculation unsuccessful (Pixel scale mismatch)\nTry again or enter tID manually")
                     return
 
             threshold = 2
@@ -331,11 +331,14 @@ class MuSCAT_PHOTOMETRY:
                 match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
                 if match:
                     tid = i + 1 #(index starts from 1 for starfind)
-                    print(f"Target ID: {tid}")
+                    print("________________________________________________________")
+                    print(f"{self.target} | TID = {self.tid}")
+                    print("________________________________________________________")
+                    #print(f"Target ID: {tid}")
                     self.tid = tid
                     return
         else:
-            print("Target search unsuccessful (Reference file not found)")
+            print("## >> Target search unsuccessful (Reference file not found)")
             return
 
     ## Performing aperture photometry
@@ -604,7 +607,6 @@ class MuSCAT_PHOTOMETRY:
             self.find_tid()
         else:
             self.tid = tid
-        print(f"{self.target} | TID = {self.tid}")
         self.check_saturation(self.rad2)
         self.cids_list = []
         for saturation_cid in self.saturation_cids:
