@@ -544,10 +544,14 @@ class MuSCAT_PHOTOMETRY:
         fig, ax = plt.subplots(self.nccd,1, figsize=(15, 10))
         print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
         df = self._read_photometry_parallel(rad=rad)
+        print(f'## >> Done loading photometry data.')
         # Count the number of rows where peak > 60000 for this star ID
         for i in range(self.nccd):
             saturation_cids_per_ccd = []
+            stop_processing = False
             for star_id in range(1,int(self.nstars)+1):
+                if stop_processing:
+                    break  # Exit the loop completely
                 flux = df[i][df[i]["ID"] == star_id]["peak"].iloc[::-1]
                 frames = list(range(len(df[i][df[i]["ID"] == star_id])))
                 median = lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50))
@@ -560,6 +564,8 @@ class MuSCAT_PHOTOMETRY:
                 # If more than 5% of the rows have a peak > 60000, add this star ID to the list
                 if percentage_above_threshold > 5:
                     saturation_cids_per_ccd.append(star_id)
+                else:
+                    stop_processing = True  # Stop processing this CCD if a star is not saturated
                 if i == 0:
                     label = f"Star {star_id}"
                 else:
@@ -567,9 +573,10 @@ class MuSCAT_PHOTOMETRY:
                 ax[i].plot(frames,flux,label=label)
                 ax[i].plot(frames,median,color="white",alpha=0.5)
                 #ax[i].hist(percentage_above_threshold,color=color)
-            print(f'  >> CCD {i}: Done.')
+            print(f'## >> CCD {i}: Done.')
             #ax[i].set_ylim(0,100)
             ax[i].set_title(f"CCD {i}")
+            ax[i].set_ylim(0,saturation_threshold)
             ax[i].set_xlabel("Frame")
             ax[i].set_ylabel("Peak")
             fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.02), frameon=False, ncol=self.nstars)
