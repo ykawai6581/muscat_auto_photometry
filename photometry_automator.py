@@ -732,37 +732,40 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
             ye = np.sqrt(fcomp_data[mask]) / exptime[mask] / np.median(fcomp_data[mask] / exptime[mask])
 
-            if len(ye) > 0:
-                print(">> Performing preliminary outlier detection ...")
-                print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
-                p, tcut, ycut, yecut, keep_index = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
-                outlier_mask = np.zeros_like(mask, dtype=bool) #initialize index_mask all False
-                outlier_mask[keep_index] = True #set the index_mask to True where they are not outlier points
-                omittied_points = (~mask) & (~outlier_mask) #points that are either manually masked or are outliers
-                mask &= outlier_mask #update the mask to exclude the outliers
-                ax[0, i].plot(gjd_vals[omittied_points], raw_norm[omittied_points], 'x', c="gray")
-                ax[1, i].plot(gjd_vals[omittied_points], phot_j['airmass'][omittied_points], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
-                ax[2, i].plot(gjd_vals[omittied_points], phot_j['dx(pix)'][omittied_points], 'x', c="gray")
-                ax[3, i].plot(gjd_vals[omittied_points], phot_j['dy(pix)'][omittied_points], 'x', c="gray")
-                ax[4, i].plot(gjd_vals[omittied_points], phot_j['fwhm(pix)'][omittied_points], 'x', c="gray")
-                ax[5, i].plot(gjd_vals[omittied_points], phot_j['peak(ADU)'][omittied_points], 'x', c="gray")
-                ax[6, i].plot(gjd_vals[omittied_points], phot_j[fcomp_key][omittied_points], 'x', c="gray")
-                for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
-                    self.mask[i][j] = mask  # In-place modification of mask
-                    print("#### >> Complete and mask is updated.")
+            if len(ye) < 0:
+                print(">> No data points to plot.")
+                return
 
-            polyfit_result = np.sum([coeff*(gjd_vals**poly_order) for poly_order, coeff in enumerate(p)],axis=0)
-            print(p)
+            print(">> Performing preliminary outlier detection ...")
+            print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
+            p, tcut, ycut, yecut, keep_index = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
+            outlier_mask = np.zeros_like(mask, dtype=bool) #initialize index_mask all False
+            outlier_mask[keep_index] = True #set the index_mask to True where they are not outlier points
+            omittied_points = (~mask) & (~outlier_mask) #points that are either manually masked or are outliers
+            mask &= outlier_mask #update the mask to exclude the outliers
+            ax[0, i].plot(gjd_vals[omittied_points], raw_norm[omittied_points], 'x', c="gray")
+            ax[1, i].plot(gjd_vals[omittied_points], phot_j['airmass'][omittied_points], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
+            ax[2, i].plot(gjd_vals[omittied_points], phot_j['dx(pix)'][omittied_points], 'x', c="gray")
+            ax[3, i].plot(gjd_vals[omittied_points], phot_j['dy(pix)'][omittied_points], 'x', c="gray")
+            ax[4, i].plot(gjd_vals[omittied_points], phot_j['fwhm(pix)'][omittied_points], 'x', c="gray")
+            ax[5, i].plot(gjd_vals[omittied_points], phot_j['peak(ADU)'][omittied_points], 'x', c="gray")
+            ax[6, i].plot(gjd_vals[omittied_points], phot_j[fcomp_key][omittied_points], 'x', c="gray")
+            for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
+                self.mask[i][j] = mask  # In-place modification of mask
+                print("#### >> Complete and mask is updated.")
+
+            polyfit_result = np.polyval(p, gjd_vals)
 
             print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
+            ax[0, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="gray")
             ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
             ax[2, i].plot(gjd_vals[mask], phot_j['dx(pix)'][mask], '.', c="orange")
             ax[3, i].plot(gjd_vals[mask], phot_j['dy(pix)'][mask], '.', c="orange")
             ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
             ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
             ax[6, i].plot(gjd_vals[mask], phot_j[fcomp_key][mask], '.', c="orange")
-            ax[6, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="k")
+            #ax[6, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="k")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
@@ -818,7 +821,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
 
                 for k in range(n_ap):
-                    if len(ye[k]) > 0:
+                    if len(ye[k]) > 0: #only perform outlier detection if there are data points
                         p, tcut, ycut, yecut, index = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
                         self.index[i][j].append(np.isin(gjd_vals, tcut))
                         ndata_final = len(tcut)
