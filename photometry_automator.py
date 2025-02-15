@@ -107,8 +107,11 @@ class MuSCAT_PHOTOMETRY:
             try:
                 self.ra, self.dec = query_radec(target_from_filename())
             except:
-                print("Failed to query RA and Dec from Simbad. Enter ra and dec manually.")
-                return
+                if ra and dec:
+                    self.ra, self.dec = ra, dec
+                else:
+                    print("Failed to query RA and Dec from Simbad. Enter ra and dec manually.")
+                    return
 
             self.nccd = 3 if self.instrument == "muscat" else 4
             self.obsdate = obsdate
