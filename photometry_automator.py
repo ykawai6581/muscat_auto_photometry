@@ -743,10 +743,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             three_sigma_outliers = ~keep_mask
 
             ymax = np.max(raw_norm[keep_mask])*1.1
-            ymin = np.max(raw_norm[keep_mask])*0.9
+            ymin = np.min(raw_norm[keep_mask])*0.9
 
-            outlier_for_plot = [min(ymax,value) for value in raw_norm[three_sigma_outliers]]
-            outlier_for_plot = [max(ymin,value) for value in outlier_for_plot]
+            outlier_for_plot = [min(ymax,value) for value in raw_norm[three_sigma_outliers]] #if value is greater than ymax, replace it with ymax
+            outlier_for_plot = [max(ymin,value) for value in outlier_for_plot] #if value is smaller than ymin, replace it with ymin
 
             ax[0, i].plot(gjd_vals[three_sigma_outliers], outlier_for_plot, 'x', c="gray")
             ax[1, i].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
