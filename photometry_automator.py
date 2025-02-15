@@ -760,9 +760,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             mask &= keep_mask #update the mask to exclude the outliers
 
             #update self.mask 
-            for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
-                self.mask[i][j] = mask  # In-place modification of mask
-                print("#### >> Complete and mask is updated.")
+            #for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
+            #    self.mask[i][j] = mask  # In-place modification of mask
+            #    print("#### >> Complete and mask is updated.")
 
             print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
