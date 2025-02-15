@@ -718,7 +718,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
     def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
         fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
-        fig, ax = plt.subplots(7, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
+        fig, ax = plt.subplots(7, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2, 2]})
 
         for i in range(self.nccd):
             phot_j = self.phot[i][cid]
