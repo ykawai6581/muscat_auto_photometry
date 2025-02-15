@@ -719,26 +719,26 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
         fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
         fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
-
+        print(">> Performing preliminary outlier detection ...")
+        print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
         for i in range(self.nccd):
             phot_j = self.phot[i][cid]
-            exptime = phot_j['exptime']
-            gjd_vals = phot_j['GJD-2450000']
-            raw_norm = phot_j[fcomp_key] / exptime
-            raw_norm /= np.median(raw_norm)
-            fcomp_data = phot_j[fcomp_key] #コンパリゾンのフラックス
-
             mask = self.mask[i][cid]
 
-            ye = np.sqrt(fcomp_data[mask]) / exptime[mask] / np.median(fcomp_data[mask] / exptime[mask])
+            exptime = phot_j['exptime'][mask]
+            gjd_vals = phot_j['GJD-2450000'][mask]
+            raw_norm = phot_j[fcomp_key][mask] / exptime
+            raw_norm /= np.median(raw_norm)
+            fcomp_data = phot_j[fcomp_key][mask] #コンパリゾンのフラックス
+
+
+            ye = np.sqrt(fcomp_data) / exptime / np.median(fcomp_data / exptime)
 
             if len(ye) < 0:
                 print(">> No data points to plot.")
                 return
 
-            print(">> Performing preliminary outlier detection ...")
-            print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
-            p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
+            p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals, raw_norm, ye, order, sigma_cut)
 
             three_sigma_outliers = ~keep_mask
 
@@ -754,22 +754,13 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[4, i].plot(gjd_vals[three_sigma_outliers], phot_j['fwhm(pix)'][three_sigma_outliers], 'x', c="gray")
             ax[5, i].plot(gjd_vals[three_sigma_outliers], phot_j['peak(ADU)'][three_sigma_outliers], 'x', c="gray")
         
-            #plot the manually masked point
-            ax[0, i].plot(gjd_vals[~mask], raw_norm[~mask], 'x', c="k")
-            ax[1, i].plot(gjd_vals[~mask], phot_j['airmass'][~mask], 'x', c="k", label=f"Masked points")
-            ax[2, i].plot(gjd_vals[~mask], phot_j['dx(pix)'][~mask], 'x', c="k")
-            ax[3, i].plot(gjd_vals[~mask], phot_j['dy(pix)'][~mask], 'x', c="k")
-            ax[4, i].plot(gjd_vals[~mask], phot_j['fwhm(pix)'][~mask], 'x', c="k")
-            ax[5, i].plot(gjd_vals[~mask], phot_j['peak(ADU)'][~mask], 'x', c="k")
-
-            mask &= keep_mask
-            print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
-            ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
-            ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
-            ax[2, i].plot(gjd_vals[mask], phot_j['dx(pix)'][mask], '.', c="orange")
-            ax[3, i].plot(gjd_vals[mask], phot_j['dy(pix)'][mask], '.', c="orange")
-            ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
-            ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
+            print(f">> CCD {i} | Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
+            ax[0, i].plot(gjd_vals[keep_mask], raw_norm[keep_mask], '.', c="k")
+            ax[1, i].plot(gjd_vals[keep_mask], phot_j['airmass'][keep_mask], '.', c="gray")
+            ax[2, i].plot(gjd_vals[keep_mask], phot_j['dx(pix)'][keep_mask], '.', c="orange")
+            ax[3, i].plot(gjd_vals[keep_mask], phot_j['dy(pix)'][keep_mask], '.', c="orange")
+            ax[4, i].plot(gjd_vals[keep_mask], phot_j['fwhm(pix)'][keep_mask], '.', c="blue")
+            ax[5, i].plot(gjd_vals[keep_mask], phot_j['peak(ADU)'][keep_mask], '.', c="red")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
