@@ -688,6 +688,19 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             "fwhm(pix)": {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
             "peak(ADU)": {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
         }
+        
+    def print_mask_status(self):
+        # Create separate DataFrames for each CCD
+        masks = []
+        for i in range(self.nccd):
+            mask_df = pd.DataFrame({key: {"lower": data["lower"][i], "upper": data["upper"][i]} 
+                            for key, data in self.mask_status.items()}).T
+            mask_df.index.name = f"CCD_{i}"  # Name index to indicate CCD number
+            masks.append(mask_df)
+
+        # Example: Print all DataFrames
+        for i, mask_df in enumerate(masks):
+            print(f"CCD {i} | Current mask:\n", mask_df, "\n")
 
     def add_mask_per_ccd(self, key, ccd, lower=None, upper=None):
         if key not in self.mask_status:
@@ -710,19 +723,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             
             self.mask[ccd][j] = condition  # Store mask for this j
         print(f">> Added mask to {key} for CCD{ccd}")
-
-    def print_mask_status(self):
-        # Create separate DataFrames for each CCD
-        masks = []
-        for i in range(self.nccd):
-            mask_df = pd.DataFrame({key: {"lower": data["lower"][i], "upper": data["upper"][i]} 
-                            for key, data in self.mask_status.items()}).T
-            mask_df.index.name = f"CCD_{i}"  # Name index to indicate CCD number
-            masks.append(mask_df)
-
-        # Example: Print all DataFrames
-        for i, mask_df in enumerate(masks):
-            print(f"CCD {i} | Current mask:\n", mask_df, "\n")
+        self.print_mask_status()
 
     def add_mask(self, key, lower=None, upper=None):
         if key not in self.mask_status:
@@ -747,6 +748,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
                 self.mask[i][j] = condition  # Directly store condition, keeping shape (4, 15) 
         print(f">> Added mask to {key}")
+        self.print_mask_status()
     #need to make sure masking is correct (in dimensions)
 
     def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
