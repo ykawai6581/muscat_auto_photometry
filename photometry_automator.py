@@ -681,12 +681,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 self.mask[i][j] = np.ones_like(self.phot[i][j]['GJD-2450000'], dtype=bool) #add mask depending on the number of ccds and their number of exposures
 
         self.mask_status = {
-            "raw"      : {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
-            "airmass"  : {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
-            "dx(pix)"  : {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
-            "dy(pix)"  : {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
-            "fwhm(pix)": {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
-            "peak(ADU)": {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
+            "raw"      : {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
+            "airmass"  : {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
+            "dx(pix)"  : {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
+            "dy(pix)"  : {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
+            "fwhm(pix)": {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
+            "peak(ADU)": {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
         }
 
     def add_mask_per_ccd(self, key, ccd, lower=None, upper=None):
@@ -714,7 +714,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def print_mask_status(self):
         # Create separate DataFrames for each CCD
         masks = []
-        for i in range(self.nccds):
+        for i in range(self.nccd):
             mask_df = pd.DataFrame({key: {"lower": data["lower"][i], "upper": data["upper"][i]} 
                             for key, data in self.mask_status.items()}).T
             mask_df.index.name = f"CCD_{i}"  # Name index to indicate CCD number
