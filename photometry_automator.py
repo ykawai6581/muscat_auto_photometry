@@ -755,14 +755,13 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         print(">> Performing preliminary outlier detection ...")
         print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
         for i in range(self.nccd):
-            phot_j = self.phot[i][cid]
             mask = self.mask[i][cid]
-
-            exptime = phot_j['exptime'][mask]
-            gjd_vals = phot_j['GJD-2450000'][mask]
-            raw_norm = phot_j[fcomp_key][mask] / exptime
+            phot_j = self.phot[i][cid][mask]
+            exptime = phot_j['exptime']
+            gjd_vals = phot_j['GJD-2450000']
+            raw_norm = phot_j[fcomp_key] / exptime
             raw_norm /= np.median(raw_norm)
-            fcomp_data = phot_j[fcomp_key][mask] #コンパリゾンのフラックス
+            fcomp_data = phot_j[fcomp_key] #コンパリゾンのフラックス
 
             ye = np.sqrt(fcomp_data) / exptime / np.median(fcomp_data / exptime)
 
