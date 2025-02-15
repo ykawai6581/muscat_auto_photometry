@@ -716,7 +716,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         print(f">> Added mask to {key}")
     #need to make sure masking is correct (in dimensions)
 
-    def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
+    def outlier_mask(self, cid=0, ap=0, order=2, sigma_cut=3, plot=False):
         fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
         fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
 
@@ -739,30 +739,68 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             print(">> Performing preliminary outlier detection ...")
             print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
             p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
+            mask &= keep_mask #update the mask to exclude the outliers
+            #update self.mask 
+            for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
+                self.mask[i][j] = mask  # In-place modification of mask
+                print("#### >> Complete and mask is updated.")
+
+            if plot:
+                #plot three sigma outliers
+                three_sigma_outliers = ~keep_mask
+                ax[0, i].plot(gjd_vals[three_sigma_outliers], raw_norm[three_sigma_outliers], 'x', c="gray")
+                ax[1, i].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
+                ax[2, i].plot(gjd_vals[three_sigma_outliers], phot_j['dx(pix)'][three_sigma_outliers], 'x', c="gray")
+                ax[3, i].plot(gjd_vals[three_sigma_outliers], phot_j['dy(pix)'][three_sigma_outliers], 'x', c="gray")
+                ax[4, i].plot(gjd_vals[three_sigma_outliers], phot_j['fwhm(pix)'][three_sigma_outliers], 'x', c="gray")
+                ax[5, i].plot(gjd_vals[three_sigma_outliers], phot_j['peak(ADU)'][three_sigma_outliers], 'x', c="gray")
+                
+
+                print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
+                ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
+                ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
+                ax[2, i].plot(gjd_vals[mask], phot_j['dx(pix)'][mask], '.', c="orange")
+                ax[3, i].plot(gjd_vals[mask], phot_j['dy(pix)'][mask], '.', c="orange")
+                ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
+                ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
+
+            # Set labels only on the first column
+            ax[0, 0].set_ylabel('Relative flux')
+            ax[1, 0].set_ylabel('Airmass')
+            ax[2, 0].set_ylabel('dX')
+            ax[3, 0].set_ylabel('dY')
+            ax[4, 0].set_ylabel('FWHM')
+            ax[5, 0].set_ylabel('Peak')
+            ax[5, 0].set_ylabel('Comp Flux')
+
+            # Set common x-axis label
+            for i in range(self.nccd):
+                ax[-1, i].set_xlabel('GJD - 2450000')
+
+            plt.tight_layout(h_pad=0)  # Remove spacing between rows
+            plt.legend()
+            plt.show()
+
+    def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
+        fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
+        fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
+
+        for i in range(self.nccd):
+            phot_j = self.phot[i][cid]
+            exptime = phot_j['exptime']
+            gjd_vals = phot_j['GJD-2450000']
+            raw_norm = phot_j[fcomp_key] / exptime
+            raw_norm /= np.median(raw_norm)
+
+            mask = self.mask[i][cid]
 
             #plot the manually masked point
             ax[0, i].plot(gjd_vals[~mask], raw_norm[~mask], 'x', c="k")
-            ax[1, i].plot(gjd_vals[~mask], phot_j['airmass'][~mask], 'x', c="k", label=f"Manually removed points")
+            ax[1, i].plot(gjd_vals[~mask], phot_j['airmass'][~mask], 'x', c="k", label=f"Masked points")
             ax[2, i].plot(gjd_vals[~mask], phot_j['dx(pix)'][~mask], 'x', c="k")
             ax[3, i].plot(gjd_vals[~mask], phot_j['dy(pix)'][~mask], 'x', c="k")
             ax[4, i].plot(gjd_vals[~mask], phot_j['fwhm(pix)'][~mask], 'x', c="k")
             ax[5, i].plot(gjd_vals[~mask], phot_j['peak(ADU)'][~mask], 'x', c="k")
-
-            #plot three sigma outliers
-            three_sigma_outliers = ~keep_mask
-            ax[0, i].plot(gjd_vals[three_sigma_outliers], raw_norm[three_sigma_outliers], 'x', c="gray")
-            ax[1, i].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
-            ax[2, i].plot(gjd_vals[three_sigma_outliers], phot_j['dx(pix)'][three_sigma_outliers], 'x', c="gray")
-            ax[3, i].plot(gjd_vals[three_sigma_outliers], phot_j['dy(pix)'][three_sigma_outliers], 'x', c="gray")
-            ax[4, i].plot(gjd_vals[three_sigma_outliers], phot_j['fwhm(pix)'][three_sigma_outliers], 'x', c="gray")
-            ax[5, i].plot(gjd_vals[three_sigma_outliers], phot_j['peak(ADU)'][three_sigma_outliers], 'x', c="gray")
-            
-            mask &= keep_mask #update the mask to exclude the outliers
-
-            #update self.mask 
-            #for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
-            #    self.mask[i][j] = mask  # In-place modification of mask
-            #    print("#### >> Complete and mask is updated.")
 
             print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
@@ -945,7 +983,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             photometry.cids_list = reselected_cids
             photometry.create_photometry()
 
-            saved_mask = self.mask
             '''
             optimization = MuSCAT_PHOTOMETRY_OPTIMIZATION(photometry)
             optimization.mask = self.mask #adds the same mask
@@ -954,7 +991,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             min_rms_list.append(min_rms)
             '''
             self.__init__(photometry)
-            self.mask = saved_mask
+            self.outlier_mask(cid=0, ap=0, order=2, sigma_cut=3, plot=False)
             self.outlier_cut(plot=False)
             min_rms_list.append(self.min_rms)
 
