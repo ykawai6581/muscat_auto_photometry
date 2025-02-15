@@ -942,13 +942,14 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         return reselected_cids_list
     
     def iterate_optimization(self):
-        min_rms_list = [np.inf,self.min_rms]
+
+        min_rms_list = [np.inf for _ in range(self.nccd)]
+        min_rms_list.append([self.rms[index] for index in self.min_rms_idx_list])
         drad = 1
 
         if any(idx in {self.ap[0]} for idx in self.ap_best): #if the lowest rms is the smallest aperture 
             rad1 = self.ap[0] - drad
             rad2 = self.ap[-1]
-            
         elif any(idx in {self.ap[-1]} for idx in self.ap_best): #if the lowest rms is the largest aperture 
             rad1 = self.ap[0]
             rad2 = self.ap[-1] + drad
@@ -962,7 +963,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         reselected_cids = self._reselect_comparison()
 
-        while min_rms_list[-1] < min_rms_list[-2]: #whle the rms keeps improving
+        while any(x < y for x, y in zip(min_rms_list[-1], min_rms_list[-2])): #while the rms keeps improving
             print(f">> Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
@@ -975,7 +976,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             self.mask_status = mask_status
             [self._apply_mask(i) for i in range(self.nccd)] # reapply mask
             self.outlier_cut(plot=False)
-            min_rms_list.append(self.min_rms)
+            min_rms_list.append([self.rms[index] for index in self.min_rms_idx_list])
 
             if any(idx in {self.ap[0]} for idx in self.ap_best):
                 rad1 -= 1
@@ -984,7 +985,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             else:
                 rad1 -= 1
                 rad2 += 1
-            print(f"Minimum rms: {min_rms_list[-2]} -> {min_rms_list[-1]}")
+            print(f"Minimum rms: {min_rms_list[-2]} \n          -> {min_rms_list[-1]}")
         self.plot_outlier_cut_results()
 
     def plot_lc(self):
