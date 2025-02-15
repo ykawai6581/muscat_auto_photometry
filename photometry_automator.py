@@ -722,7 +722,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         # Example: Print all DataFrames
         for i, mask_df in enumerate(masks):
-            print(f">> Current mask for CCD {i}:\n", mask_df, "\n")
+            print(f"CCD {i} | Current mask:\n", mask_df, "\n")
 
     def add_mask(self, key, lower=None, upper=None):
         if key not in self.mask_status:
@@ -798,10 +798,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 upper_val = self.mask_status[key]["upper"][i]
 
                 if not np.isinf(lower_val):  # Plot only if lower_val is finite
-                    ax[key_index, i].plot(np.full(len(gjd_vals), lower_val),c="gray")
+                    ax[key_index, i].plot(gjd_vals,np.full(len(gjd_vals), lower_val),c="gray")
 
                 if not np.isinf(upper_val):  # Plot only if upper_val is finite
-                    ax[key_index, i].plot(np.full(len(gjd_vals), upper_val),c="gray")
+                    ax[key_index, i].plot(gjd_vals,np.full(len(gjd_vals), upper_val),c="gray")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
