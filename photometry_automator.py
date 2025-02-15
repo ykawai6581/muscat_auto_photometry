@@ -673,6 +673,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.phot=[]
         phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
 
+        self.run_outlier_detection = False
+        self.keep_mask = None
+
         for i in range(self.nccd):
             self.phot.append([])
             for j, cid in enumerate(self.cids_list_opt[i]):#self.cids_list_opt is only needed to access the files here
@@ -736,18 +739,34 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 print(">> No data points to plot.")
                 return
 
-            print(">> Performing preliminary outlier detection ...")
-            print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
-            p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
-            omittied_points = (~mask) & (~keep_mask) #points that are either manually masked or are outliers
-            mask &= keep_mask #update the mask to exclude the outliers
-            ax[0, i].plot(gjd_vals[omittied_points], raw_norm[omittied_points], 'x', c="gray")
-            ax[1, i].plot(gjd_vals[omittied_points], phot_j['airmass'][omittied_points], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
-            ax[2, i].plot(gjd_vals[omittied_points], phot_j['dx(pix)'][omittied_points], 'x', c="gray")
-            ax[3, i].plot(gjd_vals[omittied_points], phot_j['dy(pix)'][omittied_points], 'x', c="gray")
-            ax[4, i].plot(gjd_vals[omittied_points], phot_j['fwhm(pix)'][omittied_points], 'x', c="gray")
-            ax[5, i].plot(gjd_vals[omittied_points], phot_j['peak(ADU)'][omittied_points], 'x', c="gray")
-            ax[6, i].plot(gjd_vals[omittied_points], phot_j[fcomp_key][omittied_points], 'x', c="gray")
+            if not self.run_outlier_detection:
+                print(">> Performing preliminary outlier detection ...")
+                print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
+                p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
+                self.run_outlier_detection = True
+                self.keep_mask = keep_mask
+
+            #plot the manually masked point
+            ax[0, i].plot(gjd_vals[~mask], raw_norm[~mask], 'x', c="k")
+            ax[1, i].plot(gjd_vals[~mask], phot_j['airmass'][~mask], 'x', c="k", label=f"Manually removed points")
+            ax[2, i].plot(gjd_vals[~mask], phot_j['dx(pix)'][~mask], 'x', c="k")
+            ax[3, i].plot(gjd_vals[~mask], phot_j['dy(pix)'][~mask], 'x', c="k")
+            ax[4, i].plot(gjd_vals[~mask], phot_j['fwhm(pix)'][~mask], 'x', c="k")
+            ax[5, i].plot(gjd_vals[~mask], phot_j['peak(ADU)'][~mask], 'x', c="k")
+            ax[6, i].plot(gjd_vals[~mask], phot_j[fcomp_key][~mask], 'x', c="k")
+
+            #plot three sigma outliers
+            ax[0, i].plot(gjd_vals[~self.keep_mask], raw_norm[~self.keep_mask], 'x', c="gray")
+            ax[1, i].plot(gjd_vals[~self.keep_mask], phot_j['airmass'][~self.keep_mask], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
+            ax[2, i].plot(gjd_vals[~self.keep_mask], phot_j['dx(pix)'][~self.keep_mask], 'x', c="gray")
+            ax[3, i].plot(gjd_vals[~self.keep_mask], phot_j['dy(pix)'][~self.keep_mask], 'x', c="gray")
+            ax[4, i].plot(gjd_vals[~self.keep_mask], phot_j['fwhm(pix)'][~self.keep_mask], 'x', c="gray")
+            ax[5, i].plot(gjd_vals[~self.keep_mask], phot_j['peak(ADU)'][~self.keep_mask], 'x', c="gray")
+            ax[6, i].plot(gjd_vals[~self.keep_mask], phot_j[fcomp_key][~self.keep_mask], 'x', c="gray")
+            
+            mask &= self.keep_mask #update the mask to exclude the outliers
+
+            #update self.mask 
             for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
                 self.mask[i][j] = mask  # In-place modification of mask
                 print("#### >> Complete and mask is updated.")
