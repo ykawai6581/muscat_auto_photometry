@@ -129,19 +129,19 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         ymodel = np.polyval(result.x, tcut)
         plt.plot(tcut, ycut, zorder=0)
         plt.plot(tcut, ymodel,zorder=1)
-        plt.show()
         resi = ycut - ymodel
         sdev = np.sqrt(np.sum(resi**2)/float(len(resi)))
         sigma = np.abs(resi/sdev)
-        condition = sigma < sigma_cut
+        condition = sigma < sigma_cut #condition for point to keep
         index = np.where(condition)
-        print(index[0])
         nout = len(tcut) - len(index[0])
+        plt.scatter(tcut[~index[0]], ycut[~index[0]], color='red', marker="x",zorder=2)
         tcut = tcut[index[0]]
         ycut = ycut[index[0]]
         yecut = yecut[index[0]]
         index_return.extend(index[0])
-    print(index_return)
+        plt.show()
+
     return result.x, tcut+tint, ycut, yecut, np.unique(np.array(index_return))
 
 
