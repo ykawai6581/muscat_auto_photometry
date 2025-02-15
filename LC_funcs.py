@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 
 def binning_weighted_mean(t, y, ye, binsize):
 
@@ -126,6 +127,10 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         p0 = result.x
         result = minimize(calc_chi2_polyfit, p0, args=(tcut, ycut, yecut), method='Nelder-Mead')
         ymodel = np.polyval(result.x, tcut)
+        plt.plot(tcut, ymodel)
+        plt.plot(tcut, ycut)
+        plt.show()
+
         resi = ycut - ymodel
         sdev = np.sqrt(np.sum(resi**2)/float(len(resi)))
         sigma = np.abs(resi/sdev)
