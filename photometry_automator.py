@@ -973,7 +973,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             mask_status = self.mask_status
             self.__init__(photometry)
             self.mask_status = mask_status
-            [self._apply_mask() for i in range(self.nccd)] # reapply mask
+            [self._apply_mask(i) for i in range(self.nccd)] # reapply mask
             self.outlier_cut(plot=False)
             min_rms_list.append(self.min_rms)
 
