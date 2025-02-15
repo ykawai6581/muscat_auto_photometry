@@ -763,7 +763,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[4, i].plot(gjd_vals[three_sigma_outliers], phot_j['fwhm(pix)'][three_sigma_outliers], 'x', c="gray")
             ax[5, i].plot(gjd_vals[three_sigma_outliers], phot_j['peak(ADU)'][three_sigma_outliers], 'x', c="gray")
             
-            mask &= self.keep_mask #update the mask to exclude the outliers
+            mask &= self.keep_mask[i] #update the mask to exclude the outliers
 
             #update self.mask 
             for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
