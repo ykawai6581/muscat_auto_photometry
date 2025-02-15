@@ -750,7 +750,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
                     self.mask[i][j] = mask  # In-place modification of mask
                     print("#### >> Complete and mask is updated.")
-            polyfit_result = np.sum([coeff*(gjd_vals**i) for i, coeff in enumerate(p)],axis=0)
+
+            polyfit_result = np.sum([coeff*(gjd_vals**poly_order) for poly_order, coeff in enumerate(p)],axis=0)
 
             print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
@@ -760,7 +761,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
             ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
             ax[6, i].plot(gjd_vals[mask], phot_j[fcomp_key][mask], '.', c="orange")
-            ax[6, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="white")
+            ax[6, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="k")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
