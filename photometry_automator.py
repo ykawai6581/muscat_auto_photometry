@@ -752,6 +752,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     print("#### >> Complete and mask is updated.")
 
             polyfit_result = np.sum([coeff*(gjd_vals**poly_order) for poly_order, coeff in enumerate(p)],axis=0)
+            print(p)
 
             print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
