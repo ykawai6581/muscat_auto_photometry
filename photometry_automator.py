@@ -742,8 +742,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
             three_sigma_outliers = ~keep_mask
 
-            ymax = np.max(raw_norm[keep_mask])*1.1
-            ymin = np.min(raw_norm[keep_mask])*0.9
+            ymax = np.max(raw_norm[keep_mask])*1.01
+            ymin = np.min(raw_norm[keep_mask])*0.99
 
             outlier_for_plot = np.clip(raw_norm[three_sigma_outliers], ymin, ymax)
 
