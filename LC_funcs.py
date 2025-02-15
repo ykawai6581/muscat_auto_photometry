@@ -111,7 +111,7 @@ def outcut_polyfit_numpy(t, y, ye, order, sigma_cut):
 
     return p, tcut, ycut, yecut
 
-
+'''
 def outcut_polyfit(t, y, ye, order, sigma_cut):
     tint = np.int(np.min(t))
     tcut = t - tint
@@ -145,7 +145,57 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
     plt.scatter(t[~np.unique(index_return)], ycut[~np.unique(index_return)], color='red', marker="x",zorder=2)
 
     return result.x, tcut+tint, ycut, yecut, np.unique(np.array(index_return))
+'''
 
+
+
+
+def outcut_polyfit(t, y, ye, order, sigma_cut):
+    tint = int(np.min(t))  # Fixed deprecated np.int
+    tcut = t - tint
+    ycut = y.copy()
+    yecut = ye.copy()
+
+    # Use polyfit for better initial guess
+    p0 = np.polyfit(tcut, ycut, order)
+
+    kept_mask = np.ones(len(t), dtype=bool)  # Boolean mask tracking kept points
+    nout = 1  # Start with a dummy value to enter loop
+
+    while nout > 0:
+        # Fit polynomial using chi-square minimization
+        result = minimize(calc_chi2_polyfit, p0, args=(tcut, ycut, yecut), method='Nelder-Mead')
+        p0 = result.x  # Update initial guess with best fit
+
+        # Compute residuals and standard deviation
+        ymodel = np.polyval(result.x, tcut)
+        plt.plot(tcut, ycut, zorder=0)
+        plt.plot(tcut, ymodel, zorder=1)
+
+        resi = ycut - ymodel
+        sdev = np.std(resi, ddof=1)  # Use unbiased std deviation
+        sigma = np.abs(resi / sdev)  # Compute sigma values
+
+        # Identify points to keep and remove
+        condition = sigma < sigma_cut  # Points to keep
+        kept_mask[kept_mask] = condition
+        nout = len(tcut) - np.sum(condition)  # Count removed points
+
+        # Plot removed points in red
+        plt.scatter(tcut[~condition], ycut[~condition], color='red', marker="x", zorder=2)
+        plt.show()
+
+        # Filter only kept points for next iteration
+        tcut, ycut, yecut = tcut[condition], ycut[condition], yecut[condition]
+
+
+    # Final plot
+    plt.plot(t, y, label="Original Data")
+    plt.scatter(t[~kept_mask], y[~kept_mask], color='red', marker="x", zorder=2, label="Removed Points")
+    plt.legend()
+    plt.show()
+
+    return result.x, t[kept_mask], y[kept_mask], ye[kept_mask], kept_mask  # Also return cut points
 
 def outcut_smoothing(t, y, nsample, sigma_cut):
 
