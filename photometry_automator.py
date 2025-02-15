@@ -680,23 +680,54 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 self.phot[i].append(Table.read(infile))
                 self.mask[i][j] = np.ones_like(self.phot[i][j]['GJD-2450000'], dtype=bool) #add mask depending on the number of ccds and their number of exposures
 
+        self.mask_status = {
+            "raw"      : {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
+            "airmass"  : {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
+            "dx(pix)"  : {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
+            "dy(pix)"  : {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
+            "fwhm(pix)": {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
+            "peak(ADU)": {"lower": np.full(self.nccds,-np.inf), "upper": np.full(self.nccds,np.inf)},
+        }
+
     def add_mask_per_ccd(self, key, ccd, lower=None, upper=None):
+        if key not in self.mask_status:
+            raise ValueError(f"Invalid key: {key}, must be one of {list(self.mask_status.keys())}")
         """Applies a mask to all elements in the dataset for a given CCD."""
         for j in range(len(self.phot[ccd])):  # Loop over j (e.g., different sources)
             condition = self.mask[ccd][j]  # Start with the current mask
-            
+            if key == "raw":
+                fcomp_key = f'flux_comp(r={self.ap[0]:.1f})'#this currently assumes the first aperture for raw flux cut
+                target_array = self.phot[ccd][j][fcomp_key]/self.phot[i][j]['exptime'] 
+                target_array /= np.median(target_array) #this is the normalized flux
+            else:
+                target_array = self.phot[ccd][j][key]
             if lower is not None:
-                condition &= (self.phot[ccd][j][key] > lower[ccd])  # Apply lower bound
-                
+                condition &= target_array > lower[ccd] # Apply lower bound
+                self.mask_status[key]["lower"][ccd] = lower[ccd]
             if upper is not None:
-                condition &= (self.phot[ccd][j][key] < upper[ccd])  # Apply upper bound
+                condition &= target_array < upper[ccd]  # Apply upper bound
+                self.mask_status[key]["upper"][ccd] = upper[ccd]
             
             self.mask[ccd][j] = condition  # Store mask for this j
         print(f">> Added mask to {key} for CCD{ccd}")
 
-    def add_mask(self, key, lower=None, upper=None):
-        """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
+    def print_mask_status(self):
+        # Create separate DataFrames for each CCD
+        masks = []
+        for i in range(self.nccds):
+            mask_df = pd.DataFrame({key: {"lower": data["lower"][i], "upper": data["upper"][i]} 
+                            for key, data in self.mask_status.items()}).T
+            mask_df.index.name = f"CCD_{i}"  # Name index to indicate CCD number
+            masks.append(mask_df)
 
+        # Example: Print all DataFrames
+        for i, mask_df in enumerate(masks):
+            print(f">> Current mask for CCD {i}:\n", mask_df, "\n")
+
+    def add_mask(self, key, lower=None, upper=None):
+        if key not in self.mask_status:
+            raise ValueError(f"Invalid key: {key}, must be one of {list(self.mask_status.keys())}")
+        """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
         for i in range(len(self.phot)):  # Loop over CCDs            
             for j in range(len(self.phot[i])):  # Loop over sources, stars, or apertures
                 condition = self.mask[i][j]  # Start with the current mask
@@ -708,10 +739,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     target_array = self.phot[i][j][key]
                 if lower is not None:
                         condition &= target_array > (lower[i] if isinstance(lower, list) else lower)
-                    
+                        self.mask_status[key]["lower"][i] = lower[i] if isinstance(lower, list) else lower
+
                 if upper is not None:
                     condition &= target_array < (upper[i] if isinstance(upper, list) else upper)
-                
+                    self.mask_status[key]["upper"][i] = upper[i] if isinstance(upper, list) else upper
+
                 self.mask[i][j] = condition  # Directly store condition, keeping shape (4, 15) 
         print(f">> Added mask to {key}")
     #need to make sure masking is correct (in dimensions)
@@ -730,7 +763,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             raw_norm = phot_j[fcomp_key][mask] / exptime
             raw_norm /= np.median(raw_norm)
             fcomp_data = phot_j[fcomp_key][mask] #コンパリゾンのフラックス
-
 
             ye = np.sqrt(fcomp_data) / exptime / np.median(fcomp_data / exptime)
 
@@ -761,6 +793,16 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[3, i].plot(gjd_vals[keep_mask], phot_j['dy(pix)'][keep_mask], '.', c="orange")
             ax[4, i].plot(gjd_vals[keep_mask], phot_j['fwhm(pix)'][keep_mask], '.', c="blue")
             ax[5, i].plot(gjd_vals[keep_mask], phot_j['peak(ADU)'][keep_mask], '.', c="red")
+
+            for key_index, key in enumerate(self.mask_status.keys()):  # Fixed iteration
+                lower_val = self.mask_status[key]["lower"][i]
+                upper_val = self.mask_status[key]["upper"][i]
+
+                if not np.isinf(lower_val):  # Plot only if lower_val is finite
+                    ax[key_index, i].plot(np.full(gjd_vals, lower_val),c="gray")
+
+                if not np.isinf(upper_val):  # Plot only if upper_val is finite
+                    ax[key_index, i].plot(np.full(gjd_vals, upper_val),c="gray")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
