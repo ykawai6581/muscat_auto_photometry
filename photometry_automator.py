@@ -740,7 +740,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
             p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
             omittied_points = (~mask) & (~keep_mask) #points that are either manually masked or are outliers
-            mask &= ~keep_mask #update the mask to exclude the outliers
+            mask &= keep_mask #update the mask to exclude the outliers
             ax[0, i].plot(gjd_vals[omittied_points], raw_norm[omittied_points], 'x', c="gray")
             ax[1, i].plot(gjd_vals[omittied_points], phot_j['airmass'][omittied_points], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
             ax[2, i].plot(gjd_vals[omittied_points], phot_j['dx(pix)'][omittied_points], 'x', c="gray")
@@ -752,11 +752,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 self.mask[i][j] = mask  # In-place modification of mask
                 print("#### >> Complete and mask is updated.")
 
-            polyfit_result = np.polyval(p, gjd_vals)
-
             print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
-            ax[0, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="gray")
             ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
             ax[2, i].plot(gjd_vals[mask], phot_j['dx(pix)'][mask], '.', c="orange")
             ax[3, i].plot(gjd_vals[mask], phot_j['dy(pix)'][mask], '.', c="orange")
