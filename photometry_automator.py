@@ -976,7 +976,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             self.mask_status = mask_status
             [self._apply_mask(i) for i in range(self.nccd)] # reapply mask
             self.outlier_cut(plot=False)
-            min_rms_list.append([self.rms[index] for index in self.min_rms_idx_list])
+            min_rms_list.append([np.array(self.rms[index])[self.ap_best_idx[ccd]] for ccd, index in enumerate(self.min_rms_idx_list)])
 
             if any(idx in {self.ap[0]} for idx in self.ap_best):
                 rad1 -= 1
