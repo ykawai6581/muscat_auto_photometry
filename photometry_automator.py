@@ -95,6 +95,7 @@ class MuSCAT_PHOTOMETRY:
             # Copy attributes from the parent if given
             self.__dict__.update(parent.__dict__)
         else:
+            target_name = target_from_filename()
 
             instrument_id = {"muscat":1,"muscat2":2,"muscat3":3,"muscat4":4}
 
@@ -108,7 +109,7 @@ class MuSCAT_PHOTOMETRY:
                 self.ra, self.dec = query_radec(target_from_filename())
             except:
                 if ra and dec:
-                    self.ra, self.dec = ra, dec
+                    self.ra, self.dec = ra, dec #implement conversion from hms to deg
                 else:
                     print("Failed to query RA and Dec from Simbad. Enter ra and dec manually.")
                     return
@@ -138,7 +139,7 @@ class MuSCAT_PHOTOMETRY:
 
                 self.obslog.append(obslog_perccd_df)
             self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
-            if target_from_filename() in self.obj_names:
+            if target_name in self.obj_names: #implement checks for variability in target name
                 self.target = target_from_filename()
             else:
                 pick_target = input(f"Available object names {[f'{i}|{item}' for i, item in enumerate(self.obj_names)]}")
