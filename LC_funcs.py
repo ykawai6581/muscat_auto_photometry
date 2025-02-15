@@ -182,7 +182,7 @@ def moving_median(x, y, nsample):
 def polyfunc(p, x, order):
     y = 0
     for i in range(order+1):
-        y = y + p[i]*x**(order-i)
+        y += p[i]*x**(order-i)
 
     return y
 

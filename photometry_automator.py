@@ -57,7 +57,7 @@ def time_keeper(func):
         elapsed_time = end_time - start_time
         minutes = int(elapsed_time // 60)
         seconds = int(elapsed_time % 60)
-        print("Done.")
+        #print("Done.")
         print(f"### Wall time: {minutes} minutes {seconds} seconds ###")
         return result
     return wrapper
@@ -718,7 +718,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
     def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
         fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
-        fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
+        fig, ax = plt.subplots(7, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
 
         for i in range(self.nccd):
             phot_j = self.phot[i][cid]
@@ -746,9 +746,11 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 ax[3, i].plot(gjd_vals[omittied_points], phot_j['dy(pix)'][omittied_points], 'x', c="gray")
                 ax[4, i].plot(gjd_vals[omittied_points], phot_j['fwhm(pix)'][omittied_points], 'x', c="gray")
                 ax[5, i].plot(gjd_vals[omittied_points], phot_j['peak(ADU)'][omittied_points], 'x', c="gray")
+                ax[6, i].plot(gjd_vals[omittied_points], phot_j[fcomp_key][omittied_points], 'x', c="gray")
                 for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
                     self.mask[i][j] = mask  # In-place modification of mask
-                    print("## >> Complete and mask is updated.")
+                    print("#### >> Complete and mask is updated.")
+            polyfit_result = np.sum([coeff*(gjd_vals**i) for i, coeff in enumerate(p)],axis=0)
 
             print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
@@ -757,6 +759,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[3, i].plot(gjd_vals[mask], phot_j['dy(pix)'][mask], '.', c="orange")
             ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
             ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
+            ax[6, i].plot(gjd_vals[mask], phot_j[phot_j[fcomp_key]][mask], '.', c="orange")
+            ax[6, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="white")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
@@ -765,6 +769,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         ax[3, 0].set_ylabel('dY')
         ax[4, 0].set_ylabel('FWHM')
         ax[5, 0].set_ylabel('Peak')
+        ax[5, 0].set_ylabel('Comp Flux')
 
         # Set common x-axis label
         for i in range(self.nccd):
@@ -802,7 +807,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 gjd_vals = phot_j['GJD-2450000']
                 mask = self.mask[i][j]
 
-                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
+                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)] #cid=jのフラックス（in ADU?）
                 fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
 
                 raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
