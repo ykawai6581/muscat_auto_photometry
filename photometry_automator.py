@@ -759,7 +759,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[3, i].plot(gjd_vals[mask], phot_j['dy(pix)'][mask], '.', c="orange")
             ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
             ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
-            ax[6, i].plot(gjd_vals[mask], phot_j[phot_j[fcomp_key]][mask], '.', c="orange")
+            ax[6, i].plot(gjd_vals[mask], phot_j[fcomp_key][mask], '.', c="orange")
             ax[6, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="white")
 
         # Set labels only on the first column
