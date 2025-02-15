@@ -718,7 +718,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
     def outlier_mask(self, cid=0, ap=0, order=2, sigma_cut=3, plot=False):
         fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
-        fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
 
         for i in range(self.nccd):
             phot_j = self.phot[i][cid]
@@ -746,6 +745,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 print("#### >> Complete and mask is updated.")
 
             if plot:
+                fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
+
                 #plot three sigma outliers
                 three_sigma_outliers = ~keep_mask
                 ax[0, i].plot(gjd_vals[three_sigma_outliers], raw_norm[three_sigma_outliers], 'x', c="gray")
@@ -764,22 +765,22 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
                 ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
 
-            # Set labels only on the first column
-            ax[0, 0].set_ylabel('Relative flux')
-            ax[1, 0].set_ylabel('Airmass')
-            ax[2, 0].set_ylabel('dX')
-            ax[3, 0].set_ylabel('dY')
-            ax[4, 0].set_ylabel('FWHM')
-            ax[5, 0].set_ylabel('Peak')
-            ax[5, 0].set_ylabel('Comp Flux')
+                # Set labels only on the first column
+                ax[0, 0].set_ylabel('Relative flux')
+                ax[1, 0].set_ylabel('Airmass')
+                ax[2, 0].set_ylabel('dX')
+                ax[3, 0].set_ylabel('dY')
+                ax[4, 0].set_ylabel('FWHM')
+                ax[5, 0].set_ylabel('Peak')
+                ax[5, 0].set_ylabel('Comp Flux')
 
-            # Set common x-axis label
-            for i in range(self.nccd):
-                ax[-1, i].set_xlabel('GJD - 2450000')
+                # Set common x-axis label
+                for i in range(self.nccd):
+                    ax[-1, i].set_xlabel('GJD - 2450000')
 
-            plt.tight_layout(h_pad=0)  # Remove spacing between rows
-            plt.legend()
-            plt.show()
+                plt.tight_layout(h_pad=0)  # Remove spacing between rows
+                plt.legend()
+                plt.show()
 
     def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
         fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
