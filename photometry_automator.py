@@ -826,7 +826,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (it may take a few minutes)")
 
         for i in range(self.nccd):
-            print(f"Computing outliers for CCD {i}")
+            print(f"## >> CCD {i} | Computing outliers ...")
             
             n_cids = len(self.cids_list[i])
             n_ap = len(self.ap)
@@ -970,16 +970,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             photometry.cids_list = reselected_cids
             photometry.create_photometry()
 
-            '''
-            optimization = MuSCAT_PHOTOMETRY_OPTIMIZATION(photometry)
-            optimization.mask = self.mask #adds the same mask
-            optimization.outlier_cut(plot=False)
-            min_rms = optimization.min_rms
-            min_rms_list.append(min_rms)
-            '''
             mask_status = self.mask_status
             self.__init__(photometry)
-            #self.outlier_mask(cid=0, ap=0, order=2, sigma_cut=3, plot=False)
             self.mask_status = mask_status
             [self._apply_mask() for i in range(self.nccd)] # reapply mask
             self.outlier_cut(plot=False)
