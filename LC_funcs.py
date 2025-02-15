@@ -142,7 +142,7 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         index_return.extend(index[0])
         plt.show()
     plt.plot(t, y)
-    plt.scatter(t[~index_return], ycut[~index_return], color='red', marker="x",zorder=2)
+    plt.scatter(t[~np.unique(index_return)], ycut[~np.unique(index_return)], color='red', marker="x",zorder=2)
 
     return result.x, tcut+tint, ycut, yecut, np.unique(np.array(index_return))
 
