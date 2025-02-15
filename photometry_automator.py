@@ -740,14 +740,15 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
             p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
 
+            three_sigma_outliers = ~keep_mask
+
             ymax = np.max(raw_norm[keep_mask])*1.1
             ymin = np.max(raw_norm[keep_mask])*0.9
 
-            outlier = [min(ymax,value) for value in raw_norm[three_sigma_outliers]]
-            outlier = [max(ymin,value) for value in outlier]
+            outlier_for_plot = [min(ymax,value) for value in raw_norm[three_sigma_outliers]]
+            outlier_for_plot = [max(ymin,value) for value in outlier_for_plot]
 
-            three_sigma_outliers = ~keep_mask
-            ax[0, i].plot(gjd_vals[three_sigma_outliers], outlier, 'x', c="gray")
+            ax[0, i].plot(gjd_vals[three_sigma_outliers], outlier_for_plot, 'x', c="gray")
             ax[1, i].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
             ax[2, i].plot(gjd_vals[three_sigma_outliers], phot_j['dx(pix)'][three_sigma_outliers], 'x', c="gray")
             ax[3, i].plot(gjd_vals[three_sigma_outliers], phot_j['dy(pix)'][three_sigma_outliers], 'x', c="gray")
