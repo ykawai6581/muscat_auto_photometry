@@ -127,8 +127,8 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         p0 = result.x
         result = minimize(calc_chi2_polyfit, p0, args=(tcut, ycut, yecut), method='Nelder-Mead')
         ymodel = np.polyval(result.x, tcut)
-        plt.plot(tcut, ymodel)
-        plt.plot(tcut, ycut)
+        plt.plot(tcut, ycut, zorder=0)
+        plt.plot(tcut, ymodel,zorder=1)
         plt.show()
 
         resi = ycut - ymodel
