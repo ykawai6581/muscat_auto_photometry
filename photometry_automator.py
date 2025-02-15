@@ -739,6 +739,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             print(">> Performing preliminary outlier detection ...")
             print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
             p, tcut, ycut, yecut, keep_index = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
+            plt.plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
+            plt.plot(gjd_vals[mask], np.polyval(p, gjd_vals[mask]), alpha=0.5, c="gray")
+            plt.show()
             outlier_mask = np.zeros_like(mask, dtype=bool) #initialize index_mask all False
             outlier_mask[keep_index] = True #set the index_mask to True where they are not outlier points
             omittied_points = (~mask) & (~outlier_mask) #points that are either manually masked or are outliers
