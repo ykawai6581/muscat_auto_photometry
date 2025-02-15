@@ -688,9 +688,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             "fwhm(pix)": {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
             "peak(ADU)": {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
         }
-        
+
     def print_mask_status(self):
         # Create separate DataFrames for each CCD
+        print(">> Current mask status:")
         masks = []
         for i in range(self.nccd):
             mask_df = pd.DataFrame({key: {"lower": data["lower"][i], "upper": data["upper"][i]} 
@@ -700,28 +701,32 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         # Example: Print all DataFrames
         for i, mask_df in enumerate(masks):
-            print(f"CCD {i} | Current mask:\n", mask_df, "\n")
+            print(f"{mask_df} \n")
+
+    def _apply_mask(self,ccd):
+        for j in range(len(self.phot[ccd])):  # Loop over sources, stars, or apertures
+            condition = np.ones_like(self.phot[ccd][j]['GJD-2450000'], dtype=bool) # initialize mask
+            for key in self.mask_status.keys():
+                if key == "raw":
+                    fcomp_key = f'flux_comp(r={self.ap[0]:.1f})'#this currently assumes the first aperture for raw flux cut
+                    target_array = self.phot[ccd][j][fcomp_key]/self.phot[ccd][j]['exptime'] 
+                    target_array /= np.median(target_array) #this is the normalized flux
+                else:
+                    target_array = self.phot[ccd][j][key]
+                condition &= target_array > self.mask_status[key]["lower"][ccd]
+                condition &= target_array < self.mask_status[key]["upper"][ccd]
+            self.mask[ccd][j] = condition  
 
     def add_mask_per_ccd(self, key, ccd, lower=None, upper=None):
         if key not in self.mask_status:
             raise ValueError(f"Invalid key: {key}, must be one of {list(self.mask_status.keys())}")
         """Applies a mask to all elements in the dataset for a given CCD."""
-        for j in range(len(self.phot[ccd])):  # Loop over j (e.g., different sources)
-            condition = self.mask[ccd][j]  # Start with the current mask
-            if key == "raw":
-                fcomp_key = f'flux_comp(r={self.ap[0]:.1f})'#this currently assumes the first aperture for raw flux cut
-                target_array = self.phot[ccd][j][fcomp_key]/self.phot[i][j]['exptime'] 
-                target_array /= np.median(target_array) #this is the normalized flux
-            else:
-                target_array = self.phot[ccd][j][key]
-            if lower is not None:
-                condition &= target_array > lower[ccd] # Apply lower bound
-                self.mask_status[key]["lower"][ccd] = lower[ccd]
-            if upper is not None:
-                condition &= target_array < upper[ccd]  # Apply upper bound
-                self.mask_status[key]["upper"][ccd] = upper[ccd]
-            
-            self.mask[ccd][j] = condition  # Store mask for this j
+        #update mask status
+        if lower is not None:
+            self.mask_status[key]["lower"][ccd] = lower[ccd]
+        if upper is not None:
+            self.mask_status[key]["upper"][ccd] = upper[ccd]
+        self._apply_mask(ccd)
         print(f">> Added mask to {key} for CCD{ccd}")
         self.print_mask_status()
 
@@ -729,24 +734,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         if key not in self.mask_status:
             raise ValueError(f"Invalid key: {key}, must be one of {list(self.mask_status.keys())}")
         """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
-        for i in range(len(self.phot)):  # Loop over CCDs            
-            for j in range(len(self.phot[i])):  # Loop over sources, stars, or apertures
-                condition = self.mask[i][j]  # Start with the current mask
-                if key == "raw":
-                    fcomp_key = f'flux_comp(r={self.ap[0]:.1f})'#this currently assumes the first aperture for raw flux cut
-                    target_array = self.phot[i][j][fcomp_key]/self.phot[i][j]['exptime'] 
-                    target_array /= np.median(target_array) #this is the normalized flux
-                else:
-                    target_array = self.phot[i][j][key]
-                if lower is not None:
-                        condition &= target_array > (lower[i] if isinstance(lower, list) else lower)
-                        self.mask_status[key]["lower"][i] = lower[i] if isinstance(lower, list) else lower
-
-                if upper is not None:
-                    condition &= target_array < (upper[i] if isinstance(upper, list) else upper)
-                    self.mask_status[key]["upper"][i] = upper[i] if isinstance(upper, list) else upper
-
-                self.mask[i][j] = condition  # Directly store condition, keeping shape (4, 15) 
+        for i in range(self.nccd):  # Loop over CCDs
+            if lower is not None:
+                self.mask_status[key]["lower"][i] = lower[i] if isinstance(lower, list) else lower
+            if upper is not None:
+                self.mask_status[key]["upper"][i] = upper[i] if isinstance(upper, list) else upper
+            self._apply_mask(i)
         print(f">> Added mask to {key}")
         self.print_mask_status()
     #need to make sure masking is correct (in dimensions)
@@ -811,8 +804,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         ax[2, 0].set_ylabel('dX')
         ax[3, 0].set_ylabel('dY')
         ax[4, 0].set_ylabel('FWHM')
-        ax[5, 0].set_ylabel('Peak')
-        ax[5, 0].set_ylabel('Comp Flux')
+        ax[5, 0].set_ylabel('Target peak (ADU)')
 
         # Set common x-axis label
         for i in range(self.nccd):
