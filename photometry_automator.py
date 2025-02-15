@@ -58,15 +58,9 @@ def time_keeper(func):
         minutes = int(elapsed_time // 60)
         seconds = int(elapsed_time % 60)
         print("Done.")
-        print(f"Wall time: {minutes} minutes {seconds} seconds")
+        print(f"### Wall time: {minutes} minutes {seconds} seconds ###")
         return result
     return wrapper
-
-def run_photometry(script, obsdate, target, ccd, nstars, rad, drad):
-    """Runs the photometry script for a given CCD and radius."""
-    cmd = f"perl {script} {obsdate} {target} {ccd} {nstars} {rad} {rad} {drad} > /dev/null"
-    subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    print(f"Completed aperture photometry for CCD={ccd}, rad={rad}")
 
 def ra_to_hms(ra_deg):
     ra_hours = ra_deg / 15
@@ -89,10 +83,7 @@ from muscat_photometry import target_from_filename, obsdates_from_filename, quer
 os.umask(0o002)
 os.nice(19)
 
-ra, dec = query_radec(target_from_filename())
-
 print(f"Running notebook for {target_from_filename()}")
-print(f"Ra, Dec: {ra, dec}")
 print(f"Available obsdates {obsdates_from_filename()}")
 
 class MuSCAT_PHOTOMETRY:
@@ -361,13 +352,13 @@ class MuSCAT_PHOTOMETRY:
             self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
 
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
-        print(f"Performing photometry for radius: {rads} | nstars = {nstars} | method = {method}")
+        print(f">> Performing photometry for radius: {rads} | nstars = {nstars} | method = {method}")
 
         # Check for missing photometry files
         missing, missing_files_per_ccd = self._check_missing_photometry(rads)
 
         if not missing:
-            print(f"Photometry is already available for radius: {available_rad}")
+            print(f"## >> Photometry is already available for radius: {available_rad}")
             return
 
         # Determine script to use
@@ -420,12 +411,12 @@ class MuSCAT_PHOTOMETRY:
                     process = subprocess.Popen(cmd, shell=True, text=True)
                     processes.append((process, i, rad))  # Store process info
                 else:
-                    print(f"Photometry already available for CCD={i}, rad={rad}")
+                    print(f"## >>Photometry already available for CCD={i}, rad={rad}")
 
         # Wait for all processes to finish
         for process, i, rad in processes:
             process.wait()  # Blocks until process completes
-            print(f"Completed aperture photometry for CCD={i}, rad={rad}")
+            print(f"## >> Completed aperture photometry for CCD={i}, rad={rad}")
 
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
@@ -690,7 +681,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 condition &= (self.phot[ccd][j][key] < upper[ccd])  # Apply upper bound
             
             self.mask[ccd][j] = condition  # Store mask for this j
-        print(f"Added mask to {key} for CCD{ccd}")
+        print(f">> Added mask to {key} for CCD{ccd}")
 
     def add_mask(self, key, lower=None, upper=None):
         """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
@@ -711,7 +702,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                     condition &= target_array < (upper[i] if isinstance(upper, list) else upper)
                 
                 self.mask[i][j] = condition  # Directly store condition, keeping shape (4, 15) 
-        print(f"Added mask to {key}")
+        print(f">> Added mask to {key}")
     #need to make sure masking is correct (in dimensions)
 
     def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
@@ -877,7 +868,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             rect = patches.Rectangle((k_min - 0.5, j_min - 0.5), 1, 1, linewidth=3, edgecolor='white', facecolor='none')
             axes[i, 1].add_patch(rect)
 
-        print("Plotting results")
+        print(">> Plotting results")
         plt.tight_layout()
         plt.show()
 
@@ -922,7 +913,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         reselected_cids = self._reselect_comparison()
 
         while min_rms_list[-1] < min_rms_list[-2]: #whle the rms keeps improving
-            print(f"Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
+            print(f">> Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
             photometry.run_apphot(nstars=self.nstars, rad1=rad1, rad2=rad2, drad=drad, method="mapping")
