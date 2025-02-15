@@ -798,10 +798,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 upper_val = self.mask_status[key]["upper"][i]
 
                 if not np.isinf(lower_val):  # Plot only if lower_val is finite
-                    ax[key_index, i].plot(np.full(gjd_vals, lower_val),c="gray")
+                    ax[key_index, i].plot(np.full(len(gjd_vals), lower_val),c="gray")
 
                 if not np.isinf(upper_val):  # Plot only if upper_val is finite
-                    ax[key_index, i].plot(np.full(gjd_vals, upper_val),c="gray")
+                    ax[key_index, i].plot(np.full(len(gjd_vals), upper_val),c="gray")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
