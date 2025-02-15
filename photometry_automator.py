@@ -745,8 +745,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ymax = np.max(raw_norm[keep_mask])*1.1
             ymin = np.min(raw_norm[keep_mask])*0.9
 
-            outlier_for_plot = [min(ymax,value) for value in raw_norm[three_sigma_outliers]] #if value is greater than ymax, replace it with ymax
-            outlier_for_plot = [max(ymin,value) for value in outlier_for_plot] #if value is smaller than ymin, replace it with ymin
+            outlier_for_plot = np.clip(raw_norm[three_sigma_outliers], ymin, ymax)
 
             ax[0, i].plot(gjd_vals[three_sigma_outliers], outlier_for_plot, 'x', c="gray")
             ax[1, i].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
@@ -763,6 +762,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[4, i].plot(gjd_vals[~mask], phot_j['fwhm(pix)'][~mask], 'x', c="k")
             ax[5, i].plot(gjd_vals[~mask], phot_j['peak(ADU)'][~mask], 'x', c="k")
 
+            mask &= keep_mask
             print(f">> Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
             ax[0, i].plot(gjd_vals[mask], raw_norm[mask], '.', c="k")
             ax[1, i].plot(gjd_vals[mask], phot_j['airmass'][mask], '.', c="gray")
