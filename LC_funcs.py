@@ -127,9 +127,6 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         p0 = result.x
         result = minimize(calc_chi2_polyfit, p0, args=(tcut, ycut, yecut), method='Nelder-Mead')
         ymodel = np.polyval(result.x, tcut)
-        plt.plot(tcut, ycut, zorder=0)
-        plt.plot(tcut, ymodel,zorder=1)
-        plt.show()
 
         resi = ycut - ymodel
         sdev = np.sqrt(np.sum(resi**2)/float(len(resi)))
@@ -141,7 +138,7 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         ycut = ycut[index[0]]
         yecut = yecut[index[0]]
         index_return.extend(index[0])
-    return result.x, tcut+tint, ycut, yecut, np.unique(np.array(index_return))
+    return result.x, tcut+tint, ycut, yecut, np.unique(np.array(index_return)) #modified also return index of the cut points
 
 
 def outcut_smoothing(t, y, nsample, sigma_cut):
