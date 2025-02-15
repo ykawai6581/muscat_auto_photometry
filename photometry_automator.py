@@ -87,7 +87,7 @@ print(f"Running notebook for {target_from_filename()}")
 print(f"Available obsdates {obsdates_from_filename()}")
 
 class MuSCAT_PHOTOMETRY:
-    def __init__(self,instrument=None,obsdate=None,parent=None):
+    def __init__(self,instrument=None,obsdate=None,parent=None,ra=None,dec=None):
         if not ((instrument is not None and obsdate is not None) or parent is not None):
             raise ValueError("Either both 'instrument' and 'obsdate' or 'parent' must be provided.")
         
@@ -104,7 +104,11 @@ class MuSCAT_PHOTOMETRY:
                 print(f"Instrument has to be one of {list(instrument_id.keys())}")
                 return
             
-            self.ra, self.dec = query_radec(target_from_filename())
+            try:
+                self.ra, self.dec = query_radec(target_from_filename())
+            except:
+                print("Failed to query RA and Dec from Simbad. Enter ra and dec manually.")
+                return
 
             self.nccd = 3 if self.instrument == "muscat" else 4
             self.obsdate = obsdate
@@ -131,9 +135,12 @@ class MuSCAT_PHOTOMETRY:
 
                 self.obslog.append(obslog_perccd_df)
             self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
-            pick_target = input(f"Available object names {[f'{i}|{item}' for i, item in enumerate(self.obj_names)]}")
-            print(pick_target)
-            self.target = self.obj_names[int(pick_target[0])]
+            if target_from_filename() in self.obj_names:
+                self.target = target_from_filename()
+            else:
+                pick_target = input(f"Available object names {[f'{i}|{item}' for i, item in enumerate(self.obj_names)]}")
+                print(pick_target)
+                self.target = self.obj_names[int(pick_target[0])]
             print(f"Continuing photometry for {self.target}")
 
     @time_keeper
