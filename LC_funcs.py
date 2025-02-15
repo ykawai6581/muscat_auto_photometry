@@ -135,11 +135,13 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         sigma = np.abs(resi/sdev)
         condition = sigma < sigma_cut
         index = np.where(condition)
+        print(index[0])
         nout = len(tcut) - len(index[0])
         tcut = tcut[index[0]]
         ycut = ycut[index[0]]
         yecut = yecut[index[0]]
         index_return.extend(index[0])
+    print(index_return)
     return result.x, tcut+tint, ycut, yecut, np.unique(np.array(index_return))
 
 
