@@ -674,7 +674,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
 
         self.run_outlier_detection = False
-        self.keep_mask = None
+        self.keep_mask = [[] for _ in range(self.nccd)]
 
         for i in range(self.nccd):
             self.phot.append([])
@@ -721,7 +721,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
     def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
         fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
-        fig, ax = plt.subplots(7, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2, 2]})
+        fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
 
         for i in range(self.nccd):
             phot_j = self.phot[i][cid]
@@ -744,7 +744,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
                 p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
                 self.run_outlier_detection = True
-                self.keep_mask = keep_mask
+                self.keep_mask[i] = keep_mask
 
             #plot the manually masked point
             ax[0, i].plot(gjd_vals[~mask], raw_norm[~mask], 'x', c="k")
@@ -753,16 +753,15 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[3, i].plot(gjd_vals[~mask], phot_j['dy(pix)'][~mask], 'x', c="k")
             ax[4, i].plot(gjd_vals[~mask], phot_j['fwhm(pix)'][~mask], 'x', c="k")
             ax[5, i].plot(gjd_vals[~mask], phot_j['peak(ADU)'][~mask], 'x', c="k")
-            ax[6, i].plot(gjd_vals[~mask], phot_j[fcomp_key][~mask], 'x', c="k")
 
             #plot three sigma outliers
-            ax[0, i].plot(gjd_vals[~self.keep_mask], raw_norm[~self.keep_mask], 'x', c="gray")
-            ax[1, i].plot(gjd_vals[~self.keep_mask], phot_j['airmass'][~self.keep_mask], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
-            ax[2, i].plot(gjd_vals[~self.keep_mask], phot_j['dx(pix)'][~self.keep_mask], 'x', c="gray")
-            ax[3, i].plot(gjd_vals[~self.keep_mask], phot_j['dy(pix)'][~self.keep_mask], 'x', c="gray")
-            ax[4, i].plot(gjd_vals[~self.keep_mask], phot_j['fwhm(pix)'][~self.keep_mask], 'x', c="gray")
-            ax[5, i].plot(gjd_vals[~self.keep_mask], phot_j['peak(ADU)'][~self.keep_mask], 'x', c="gray")
-            ax[6, i].plot(gjd_vals[~self.keep_mask], phot_j[fcomp_key][~self.keep_mask], 'x', c="gray")
+            three_sigma_outliers = keep_mask[i]
+            ax[0, i].plot(gjd_vals[three_sigma_outliers], raw_norm[three_sigma_outliers], 'x', c="gray")
+            ax[1, i].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
+            ax[2, i].plot(gjd_vals[three_sigma_outliers], phot_j['dx(pix)'][three_sigma_outliers], 'x', c="gray")
+            ax[3, i].plot(gjd_vals[three_sigma_outliers], phot_j['dy(pix)'][three_sigma_outliers], 'x', c="gray")
+            ax[4, i].plot(gjd_vals[three_sigma_outliers], phot_j['fwhm(pix)'][three_sigma_outliers], 'x', c="gray")
+            ax[5, i].plot(gjd_vals[three_sigma_outliers], phot_j['peak(ADU)'][three_sigma_outliers], 'x', c="gray")
             
             mask &= self.keep_mask #update the mask to exclude the outliers
 
@@ -778,8 +777,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[3, i].plot(gjd_vals[mask], phot_j['dy(pix)'][mask], '.', c="orange")
             ax[4, i].plot(gjd_vals[mask], phot_j['fwhm(pix)'][mask], '.', c="blue")
             ax[5, i].plot(gjd_vals[mask], phot_j['peak(ADU)'][mask], '.', c="red")
-            ax[6, i].plot(gjd_vals[mask], phot_j[fcomp_key][mask], '.', c="orange")
-            #ax[6, i].plot(gjd_vals[mask], polyfit_result[mask],alpha=0.5,c="k")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
@@ -793,7 +790,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         # Set common x-axis label
         for i in range(self.nccd):
             ax[-1, i].set_xlabel('GJD - 2450000')
-
 
         plt.tight_layout(h_pad=0)  # Remove spacing between rows
         plt.legend()
