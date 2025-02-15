@@ -169,8 +169,6 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
 
         # Compute residuals and standard deviation
         ymodel = np.polyval(result.x, tcut)
-        plt.plot(tcut, ycut, zorder=0)
-        plt.plot(tcut, ymodel, zorder=1)
 
         resi = ycut - ymodel
         sdev = np.std(resi, ddof=1)  # Use unbiased std deviation
@@ -181,19 +179,8 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         kept_mask[kept_mask] = condition
         nout = len(tcut) - np.sum(condition)  # Count removed points
 
-        # Plot removed points in red
-        plt.scatter(tcut[~condition], ycut[~condition], color='red', marker="x", zorder=2)
-        plt.show()
-
         # Filter only kept points for next iteration
         tcut, ycut, yecut = tcut[condition], ycut[condition], yecut[condition]
-
-
-    # Final plot
-    plt.plot(t, y, label="Original Data")
-    plt.scatter(t[~kept_mask], y[~kept_mask], color='red', marker="x", zorder=2, label="Removed Points")
-    plt.legend()
-    plt.show()
 
     return result.x, t[kept_mask], y[kept_mask], ye[kept_mask], kept_mask  # Also return cut points
 
