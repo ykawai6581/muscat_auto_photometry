@@ -673,9 +673,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.phot=[]
         phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
 
-        self.run_outlier_detection = False
-        self.keep_mask = [[] for _ in range(self.nccd)]
-
         for i in range(self.nccd):
             self.phot.append([])
             for j, cid in enumerate(self.cids_list_opt[i]):#self.cids_list_opt is only needed to access the files here
@@ -739,12 +736,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 print(">> No data points to plot.")
                 return
 
-            if not self.run_outlier_detection:
-                print(">> Performing preliminary outlier detection ...")
-                print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
-                p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
-                self.run_outlier_detection = True
-                self.keep_mask[i] = keep_mask
+            print(">> Performing preliminary outlier detection ...")
+            print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
+            p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[mask], ye, order, sigma_cut)
 
             #plot the manually masked point
             ax[0, i].plot(gjd_vals[~mask], raw_norm[~mask], 'x', c="k")
@@ -755,7 +749,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[5, i].plot(gjd_vals[~mask], phot_j['peak(ADU)'][~mask], 'x', c="k")
 
             #plot three sigma outliers
-            three_sigma_outliers = keep_mask[i]
+            three_sigma_outliers = ~keep_mask
             ax[0, i].plot(gjd_vals[three_sigma_outliers], raw_norm[three_sigma_outliers], 'x', c="gray")
             ax[1, i].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
             ax[2, i].plot(gjd_vals[three_sigma_outliers], phot_j['dx(pix)'][three_sigma_outliers], 'x', c="gray")
@@ -763,7 +757,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ax[4, i].plot(gjd_vals[three_sigma_outliers], phot_j['fwhm(pix)'][three_sigma_outliers], 'x', c="gray")
             ax[5, i].plot(gjd_vals[three_sigma_outliers], phot_j['peak(ADU)'][three_sigma_outliers], 'x', c="gray")
             
-            mask &= self.keep_mask[i] #update the mask to exclude the outliers
+            mask &= keep_mask #update the mask to exclude the outliers
 
             #update self.mask 
             for j in range(len(self.cids_list_opt)): #ここをjでループするとargumentのjと混同する
