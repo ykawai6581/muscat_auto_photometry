@@ -135,7 +135,7 @@ def outcut_polyfit(t, y, ye, order, sigma_cut):
         condition = sigma < sigma_cut #condition for point to keep
         index = np.where(condition)
         nout = len(tcut) - len(index[0])
-        plt.scatter(tcut[~index[0]], ycut[~index[0]], color='red', marker="x",zorder=2)
+        plt.scatter(tcut[~condition], ycut[~condition], color='red', marker="x",zorder=2)
         tcut = tcut[index[0]]
         ycut = ycut[index[0]]
         yecut = yecut[index[0]]
