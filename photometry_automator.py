@@ -388,7 +388,8 @@ class MuSCAT_PHOTOMETRY:
             frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
-            df, meta = self.read_photometry(ccd=i, rad=rads[0], frame=first_frame, add_metadata=True) #it takes too long to scan through all ccds, rad and frames
+            df, meta = self.read_photometry(ccd=i, rad=rads[1], frame=first_frame, add_metadata=True) #it takes too long to scan through all ccds, rad and frames
+            #photometry may not have been performed for the first rad (or the last rad) because of the iteration algorithm so the second rad is the safest.
 
             def file_does_not_exist(rad, frame): #nested helper function to help judge if photometry exists
                 file_path = f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
