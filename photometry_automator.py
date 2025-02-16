@@ -628,7 +628,14 @@ class MuSCAT_PHOTOMETRY:
     def create_photometry(self, given_cids=None):
         if given_cids:
             self.cids_list = given_cids
-        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
+        '''
+        !perl scripts/auto_mklc.pl -date $date -obj $target\
+            -ap_type $method -r1 $rad1 -r2 $rad2 -dr $drad -tid $tID -cids $cID
+        バンドごとにcidが違う場合を考慮したいからこのコードを使わなかった?
+        '''
+        #script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
+        script_path = "/home/muscat/reduction_afphot/tools/scripts/auto_mklc.pl"
+
         print(">> Creating photometry file for")
         print(f"| Target = {self.target} | TID = {self.tid} | r1={self.rad1} r2={self.rad2} dr={self.drad} | (it may take minutes)")
         for i in range(self.nccd):
@@ -638,7 +645,8 @@ class MuSCAT_PHOTOMETRY:
                 os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}")) 
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
-                    cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
+                    #cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
+                    cmd = f"perl {script_path} -ap_type {self.method} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid}"
                     result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
                     #print(cmd)
                     #print(result.stdout)
@@ -742,7 +750,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             self._apply_mask(i)
         print(f">> Added mask to {key}")
         self.print_mask_status()
-    #need to make sure masking is correct (in dimensions)
 
     def preview_photometry(self, cid=0, ap=0, order=2, sigma_cut=3):
         fcomp_key = f'flux_comp(r={self.ap[ap]:.1f})' # Use the aperture given in the argument
@@ -804,7 +811,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         ax[2, 0].set_ylabel('dX')
         ax[3, 0].set_ylabel('dY')
         ax[4, 0].set_ylabel('FWHM')
-        ax[5, 0].set_ylabel('Target peak (ADU)')
+        ax[5, 0].set_ylabel('Peak of the brightest star (ADU)')
 
         # Set common x-axis label
         for i in range(self.nccd):
@@ -841,13 +848,14 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 gjd_vals = phot_j['GJD-2450000']
                 mask = self.mask[i][j]
 
-                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)] #cid=jのフラックス（in ADU?）
-                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])
+                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)] 
+                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys]) #cid=jの総フラックス（in ADU?）のarrayをapごとに作成
 
-                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True) #apごとのnormalized flux
                 ndata_init = fcomp_data.shape[1]
 
                 ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+                #arrayにしたときに次元が合わなくなるからここでマスクをかけている
 
                 for k in range(n_ap):
                     if len(ye[k]) > 0: #only perform outlier detection if there are data points
@@ -865,12 +873,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                         rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
                     else:
                         rms[j, k] = np.inf
+            #ここまでで全てcids, apに対してoutlier detectionが終わった per ccd （1ccdのrmsとdatapointsの行列完成）
+            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)#最小のrmsのindexを取得
+            self.min_rms_idx_list.append(min_rms_idx)#最小のrmsのindexを格納
+            self.min_rms = rms[min_rms_idx]#使っていない？
 
-            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)
-            self.min_rms_idx_list.append(min_rms_idx)
-            self.min_rms = rms[min_rms_idx]
-
-            self.ndata_diff.append(ndata_diff)
+            self.ndata_diff.append(ndata_diff)#消えたデータ点数を格納
             self.rms.append(rms)
 
         # Store best candidate values
@@ -962,8 +970,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 rad2 = max(self.ap_best) + drad #the largest aperture
 
         reselected_cids = self._reselect_comparison()
+        threshold = 0.00001 #threshold for rms improvement (0.001%=10ppm)
 
-        while any(x < y for x, y in zip(min_rms_list[-1], min_rms_list[-2])): #while the rms keeps improving
+        while any(x - y > threshold for x, y in zip(min_rms_list[-1], min_rms_list[-2])): #while the rms keeps improving
             print(f">> Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
