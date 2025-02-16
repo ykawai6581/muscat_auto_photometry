@@ -875,7 +875,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
                     ndata_diff[j, k] = ndata_final - ndata_init
 
-                    fin_flux = phot_j[f"flux(r={self.ap[k]:.1f})"][index[i][j][k]]
+                    fin_flux = phot_j[f"flux(r={self.ap[k]:.1f})"][self.index[i][j][k]]
 
                     if len(fin_flux) > 1:
                         diff = np.diff(fin_flux)
