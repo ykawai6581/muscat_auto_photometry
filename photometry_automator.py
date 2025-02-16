@@ -832,7 +832,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def outlier_cut(self, sigma_cut=3, order=2, plot=True):
         """Performs outlier detection using polynomial fitting and sigma clipping."""
         
-        self.index = [[] for _ in range(self.nccd)]  # Pre-allocate index storage
+        self.index = []  # Pre-allocate index storage
         self.ndata_diff = []  # Stores data difference arrays for each CCD
         self.rms = []  # Stores RMS arrays for each CCD
         self.min_rms_idx_list = []  # Stores min RMS indices per CCD
@@ -847,9 +847,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             
             ndata_diff = np.zeros((n_cids, n_ap))
             rms = np.zeros((n_cids, n_ap))
-            self.index[i] = [[] for _ in range(n_cids)]
+            self.index.append([])
 
             for j in range(n_cids):
+                self.index[i].append([])
                 phot_j = self.phot[i][j]
                 exptime = phot_j['exptime']
                 gjd_vals = phot_j['GJD-2450000']
