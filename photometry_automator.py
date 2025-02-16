@@ -868,6 +868,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 for k in range(n_ap):
                     if len(ye[k]) > 0: #only perform outlier detection if there are data points
                         p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
+                        print("Here")
                         self.index[i][j].append(np.isin(gjd_vals,gjd_vals[mask][keep_mask])) #indexというのは超最終的なmask tcutsに含まれなかったらfalse
                         ndata_final = len(tcut)
                     else:
