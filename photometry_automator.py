@@ -633,8 +633,15 @@ class MuSCAT_PHOTOMETRY:
             -ap_type $method -r1 $rad1 -r2 $rad2 -dr $drad -tid $tID -cids $cID
         バンドごとにcidが違う場合を考慮したいからこのコードを使わなかった?
         '''
-        #script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
-        script_path = "/home/muscat/reduction_afphot/tools/scripts/auto_mklc.pl"
+        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
+        '''
+        errorの症状:cidが複数あるときに、一つ目の星のfluxしかカウントされていない
+        しかし、comparisonとしての割り算には合算したfluxが使われているよう
+            →argumentとしてのcidの読み込みはうまくいっている
+        auto_mklc.plでもmklc_flux_collect_csv.plでも同じエラーが出るため問題はおそらくmklc_flux_collect_csv.plにある
+        comparisonの順番を数字が大きい方からにすると治ったので、何かしらの読み込み時の挙動だと思われる
+        '''
+        #script_path = "/home/muscat/reduction_afphot/tools/scripts/auto_mklc.pl"
 
         print(">> Creating photometry file for")
         print(f"| Target = {self.target} | TID = {self.tid} | r1={self.rad1} r2={self.rad2} dr={self.drad} | (it may take minutes)")
@@ -645,8 +652,8 @@ class MuSCAT_PHOTOMETRY:
                 os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}")) 
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
-                    #cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                    cmd = f"perl {script_path} -date {self.obsdate} -obj {self.target} -ap_type {self.method} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid}"
+                    cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
+                    #cmd = f"perl {script_path} -date {self.obsdate} -obj {self.target} -ap_type {self.method} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid}"
                     result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
                     #print(cmd)
                     #print(result.stdout)
@@ -860,7 +867,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 for k in range(n_ap):
                     if len(ye[k]) > 0: #only perform outlier detection if there are data points
                         p, tcut, ycut, yecut, index = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
-                        self.index[i][j].append(np.isin(gjd_vals, tcut))
+                        self.index[i][j].append(np.isin(gjd_vals, tcut)) #indexというのは超最終的なmask
                         ndata_final = len(tcut)
                     else:
                         self.index[i][j].append(np.zeros_like(gjd_vals, dtype=bool))
@@ -868,8 +875,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
                     ndata_diff[j, k] = ndata_final - ndata_init
 
-                    if len(ycut) > 1:
-                        diff = np.diff(ycut)
+                    fin_flux = phot_j[f"flux_(r={self.ap[k]:.1f})"][index[i][j][k]]
+
+                    if len(fin_flux) > 1:
+                        diff = np.diff(fin_flux)
                         rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
                     else:
                         rms[j, k] = np.inf
