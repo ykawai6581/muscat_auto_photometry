@@ -981,7 +981,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         reselected_cids = self._reselect_comparison()
         threshold = 0.00001 #threshold for rms improvement (0.001%=10ppm)
 
-        while any(x - y > threshold for x, y in zip(min_rms_list[-1], min_rms_list[-2])): #while the rms keeps improving
+        while any(previous - latest > threshold for previous, latest in zip(min_rms_list[-2], min_rms_list[-1])): #while latest rms keeps improving by more than 10ppm
             print(f">> Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
