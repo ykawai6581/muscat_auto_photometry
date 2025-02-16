@@ -960,8 +960,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         return reselected_cids_list
     
     def iterate_optimization(self):
-
-        min_rms_list = [[np.inf for _ in range(self.nccd)]] # Initialize with infinite RMS values
+        min_rms_list = [[1 for _ in range(self.nccd)]] # Initialize with RMS = 1 to enter loop
         min_rms_list.append([np.array(self.rms[ccd])[index] for ccd, index in enumerate(self.min_rms_idx_list)])
         drad = 1
 
