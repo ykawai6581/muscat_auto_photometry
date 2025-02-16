@@ -864,7 +864,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
                 ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
                 #arrayにしたときに次元が合わなくなるからここでマスクをかけている
-                print(ye)
 
                 for k in range(n_ap):
                     if len(ye[k]) > 0: #only perform outlier detection if there are data points
