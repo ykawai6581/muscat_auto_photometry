@@ -301,7 +301,7 @@ class ApPhotometry:
 
             #plt.imshow(cameo[aper_mask], cmap="coolwarm", aspect="auto")
             #plt.show()
-            print(np.unique(aper_mask))
+            print(np.max(cameo[aper_mask]))
 
             peak_flux = np.max(cameo[aper_mask] - max_sky)
             hm = peak_flux / 2.0
