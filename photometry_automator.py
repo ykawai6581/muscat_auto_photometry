@@ -494,7 +494,7 @@ class MuSCAT_PHOTOMETRY:
                 else:
                     print(f"## >>Photometry already available for CCD={i}, rad={rad}")
                     continue
-                
+
             apphot = ApPhotometry(tid             = self.tid,
                                   rads            = rad_to_use,
                                   gain            = ccd.gain,
@@ -526,9 +526,9 @@ class MuSCAT_PHOTOMETRY:
                 y = geo.dy + geo.c * x0 + geo.d * y0
                 starlist = [x, y]
                 
-                fits_file_path = f"{self.target_dir}_{i}/rawdata/{file[:-4].split('/')[-1]}.fits" #extract the frame name and modify to fits path 
+                dffits_file_path = f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits" #extract the frame name and modify to dark flat reduced fits path 
 
-                await asyncio.to_thread(apphot.add_frame, fits_file_path, starlist)
+                await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
 
             print(f"## >> Completed aperture photometry for CCD={i}, rad = {rad_to_use}")

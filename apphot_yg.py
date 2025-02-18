@@ -229,7 +229,7 @@ class ApPhotometry:
                     #  [0 1 2 3]
                     #  [0 1 2 3]]
                     '''
-                    xx = xx + x_min
+                    xx = xx + x_min #because this is a subimage, add the min value to count the number of pixels from the edge of the actual image
                     yy = yy + y_min
                     r = np.sqrt((xx - xcen)**2 + (yy - ycen)**2) #distance from center in pixels
                     print(r)
