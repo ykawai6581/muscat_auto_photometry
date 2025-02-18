@@ -294,6 +294,7 @@ class ApPhotometry:
             print("Cameo")
             print(cameo)
             cameo[aper_mask]
+            print(np.unique(aper_mask))
 
             peak_flux = np.max(cameo[aper_mask] - max_sky)
             hm = peak_flux / 2.0
