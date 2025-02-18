@@ -252,6 +252,8 @@ class ApPhotometry:
                     
                     # Calculate flux
                     flux = np.sum(cameo[aper_mask]) - sky * np.sum(aper_mask)
+                    print(f"type of flux = {type(flux)}")
+                    print(f"type of sky = {type(sky)}")
                     
                     if flux > max_flux:
                         max_flux = flux
@@ -271,7 +273,7 @@ class ApPhotometry:
                           n_pix * max_sky_std**2 * self.gain**2 + #uncertainty in pixel-to-pixel variation in the sky background in electrons (inherent)
                           n_pix**2 / len(sky_pixels) * max_sky_std**2 * self.gain**2 + #uncertainty in mean sky level in electrons 
                           n_pix * self.read_noise**2 + #read noise in electrons
-                          n_pix * self.dark_noise**2 * self.exptime**2 + #dark current noise in electrons
+                          n_pix * self.dark_noise**2 * exptime**2 + #dark current noise in electrons
                           (sigma_scin * max_flux * self.gain)**2) / self.gain #scintillation noise in electrons and division by gain to convert to ADU
             
             snr = max_flux / noise
