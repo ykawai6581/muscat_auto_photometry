@@ -236,9 +236,10 @@ class ApPhotometry:
                     xx = xx + x_min #because this is a subimage, add the min value to count the number of pixels from the edge of the actual image
                     yy = yy + y_min
                     r = np.sqrt((xx - xcen)**2 + (yy - ycen)**2) #distance from center in pixels
+                    print(min(r))
 
-                    plt.imshow(r, cmap="coolwarm", aspect="auto")
-                    plt.show()
+                    #plt.imshow(r, cmap="coolwarm", aspect="auto")
+                    #plt.show()
                     print(r)
                     print(min(r))
                     #takes the same shape as cameo, with each element representing the distance from the center of the star
