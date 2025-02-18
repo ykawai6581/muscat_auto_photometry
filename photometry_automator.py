@@ -423,9 +423,11 @@ class MuSCAT_PHOTOMETRY:
         for i, missing_files in missing_files_per_ccd.items():
             rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files)]
             if not rad_to_use:
-                print(f"## >> Photometry already available for CCD={i}")
-                continue  # Skip if no missing files
-
+                print(f"## >> Photometry already available for CCD={i}, rads = {rads}")
+                continue
+            if len(rad_to_use) != rads:
+                print(f"## >> Photometry already available for CCD={i}, rads = {[rads.remove(rad) for rad in rad_to_use]}")
+            
         # Run photometry for missing files
         #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
         asyncio.create_task(self._run_photometry_for_missing_files(rad_to_use, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
@@ -529,7 +531,7 @@ class MuSCAT_PHOTOMETRY:
         # Run the CCD processing asynchronously
         #tasks = [aperture_photometry(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
         #await asyncio.gather(*tasks)
-        first_item = list(missing_files_per_ccd.items())[3]  # Get the first key-value pair
+        first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
         i, missing_files = first_item  # Unpack the first pair
 
         # Now you can run aperture_photometry
