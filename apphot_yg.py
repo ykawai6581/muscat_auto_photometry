@@ -214,7 +214,9 @@ class ApPhotometry:
                 for dy in np.arange(-self.hbox, self.hbox + self.dcen, self.dcen):
                     xcen = x + dx
                     ycen = y + dy
-                    
+                    print("xcoord,y")
+                    print(xcen)
+                    print(ycen)
                     # Calculate distances from center
                     yy, xx = np.indices(cameo.shape)
                     '''
