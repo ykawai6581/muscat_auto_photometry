@@ -254,13 +254,21 @@ class ApPhotometry:
                     flux = np.sum(cameo[aper_mask]) - sky * np.sum(aper_mask)
                     print(f"type of flux = {type(flux)}")
                     print(f"type of sky = {type(sky)}")
-                    
+                    print(f"type of maxflux = {type(max_flux)}")
+
                     if flux > max_flux:
                         max_flux = flux
                         max_sky = sky
                         max_sky_std = sky_std
                         max_pos = (xcen, ycen)
-            
+                    print(f"type of maxflux = {type(max_flux)}")
+                    print(f"type of maxsky = {type(max_sky)}")
+                    print(f"type of maxsky_std = {type(max_sky_std)}")
+                    print(f"type of read_noise = {type(self.read_noise)}")
+                    print(self.read_noise)
+                    print(f"type of maxsky_std = {type(self.dark_noise)}")
+                    print(self.dark_noise)
+
             # Calculate noise and SNR
             '''
             Note on the uncertainty in mean sky level
