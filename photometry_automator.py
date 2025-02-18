@@ -421,13 +421,10 @@ class MuSCAT_PHOTOMETRY:
             return
         
         for i, missing_files in missing_files_per_ccd.items():
-            rad_to_use = []
-            for rad in rads:
-                if any(f"rad{rad}" in file for file in missing_files):
-                    rad_to_use.append(rad)
-                else:
-                    print(f"## >>Photometry already available for CCD={i}, rad={rad}")
-                    continue
+            rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files)]
+            if not rad_to_use:
+                print(f"## >> Photometry already available for CCD={i}")
+                continue  # Skip if no missing files
 
         # Run photometry for missing files
         #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
@@ -512,7 +509,7 @@ class MuSCAT_PHOTOMETRY:
                                     const_sky_flux  = const_sky_flux,#Constant sky flux value
                                     const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
                                 )
-            
+            print(f"Starting aperture photometry for CCD={i} with radii: {rad_to_use}")
             for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
