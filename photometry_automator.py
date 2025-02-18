@@ -393,7 +393,7 @@ class MuSCAT_PHOTOMETRY:
 
     ## Performing aperture photometry
     @time_keeper
-    def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping"):
+    def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
@@ -419,13 +419,49 @@ class MuSCAT_PHOTOMETRY:
         if not missing:
             print(f"## >> Photometry is already available for radius: {available_rad}")
             return
+        
+        for i, missing_files in missing_files_per_ccd.items():
+            rad_to_use = []
+            for rad in rads:
+                if any(f"rad{rad}" in file for file in missing_files):
+                    rad_to_use.append(rad)
+                else:
+                    print(f"## >>Photometry already available for CCD={i}, rad={rad}")
+                    continue
 
-        # Determine script to use
-        script = f"scripts/auto_apphot_{method}.pl" #starfindは一回だけで十分なのでauto_apphot.plではなくapphot.plを使えば早い
+        telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
+        tel = SimpleNamespace(**telescope_param)
 
+        apphot_param = load_par_file(f"{self.target_dir}/param/param-apphot.par") #skysep,wid,hbox,dcen,sigma_0
+        app = SimpleNamespace(**apphot_param)
+
+        ccd_param = load_par_file(f"{self.target_dir}/param//param-ccd.par") ##gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
+        ccd = SimpleNamespace(**ccd_param)
+
+        apphot = ApPhotometry(tid             = self.tid,
+                                rads            = rad_to_use,
+                                gain            = ccd.gain,
+                                read_noise      = ccd.readnoise,
+                                dark_noise      = ccd.darknoise,
+                                sky_sep         = app.sky_sep,
+                                sky_wid         = app.sky_wid,
+                                hbox            = app.hbox, #number of pixels around a given point to search for max flux aperture
+                                dcen            = app.dcen,  #step in pixels to move within hbox
+                                sigma_cut       = app.sigma_cut, #sigma clipping used for sky calculation
+                                adu_lo          = ccd.ADUlo,
+                                adu_hi          = ccd.ADUhi,
+                                sigma_0         = app.sigma_0, #scintillation coefficient
+                                altitude        = tel.altitude, #observatory altitude in meters (used for scintillation noise calculation)
+                                diameter        = tel.diameter ,#telescope diameter in cm (also used for scintillation noise calculation)
+                                global_sky_flag = app.global_sky_flag, #Use global sky calculation meaning calculate sky dont assume as constant
+                                sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
+                                const_sky_flag  = const_sky_flag, #Use constant sky value
+                                const_sky_flux  = const_sky_flux,#Constant sky flux value
+                                const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
+                            )
         # Run photometry for missing files
         #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
-        asyncio.create_task(self._run_photometry_for_missing_files(rads, missing_files_per_ccd))
+        asyncio.create_task(self._run_photometry_for_missing_files(apphot, missing_files_per_ccd))
 
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
@@ -461,19 +497,8 @@ class MuSCAT_PHOTOMETRY:
         #print(f"Missing {missing}")
         return missing, missing_files_per_ccd
 
-    async def _run_photometry_for_missing_files(self, rads, missing_files_per_ccd):        
+    async def _run_photometry_for_missing_files(self, apphot, missing_files_per_ccd):        
         """Runs photometry for CCDs where files are missing in parallel."""
-
-        #load the necessary params here
-
-        telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
-        tel = SimpleNamespace(**telescope_param)
-
-        apphot_param = load_par_file(f"{self.target_dir}/param/param-apphot.par") #skysep,wid,hbox,dcen,sigma_0
-        app = SimpleNamespace(**apphot_param)
-
-        ccd_param = load_par_file(f"{self.target_dir}/param//param-ccd.par") ##gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
-        ccd = SimpleNamespace(**ccd_param)
 
         with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
             ref_file = f.read()
@@ -486,37 +511,7 @@ class MuSCAT_PHOTOMETRY:
         metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
         x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
         
-        async def run_apphot(i, missing_files, sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
-            rad_to_use = []
-            for rad in rads:
-                if any(f"rad{rad}" in file for file in missing_files):
-                    rad_to_use.append(rad)
-                else:
-                    print(f"## >>Photometry already available for CCD={i}, rad={rad}")
-                    continue
-
-            apphot = ApPhotometry(tid             = self.tid,
-                                  rads            = rad_to_use,
-                                  gain            = ccd.gain,
-                                  read_noise      = ccd.readnoise,
-                                  dark_noise      = ccd.darknoise,
-                                  sky_sep         = app.sky_sep,
-                                  sky_wid         = app.sky_wid,
-                                  hbox            = app.hbox, #number of pixels around a given point to search for max flux aperture
-                                  dcen            = app.dcen,  #step in pixels to move within hbox
-                                  sigma_cut       = app.sigma_cut, #sigma clipping used for sky calculation
-                                  adu_lo          = ccd.ADUlo,
-                                  adu_hi          = ccd.ADUhi,
-                                  sigma_0         = app.sigma_0, #scintillation coefficient
-                                  altitude        = tel.altitude, #observatory altitude in meters (used for scintillation noise calculation)
-                                  diameter        = tel.diameter ,#telescope diameter in cm (also used for scintillation noise calculation)
-                                  global_sky_flag = app.global_sky_flag, #Use global sky calculation meaning calculate sky dont assume as constant
-                                  sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
-                                  const_sky_flag  = const_sky_flag, #Use constant sky value
-                                  const_sky_flux  = const_sky_flux,#Constant sky flux value
-                                  const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
-                                )
-
+        async def aperture_photometry(i, missing_files):
             for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
@@ -531,10 +526,10 @@ class MuSCAT_PHOTOMETRY:
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
 
-            print(f"## >> Completed aperture photometry for CCD={i}, rad = {rad_to_use}")
+            print(f"## >> Completed aperture photometry for CCD={i}")
 
         # Run the CCD processing asynchronously
-        tasks = [run_apphot(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
+        tasks = [aperture_photometry(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
         await asyncio.gather(*tasks)
     
     '''
