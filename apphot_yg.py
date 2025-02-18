@@ -246,7 +246,7 @@ class ApPhotometry:
                     # Define aperture and sky annulus
                     aper_mask = r <= ap_r #pixels within the aperture (it means that up until this point, the pixels are still in the aperture)
                     print(ap_r)
-                    plt.imshow(aper_mask, cmap="coolwarm", aspect="auto")
+                    plt.imshow(aper_mask.astype(int), cmap="coolwarm", aspect="auto")
                     plt.show()
                     sky_mask = (r >= self.sky_sep) & (r <= self.sky_sep + self.sky_wid) #pixels within the sky annulus
                     print("ap mask")
