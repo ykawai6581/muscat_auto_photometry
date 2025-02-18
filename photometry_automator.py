@@ -527,7 +527,7 @@ class MuSCAT_PHOTOMETRY:
                 starlist = [x, y]
 
                 await asyncio.to_thread(apphot.add_frame, file, starlist)
-                await asyncio.to_thread(apphot.process_image_over_rads, rad_to_use)
+                await asyncio.to_thread(apphot.process_image_over_rads)
 
             print(f"## >> Completed aperture photometry for CCD={i}, rad = {rad_to_use}")
 
