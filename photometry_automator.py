@@ -436,8 +436,8 @@ class MuSCAT_PHOTOMETRY:
             
         # Run photometry for missing files
         #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
-        asyncio.run(self._run_photometry_for_missing_files(rad_to_use, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
-
+        asyncio.create_task(self._run_photometry_for_missing_files(rad_to_use, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
+        #create_task is preferred over run because of this code running in jupyter??
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
         missing = False
