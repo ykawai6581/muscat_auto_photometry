@@ -422,7 +422,7 @@ class MuSCAT_PHOTOMETRY:
         script = f"scripts/auto_apphot_{method}.pl" #starfindは一回だけで十分なのでauto_apphot.plではなくapphot.plを使えば早い
 
         # Run photometry for missing files
-        self._run_photometry_if_missing(script, nstars, rads, missing_files_per_ccd)
+        self._run_photometry_if_missing(rads, missing_files_per_ccd)
 
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
