@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import astropy.io.fits as fits
 from astropy.visualization import ZScaleInterval, ImageNormalize
 import sys
+from tqdm.asyncio import tqdm
+
 from IPython.display import IFrame
 import asyncio
 from types import SimpleNamespace
@@ -490,7 +492,6 @@ class MuSCAT_PHOTOMETRY:
         metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
         x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
         
-        @time_keeper
         async def aperture_photometry(i, missing_files):
             apphot = ApPhotometry(tid             = self.tid,
                                     rads            = rad_to_use,
@@ -532,13 +533,17 @@ class MuSCAT_PHOTOMETRY:
             print(f"## >> Completed aperture photometry for CCD={i}")
 
         # Run the CCD processing asynchronously
-        #tasks = [aperture_photometry(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
-        #await asyncio.gather(*tasks)
-        first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
-        i, missing_files = first_item  # Unpack the first pair
+        tasks = [aperture_photometry(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
+
+        for _ in tqdm(asyncio.as_completed(tasks), total=self.nccd):
+            pass  # the progress bar updates automatically
+
+        await asyncio.gather(*tasks)
+        #first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
+        #i, missing_files = first_item  # Unpack the first pair
 
         # Now you can run aperture_photometry
-        await aperture_photometry(i, missing_files)
+        #await aperture_photometry(i, missing_files)
     
     '''
     def _run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
