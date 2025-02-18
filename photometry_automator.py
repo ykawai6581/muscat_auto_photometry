@@ -526,7 +526,8 @@ class MuSCAT_PHOTOMETRY:
 
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
-
+                print("here")
+            print("done")
             print(f"## >> Completed aperture photometry for CCD={i}")
 
         # Run the CCD processing asynchronously
