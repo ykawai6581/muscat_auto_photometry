@@ -240,6 +240,7 @@ class ApPhotometry:
                     plt.imshow(r, cmap="coolwarm", aspect="auto")
                     plt.show()
                     print(r)
+                    print(min(r))
                     #takes the same shape as cameo, with each element representing the distance from the center of the star
                     
                     # Define aperture and sky annulus
