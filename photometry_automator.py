@@ -529,7 +529,7 @@ class MuSCAT_PHOTOMETRY:
         # Run the CCD processing asynchronously
         #tasks = [aperture_photometry(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
         #await asyncio.gather(*tasks)
-        first_item = list(missing_files_per_ccd.items())[1]  # Get the first key-value pair
+        first_item = list(missing_files_per_ccd.items())[2]  # Get the first key-value pair
         i, missing_files = first_item  # Unpack the first pair
 
         # Now you can run aperture_photometry
