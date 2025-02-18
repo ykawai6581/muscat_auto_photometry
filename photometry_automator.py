@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import astropy.io.fits as fits
 from astropy.visualization import ZScaleInterval, ImageNormalize
 import sys
-#from tqdm.asyncio import tqdm
-from tqdm import tqdm
+from tqdm.asyncio import tqdm
+#from tqdm import tqdm
 
 from IPython.display import IFrame
 import asyncio
@@ -516,7 +516,7 @@ class MuSCAT_PHOTOMETRY:
                                     const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
                                 )
             print(f"Starting aperture photometry for CCD={i} with radii: {rad_to_use}")
-            for file in tqdm(missing_files):
+            for file in tqdm(missing_files, desc=f"CCD {i}", position=i, leave=True):
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
                 geo = SimpleNamespace(**geoparams)
@@ -539,7 +539,10 @@ class MuSCAT_PHOTOMETRY:
         #for _ in tqdm(asyncio.as_completed(tasks), total=self.nccd):
         #    pass  # the progress bar updates automatically
 
-        await asyncio.gather(*tasks)
+        #await asyncio.gather(*tasks)
+        for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="CCDs"):
+            await task  # Run each CCD processing task
+
         #first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
         #i, missing_files = first_item  # Unpack the first pair
 
