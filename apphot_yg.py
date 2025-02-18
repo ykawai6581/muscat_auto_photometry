@@ -335,4 +335,4 @@ class ApPhotometry:
     def process_image_over_rads(self):
         for rad in self.rads:
             self.process_image(ap_r=rad)
-        print(f"Done with {self.rads}")
+        #print(f"Done with {self.rads}")

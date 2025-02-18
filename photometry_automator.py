@@ -490,6 +490,7 @@ class MuSCAT_PHOTOMETRY:
         metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
         x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
         
+        @time_keeper
         async def aperture_photometry(i, missing_files):
             apphot = ApPhotometry(tid             = self.tid,
                                     rads            = rad_to_use,
@@ -526,8 +527,8 @@ class MuSCAT_PHOTOMETRY:
 
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
-                print("here")
-            print("done")
+                #print("here")
+            #print("done")
             print(f"## >> Completed aperture photometry for CCD={i}")
 
         # Run the CCD processing asynchronously
