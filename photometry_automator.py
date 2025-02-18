@@ -9,6 +9,8 @@ import astropy.io.fits as fits
 from astropy.visualization import ZScaleInterval, ImageNormalize
 import sys
 from IPython.display import IFrame
+import asyncio
+from types import SimpleNamespace
 
 from pathlib import Path
 import multiprocessing as mp
@@ -18,6 +20,7 @@ from concurrent.futures import ProcessPoolExecutor
 import time
 
 import LC_funcs as lc
+from apphot_yg import ApPhotometry
 from astropy.table import Table
 from astropy.coordinates import Angle
 import astropy.units as u
@@ -77,6 +80,68 @@ def dec_to_dms(dec_deg):
     dec_seconds = dec_sec_part * 60
     sign = "+" if dec_deg >= 0 else "-"
     return f"{sign}{int(dec_deg_part):02d}:{int(dec_min_part):02d}:{dec_seconds:05.2f}"
+
+def load_par_file(filename):
+    """Load a .par file into a dictionary."""
+    params = {}
+    with open(filename, "r") as file:
+        for line in file:
+            line = line.strip()
+            if line and not line.startswith("#"):  # Ignore empty lines and comments
+                key, value = line.split(None, 1)  # Split on first whitespace
+                try:
+                    params[key] = float(value)  # Convert numerical values to float
+                except ValueError:
+                    params[key] = value  # Keep as string if conversion fails
+    return params
+
+def load_geo_file(filename):
+    """Returns the relevant coefficients needed for transformation of pixels in ref file to object file"""
+    with open(filename, "r") as file:
+        lines = file.readlines()
+
+    # Get the last non-empty line
+    last_line = lines[-1].strip()
+    
+    # Convert it into a list of floats
+    values = list(map(float, last_line.split()))
+    
+    # Assign to relevant variable names
+    geoparam = {
+        "dx": values[0],
+        "dy": values[1],
+        "a": values[2],
+        "b": values[3],
+        "c": values[4],
+        "d": values[5],
+        "rms": values[6],
+        "nmatch": int(values[7])  # Convert last value to int
+    }
+
+    return geoparam
+
+def parse_obj_file(input_file): #helper function to parse objectfile
+    """Parses the .df file to extract metadata and tabular data."""
+    metadata = {}
+    data_rows = []
+
+    with open(input_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line.startswith("#"):  # Metadata lines
+                key_value = re.match(r"#\s*(.+?)\s*=\s*(.+)", line)
+                if key_value:
+                    key, value = key_value.groups()
+                    metadata[key.strip()] = value.strip()
+            elif line and not line.startswith("#"):  # Data rows
+                parts = line.split()
+                if len(parts) >= 7:  # Ensure it matches expected column structure
+                    data_rows.append(list(map(float, parts)))
+
+    col_names = ['ID', 'x', 'y', 'x_int', 'y_int', 'Flux', 'Peak']
+    data = pd.DataFrame(data_rows,columns=col_names)
+    return metadata, data
+
 
 from muscat_photometry import target_from_filename, obsdates_from_filename, query_radec
 
@@ -146,6 +211,10 @@ class MuSCAT_PHOTOMETRY:
                 print(pick_target)
                 self.target = self.obj_names[int(pick_target[0])]
             print(f"Continuing photometry for {self.target}")
+            self.target_dir = f"{self.obsdate}/{self.target}"
+            self.flat_dir = f"{self.obsdate}/FLAT"
+            #self.target_dir = f"{self.obsdate}/{self.target}
+
 
     @time_keeper
     def config_flat(self):
@@ -158,13 +227,13 @@ class MuSCAT_PHOTOMETRY:
         #======
 
         for i in range(self.nccd):
-            flat_conf_path = f"{self.obsdate}/FLAT/list/flat_ccd{i}.conf"
+            flat_conf_path = f"{self.flat_dir}/list/flat_ccd{i}.conf"
             #print(flat_conf_path)
             if not os.path.exists(flat_conf_path):
                 cmd = f'perl scripts/config_flat.pl {self.obsdate} {i} -set_dir_only'
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-                flat_conf = self.obsdate + f'/FLAT/list/flat_ccd{i}.conf'
+                flat_conf = f'{self.flat_dir}/list/flat_ccd{i}.conf'
                 print(flat_conf)
                 text = f'flat {self.flat_first_frameIDs[i]} {self.flat_first_frameIDs[i]+49}\nflat_dark {self.flat_first_frameIDs[i]+50} {self.flat_first_frameIDs[i]+54}'
                 with open(flat_conf, mode='w') as f:
@@ -173,14 +242,14 @@ class MuSCAT_PHOTOMETRY:
                 print(result.stdout)
                 print('\n')
             else:
-                print(f"config file already exisits under /FLAT/list/flat_ccd{i}.conf")
+                print(f"config file already exisits under {self.flat_dir}/list/flat_ccd{i}.conf")
 
     @time_keeper
     def config_object(self):
         ## Setting configure files for object
         exposure = [float(ccd["EXPTIME(s)"][ccd["OBJECT"] == self.target]) for ccd in self.obslog]  # exposure times (sec) for object
         for i in range(self.nccd):
-            obj_conf_path = f"{self.obsdate}/{self.target}_{i}/list/object_ccd{i}.conf"
+            obj_conf_path = f"{self.target_dir}_{i}/list/object_ccd{i}.conf"
             #print(obj_conf_path)
             if not os.path.exists(obj_conf_path):
                 exp=exposure[i]
@@ -188,26 +257,26 @@ class MuSCAT_PHOTOMETRY:
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
                 print(result.stdout)
             else:
-                print(f"config file already exisits under /{self.target}_{i}/list/ as object_ccd{i}.conf")
+                print(f"config file already exisits under {self.target_dir}_{i}/list/ as object_ccd{i}.conf")
 
     @time_keeper
     def reduce_flat(self):
         ## Reducing FLAT images 
         for i in range(self.nccd):
-            flat_path = f"{self.obsdate}/FLAT/flat/flat_ccd{i}.fits"
+            flat_path = f"{self.flat_dir}/flat/flat_ccd{i}.fits"
             #print(flat_path)
             if not os.path.exists(flat_path):
                 print(f'>> Reducing FLAT images of CCD{i} ... (it may take tens of seconds)')
                 cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {i} > /dev/null"
                 subprocess.run(cmd, shell=True, capture_output=True, text=True)
             else:
-                print(f"flat file already exisits under /FLAT/flat/ as flat_ccd{i}.fits")
+                print(f"flat file already exisits under {self.flat_dir}/flat/ as flat_ccd{i}.fits")
 
     @time_keeper
     ## Reducing Object images 
     def run_auto_mkdf(self):
         for i in range(self.nccd):
-            df_directory = f'{self.obsdate}/{self.target}_{i}/df'
+            df_directory = f'{self.target_dir}_{i}/df'
             frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
@@ -245,19 +314,18 @@ class MuSCAT_PHOTOMETRY:
     def show_reference(self, rad=10):
         ## Showing reference image
 
-        target_dir = self.obsdate + '/' + self.target
-        ref_list_file = target_dir + '/list/ref.lst'
+        ref_list_file = f'{self.target_dir}/list/ref.lst'
         with open(ref_list_file) as f:
             refframe = f.readline()
 
         refframe = refframe.replace('\n','')
         print('reference frame:', refframe)
 
-        ref_obj_file = target_dir + '/objects/' + refframe + '.objects'
+        ref_obj_file = f"{self.target_dir}/objects/{refframe}.objects"
         refxy = np.genfromtxt(ref_obj_file, delimiter=13, usecols=(1,2))
 
 
-        ref_fits = target_dir + '/reference/ref-' + refframe + '.fits'
+        ref_fits =f"{self.target_dir}/reference/ref-{refframe}.fits"
         hdulist = fits.open(ref_fits)
         data = hdulist[0].data
         #dataf = data.astype(np.float64)
@@ -273,12 +341,12 @@ class MuSCAT_PHOTOMETRY:
             plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
 
     def find_tid(self):
-        with open(Path(f"{self.obsdate}/{self.target}/list/ref.lst"), 'r') as f:
+        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
             ref_file = f.read()
 
         ref_frame = ref_file.replace('\n','')
-        ref_ccd = ref_frame[4]
-        ref_file_dir = f"{self.obsdate}/{self.target}_{ref_ccd}"
+        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
+        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
         ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits"
         pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
         buffer = 0.02
@@ -290,30 +358,8 @@ class MuSCAT_PHOTOMETRY:
         print(result.stdout)
         print("## >> Complete.")
 
-        if os.path.exists(f"{ref_file_dir}/list/ref.lst"):
-            def _parse_obj_file(input_file): #helper function to parse objectfile
-                """Parses the .df file to extract metadata and tabular data."""
-                metadata = {}
-                data_rows = []
-
-                with open(input_file, 'r') as file:
-                    for line in file:
-                        line = line.strip()
-                        if line.startswith("#"):  # Metadata lines
-                            key_value = re.match(r"#\s*(.+?)\s*=\s*(.+)", line)
-                            if key_value:
-                                key, value = key_value.groups()
-                                metadata[key.strip()] = value.strip()
-                        elif line and not line.startswith("#"):  # Data rows
-                            parts = line.split()
-                            if len(parts) >= 7:  # Ensure it matches expected column structure
-                                data_rows.append(list(map(float, parts)))
-
-                col_names = ['ID', 'x', 'y', 'x_int', 'y_int', 'Flux', 'Peak']
-                data = pd.DataFrame(data_rows,columns=col_names)
-                return metadata, data
-            
-            metadata, data = _parse_obj_file(f"{self.obsdate}/{self.target}/reference/ref-{ref_frame}.objects")
+        if os.path.exists(f"{ref_file_dir}/list/ref.lst"):            
+            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
             wcsfits = f"{ref_file_dir}/df/{ref_frame}.df.new"
             with fits.open(wcsfits) as hdul:
                 header = hdul[0].header
@@ -411,7 +457,7 @@ class MuSCAT_PHOTOMETRY:
         #print("Checking for missing photometry")
         #print(f"Missing {missing}")
         return missing, missing_files_per_ccd
-
+    '''
     def _run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
         """Runs photometry for CCDs where files are missing in parallel."""
         processes = []  # Store running processes
@@ -429,7 +475,102 @@ class MuSCAT_PHOTOMETRY:
         for process, i, rad in processes:
             process.wait()  # Blocks until process completes
             print(f"## >> Completed aperture photometry for CCD={i}, rad={rad}")
+    
+    
+    #information that needs to be supplied externally
+    fits file
+    gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
+    telsecope diameter and altitude from param-tel.par
 
+    geoparamから
+    $dx,$dy,$a,$b,$c,$d,$rms
+    の順で呼び出して、
+
+    $x = $dx + $a*$x0[$i] + $b*$y0[$i];
+    $y = $dy + $c*$x0[$i] + $d*$y0[$i];
+
+    を計算する
+    x0 y0はなんだ
+    x0 y0 is the coordinates of the stars -in the ref frame- in pixels
+    x y is the coordinates for the corresponding star in the object frame
+    
+    starlistは各行に各frameのxyが入っている
+    starlistを作る段階でnstarsの情報を上げなければいけない
+    '''
+    async def _run_photometry_if_missing(self, rads, missing_files_per_ccd):        
+        """Runs photometry for CCDs where files are missing in parallel."""
+
+        #load the necessary params here
+
+        telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
+        tel = SimpleNamespace(**telescope_param)
+
+        apphot_param = load_par_file(f"{self.target_dir}/param/param-apphot.par") #skysep,wid,hbox,dcen,sigma_0
+        app = SimpleNamespace(**apphot_param)
+
+        ccd_param = load_par_file(f"{self.target_dir}/param//param-ccd.par") ##gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
+        ccd = SimpleNamespace(**ccd_param)
+
+        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
+            ref_file = f.read()
+
+        ref_frame = ref_file.replace('\n','')
+        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
+        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
+        ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
+
+        metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
+        x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
+        
+        async def run_apphot(i, missing_files, sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
+            rad_to_use = []
+            for rad in rads:
+                if any(f"rad{rad}" in file for file in missing_files):
+                    rad_to_use.append(rad)
+                else:
+                    print(f"## >>Photometry already available for CCD={i}, rad={rad}")
+                    continue
+
+            apphot = ApPhotometry(tid             = self.tid,
+                                  rads            = rad_to_use,
+                                  gain            = ccd.gain,
+                                  read_noise      = ccd.readnoise,
+                                  dark_noise      = ccd.darknoise,
+                                  sky_sep         = app.sky_sep,
+                                  sky_wid         = app.sky_wid,
+                                  hbox            = app.hbox, #number of pixels around a given point to search for max flux aperture
+                                  dcen            = app.dcen,  #step in pixels to move within hbox
+                                  sigma_cut       = app.sigma_cut, #sigma clipping used for sky calculation
+                                  adu_lo          = ccd.ADUlo,
+                                  adu_hi          = ccd.ADUhi,
+                                  sigma_0         = app.sigma_0, #scintillation coefficient
+                                  altitude        = tel.altitude, #observatory altitude in meters (used for scintillation noise calculation)
+                                  diameter        = tel.diameter ,#telescope diameter in cm (also used for scintillation noise calculation)
+                                  global_sky_flag = app.global_sky_flag, #Use global sky calculation meaning calculate sky dont assume as constant
+                                  sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
+                                  const_sky_flag  = const_sky_flag, #Use constant sky value
+                                  const_sky_flux  = const_sky_flux,#Constant sky flux value
+                                  const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
+                                )
+
+            for file in missing_files:
+                geoparam_file_path = f"{self.target_dir}/geoparam/{file[:-4].split("/")[-1]}.geo" #extract the frame name and modify to geoparam path 
+                geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
+                geo = SimpleNamespace(**geoparams)
+
+                x = geo.dx + geo.a * x0 + geo.b * y0
+                y = geo.dy + geo.c * x0 + geo.d * y0
+                starlist = [x, y]
+
+                await asyncio.to_thread(apphot.add_frame, file, starlist)
+                await asyncio.to_thread(apphot.process_image_over_rads, rad_to_use)
+
+            print(f"## >> Completed aperture photometry for CCD={i}, rad = {rad_to_use}")
+
+        # Run the CCD processing asynchronously
+        tasks = [run_apphot(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
+        await asyncio.gather(*tasks)
+    
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
         metadata = {}
@@ -632,7 +773,7 @@ class MuSCAT_PHOTOMETRY:
         '''
         !perl scripts/auto_mklc.pl -date $date -obj $target\
             -ap_type $method -r1 $rad1 -r2 $rad2 -dr $drad -tid $tID -cids $cID
-        バンドごとにcidが違う場合を考慮したいからこのコードを使わなかった?
+        バンドごとにcidが違う場合を考慮したいからこのコードを使わなかった
         '''
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
         '''
@@ -641,6 +782,7 @@ class MuSCAT_PHOTOMETRY:
             →argumentとしてのcidの読み込みはうまくいっている
         auto_mklc.plでもmklc_flux_collect_csv.plでも同じエラーが出るため問題はおそらくmklc_flux_collect_csv.plにある
         comparisonの順番を数字が大きい方からにすると治ったので、何かしらの読み込み時の挙動だと思われる
+        ↑これは僕の勘違いで、実際にrmsを計算するのに使っているのはflux ratioであり、fluxの合計値ではない
         '''
         #script_path = "/home/muscat/reduction_afphot/tools/scripts/auto_mklc.pl"
 
@@ -918,7 +1060,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             im1 = axes[i, 0].imshow(ndata_diff, cmap="coolwarm", aspect="auto", norm=norm_diff)
             axes[i, 0].set_title(f"CCD {i} - Cut Data Points")
             axes[i, 0].set_xticks(range(len(self.ap)))
-            axes[i, 0].set_xticklabels([f"{self.ap[k]:.1f}" for k in range(len(self.ap))])
+            axes[i, 0].set_xticklabels([f"{int(self.ap[k])}" for k in range(len(self.ap))])
             axes[i, 0].set_yticks(range(len(self.cids_list[i])))
             axes[i, 0].set_yticklabels(self.cids_list[i])
             fig.colorbar(im1, ax=axes[i, 0], label="Number of Cut Data Points")
@@ -1004,7 +1146,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             else:
                 rad1 -= 1
                 rad2 += 1
-            print(f"Minimum rms: {min_rms_list[-2]} \n          -> {min_rms_list[-1]}")
+            print(f"Minimum rms: {min_rms_list[-2]:.3g} \n          -> {min_rms_list[-1]:.3g}")
         self.plot_outlier_cut_results()
 
     def plot_lc(self):
@@ -1050,7 +1192,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         plt.xlabel('JD-2450000')
         plt.ylabel('Relative flux')
         outfile = '{0}_{1}.png'.format(self.target,self.obsdate)
-        plt.savefig(f"ut3/muscat/reduction_afphot/notebooks/general/{self.target}/{outfile}",bbox_inches='tight',pad_inches=0.1)
+        plt.savefig(f"/home/muscat/reduction_afphot/notebooks/general/{self.target}/{outfile}",bbox_inches='tight',pad_inches=0.1)
         plt.show()
 
 #cIDs_best = np.array((2,0,2,2)) 
