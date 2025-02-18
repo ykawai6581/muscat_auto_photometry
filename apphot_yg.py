@@ -177,6 +177,7 @@ class ApPhotometry:
                 continue
                 
             x, y = self.x[starid], self.y[starid]
+            print(f"coord of star{starid+1}:{x,y}")
             
             # Extract sub-image (cameo) / square containing sky annulus
             x_min = int(x) - half_cameo 
