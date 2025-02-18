@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 import astropy.io.fits as fits
 from astropy.visualization import ZScaleInterval, ImageNormalize
 import sys
-from tqdm.asyncio import tqdm
+from tqdm.asyncio import tqdm as tqdm_async
+from tqdm import tqdm
+
 #from tqdm import tqdm
 
 from IPython.display import IFrame
@@ -546,7 +548,7 @@ class MuSCAT_PHOTOMETRY:
         #    pass  # the progress bar updates automatically
 
         #await asyncio.gather(*tasks)
-        for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="CCDs"):
+        for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="CCDs"):
             await task  # Run each CCD processing task
 
         #first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
