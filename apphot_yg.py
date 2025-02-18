@@ -289,19 +289,6 @@ class ApPhotometry:
             snr = max_flux / noise
             
             # Calculate FWHM
-            print("Maxsky")
-            print(max_sky)
-            print("Cameo")
-            print(cameo)
-            print(cameo.shape)
-            print(aper_mask)
-            print(np.unique(aper_mask))
-            print(aper_mask.shape)
-
-
-            #plt.imshow(cameo[aper_mask], cmap="coolwarm", aspect="auto")
-            #plt.show()
-            print(np.max(cameo[aper_mask]))
 
             peak_flux = np.max(cameo[aper_mask] - max_sky)
             hm = peak_flux / 2.0
@@ -335,7 +322,7 @@ class ApPhotometry:
                         f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n")
 
         
-        '''
+        
         print("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak")
         for result in results:
             print(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
@@ -343,7 +330,7 @@ class ApPhotometry:
                   f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
                   f"0 {result['fwhm']:.2f} {result['peak']:.1f}")
         #this prints the parameters for all stars
-        
+        '''
 
     def process_image_over_rads(self):
         for rad in self.rads:
