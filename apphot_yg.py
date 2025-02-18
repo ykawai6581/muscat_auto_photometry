@@ -231,6 +231,7 @@ class ApPhotometry:
                     xx = xx + x_min
                     yy = yy + y_min
                     r = np.sqrt((xx - xcen)**2 + (yy - ycen)**2) #distance from center in pixels
+                    print(r)
                     #takes the same shape as cameo, with each element representing the distance from the center of the star
                     
                     # Define aperture and sky annulus
