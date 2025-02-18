@@ -143,7 +143,7 @@ class ApPhotometry:
 
     def process_image(self, ap_r) -> None:
         """Main processing function for aperture photometry."""
-        print(f"## apphot version {self.version} ##")
+        #print(f"## apphot version {self.version} ##")
         
         # Read FITS image
         with fits.open(self.frame) as hdul:
@@ -154,7 +154,7 @@ class ApPhotometry:
         airmass = image_header["AIRMASS"]
         # Read star positions
         nstars = len(self.x)
-        print(f"# nstars = {nstars}")
+        #print(f"# nstars = {nstars}")
         
         if nstars < 2:
             print("Exit!")
@@ -178,7 +178,7 @@ class ApPhotometry:
                 continue
                 
             x, y = self.x[starid], self.y[starid]
-            print(f"coord of star{starid+1}:{x,y}")
+            #print(f"coord of star{starid+1}:{x,y}")
             
             # Extract sub-image (cameo) / square containing sky annulus
             x_min = max(int(x) - half_cameo, 0) #need to take care of edge stars constraining x and y minmax to within 0 and image_data.shape[0/1] - 1
