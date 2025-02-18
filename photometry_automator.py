@@ -158,19 +158,29 @@ print(f"Available obsdates {obsdates_from_filename()}")
 
 
 class ProgressManager:
-    def __init__(self, nccd):
-        self.nccd = nccd
+    def __init__(self, total_ccds):
+        self.total_ccds = total_ccds
         self.progress_bars = {}
         self.main_bar = None
+        # Disable any default output that might interfere
+        tqdm.monitor_interval = 0
         
     def create_bars(self):
+        # Move cursor to starting position
+        sys.stdout.write('\n' * (self.total_ccds + 1))
+        sys.stdout.write('\033[?25l')  # Hide cursor
+        
         # Create main progress bar for CCDs
         self.main_bar = tqdm(
-            total=self.nccd,
+            total=self.total_ccds,
             desc="CCDs",
             position=0,
             leave=True,
-            bar_format='{desc}: {percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+            bar_format='{desc}: {percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
+            file=sys.stdout,
+            dynamic_ncols=True,
+            mininterval=0.1,
+            maxinterval=0.5
         )
         
     def create_ccd_bar(self, ccd_num, total_files):
@@ -178,21 +188,27 @@ class ProgressManager:
         self.progress_bars[ccd_num] = tqdm(
             total=total_files,
             desc=f"CCD {ccd_num}",
-            position=ccd_num + 1,  # Position below the main bar
+            position=ccd_num + 1,
             leave=True,
-            bar_format='{desc}: {bar:10} {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+            bar_format='{desc}: {bar:10} {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
+            file=sys.stdout,
+            dynamic_ncols=True,
+            mininterval=0.1,
+            maxinterval=0.5
         )
         return self.progress_bars[ccd_num]
     
     def update_main(self):
         self.main_bar.update(1)
-        
+        self.main_bar.refresh()
+    
     def close_all(self):
         # Close all progress bars
         for bar in self.progress_bars.values():
             bar.close()
         self.main_bar.close()
-
+        sys.stdout.write('\033[?25h')  # Show cursor
+        sys.stdout.flush()
 
 class MuSCAT_PHOTOMETRY:
     def __init__(self,instrument=None,obsdate=None,parent=None,ra=None,dec=None):
