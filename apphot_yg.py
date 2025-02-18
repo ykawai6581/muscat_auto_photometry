@@ -235,7 +235,7 @@ class ApPhotometry:
                     '''
                     xx = xx + x_min #because this is a subimage, add the min value to count the number of pixels from the edge of the actual image
                     yy = yy + y_min
-                    r = np.sqrt((xx - xcen)**2 + (yy - ycen)**2) #distance from center in pixels
+                    r = np.sqrt((xx - xcen)**2 + (yy - ycen)**2) #distance from center in pixels has the dimensions of 
                     print(np.min(r))
 
                     #plt.imshow(r, cmap="coolwarm", aspect="auto")
@@ -245,6 +245,9 @@ class ApPhotometry:
                     
                     # Define aperture and sky annulus
                     aper_mask = r <= ap_r #pixels within the aperture (it means that up until this point, the pixels are still in the aperture)
+                    print(ap_r)
+                    plt.imshow(aper_mask, cmap="coolwarm", aspect="auto")
+                    plt.show()
                     sky_mask = (r >= self.sky_sep) & (r <= self.sky_sep + self.sky_wid) #pixels within the sky annulus
                     print("ap mask")
                     print(aper_mask)
