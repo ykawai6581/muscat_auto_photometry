@@ -492,7 +492,8 @@ class MuSCAT_PHOTOMETRY:
 
         metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
         x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
-        
+        progress_bars = {}
+
         async def aperture_photometry(i, missing_files):
             apphot = ApPhotometry(tid             = self.tid,
                                     rads            = rad_to_use,
@@ -516,7 +517,10 @@ class MuSCAT_PHOTOMETRY:
                                     const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
                                 )
             print(f"Starting aperture photometry for CCD={i} with radii: {rad_to_use}")
-            for file in tqdm(missing_files, desc=f"CCD {i}", position=i, leave=True):
+
+            progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
+
+            for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
                 geo = SimpleNamespace(**geoparams)
@@ -529,8 +533,10 @@ class MuSCAT_PHOTOMETRY:
 
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
+                progress_bars[i].update(1)
                 #print("here")
             #print("done")
+            progress_bars[i].close()
             print(f"## >> Completed aperture photometry for CCD={i}")
 
         # Run the CCD processing asynchronously
