@@ -426,7 +426,7 @@ class MuSCAT_PHOTOMETRY:
                 print(f"## >> Photometry already available for CCD={i}, rads = {rads}")
                 continue
             elif len(rad_to_use) != len(rads):
-                [rads.remove(rad) for rad in rad_to_use]
+                [rads.pop(rad) for rad in rad_to_use]
                 print(f"## >> Photometry already available for CCD={i}, rads = {rads}")
             
         # Run photometry for missing files
