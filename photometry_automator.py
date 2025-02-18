@@ -156,6 +156,44 @@ os.nice(19)
 print(f"Running notebook for {target_from_filename()}")
 print(f"Available obsdates {obsdates_from_filename()}")
 
+
+class ProgressManager:
+    def __init__(self, nccd):
+        self.nccd = nccd
+        self.progress_bars = {}
+        self.main_bar = None
+        
+    def create_bars(self):
+        # Create main progress bar for CCDs
+        self.main_bar = tqdm(
+            total=self.nccd,
+            desc="CCDs",
+            position=0,
+            leave=True,
+            bar_format='{desc}: {percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+        )
+        
+    def create_ccd_bar(self, ccd_num, total_files):
+        # Create individual CCD progress bars
+        self.progress_bars[ccd_num] = tqdm(
+            total=total_files,
+            desc=f"CCD {ccd_num}",
+            position=ccd_num + 1,  # Position below the main bar
+            leave=True,
+            bar_format='{desc}: {bar:10} {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+        )
+        return self.progress_bars[ccd_num]
+    
+    def update_main(self):
+        self.main_bar.update(1)
+        
+    def close_all(self):
+        # Close all progress bars
+        for bar in self.progress_bars.values():
+            bar.close()
+        self.main_bar.close()
+
+
 class MuSCAT_PHOTOMETRY:
     def __init__(self,instrument=None,obsdate=None,parent=None,ra=None,dec=None):
         if not ((instrument is not None and obsdate is not None) or parent is not None):
@@ -494,7 +532,9 @@ class MuSCAT_PHOTOMETRY:
 
         metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
         x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
-        progress_bars = {}
+
+        progress = ProgressManager(len(missing_files_per_ccd))
+        progress.create_bars()
 
         async def aperture_photometry(i, missing_files):
             apphot = ApPhotometry(tid             = self.tid,
@@ -521,7 +561,7 @@ class MuSCAT_PHOTOMETRY:
             print(f"Starting aperture photometry for CCD={i} with radii: {rad_to_use}")
 
             #progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
-            progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", leave=True)
+            pbar = progress.create_ccd_bar(i, len(missing_files))
 
             for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
@@ -536,21 +576,18 @@ class MuSCAT_PHOTOMETRY:
 
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
-                progress_bars[i].update(1)
-                #print("here")
-            #print("done")
-            progress_bars[i].close()
+                pbar.update(1)
+                
+            progress.update_main()
             print(f"## >> Completed aperture photometry for CCD={i}")
 
-        # Run the CCD processing asynchronously
-        tasks = [aperture_photometry(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
-
-        #for _ in tqdm(asyncio.as_completed(tasks), total=self.nccd):
-        #    pass  # the progress bar updates automatically
-
-        #await asyncio.gather(*tasks)
-        for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="CCDs"):
-            await task  # Run each CCD processing task
+        # Run all CCDs in parallel
+        tasks = [aperture_photometry(i, files) for i, files in missing_files_per_ccd.items()]
+        
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            progress.close_all()
 
         #first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
         #i, missing_files = first_item  # Unpack the first pair
