@@ -422,7 +422,8 @@ class MuSCAT_PHOTOMETRY:
         script = f"scripts/auto_apphot_{method}.pl" #starfindは一回だけで十分なのでauto_apphot.plではなくapphot.plを使えば早い
 
         # Run photometry for missing files
-        self._run_photometry_if_missing(rads, missing_files_per_ccd)
+        #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
+        asyncio.create_task(self._run_photometry_for_missing_files(rads, missing_files_per_ccd))
 
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
@@ -457,47 +458,8 @@ class MuSCAT_PHOTOMETRY:
         #print("Checking for missing photometry")
         #print(f"Missing {missing}")
         return missing, missing_files_per_ccd
-    '''
-    def _run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
-        """Runs photometry for CCDs where files are missing in parallel."""
-        processes = []  # Store running processes
 
-        for i, missing_files in missing_files_per_ccd.items():
-            for rad in rads:
-                if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
-                    cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {self.drad} > /dev/null"
-                    process = subprocess.Popen(cmd, shell=True, text=True)
-                    processes.append((process, i, rad))  # Store process info
-                else:
-                    print(f"## >>Photometry already available for CCD={i}, rad={rad}")
-
-        # Wait for all processes to finish
-        for process, i, rad in processes:
-            process.wait()  # Blocks until process completes
-            print(f"## >> Completed aperture photometry for CCD={i}, rad={rad}")
-    
-    
-    #information that needs to be supplied externally
-    fits file
-    gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
-    telsecope diameter and altitude from param-tel.par
-
-    geoparamから
-    $dx,$dy,$a,$b,$c,$d,$rms
-    の順で呼び出して、
-
-    $x = $dx + $a*$x0[$i] + $b*$y0[$i];
-    $y = $dy + $c*$x0[$i] + $d*$y0[$i];
-
-    を計算する
-    x0 y0はなんだ
-    x0 y0 is the coordinates of the stars -in the ref frame- in pixels
-    x y is the coordinates for the corresponding star in the object frame
-    
-    starlistは各行に各frameのxyが入っている
-    starlistを作る段階でnstarsの情報を上げなければいけない
-    '''
-    async def _run_photometry_if_missing(self, rads, missing_files_per_ccd):        
+    async def _run_photometry_for_missing_files(self, rads, missing_files_per_ccd):        
         """Runs photometry for CCDs where files are missing in parallel."""
 
         #load the necessary params here
@@ -571,6 +533,46 @@ class MuSCAT_PHOTOMETRY:
         tasks = [run_apphot(i, missing_files) for i, missing_files in missing_files_per_ccd.items()]
         await asyncio.gather(*tasks)
     
+    '''
+    def _run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
+        """Runs photometry for CCDs where files are missing in parallel."""
+        processes = []  # Store running processes
+
+        for i, missing_files in missing_files_per_ccd.items():
+            for rad in rads:
+                if any(f"rad{rad}" in f for f in missing_files):  # Only run if files for this radius are missing
+                    cmd = f"perl {script} {self.obsdate} {self.target} {i} {nstars} {rad} {rad} {self.drad} > /dev/null"
+                    process = subprocess.Popen(cmd, shell=True, text=True)
+                    processes.append((process, i, rad))  # Store process info
+                else:
+                    print(f"## >>Photometry already available for CCD={i}, rad={rad}")
+
+        # Wait for all processes to finish
+        for process, i, rad in processes:
+            process.wait()  # Blocks until process completes
+            print(f"## >> Completed aperture photometry for CCD={i}, rad={rad}")
+    
+    
+    #information that needs to be supplied externally
+    fits file
+    gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
+    telsecope diameter and altitude from param-tel.par
+
+    geoparamから
+    $dx,$dy,$a,$b,$c,$d,$rms
+    の順で呼び出して、
+
+    $x = $dx + $a*$x0[$i] + $b*$y0[$i];
+    $y = $dy + $c*$x0[$i] + $d*$y0[$i];
+
+    を計算する
+    x0 y0はなんだ
+    x0 y0 is the coordinates of the stars -in the ref frame- in pixels
+    x y is the coordinates for the corresponding star in the object frame
+    
+    starlistは各行に各frameのxyが入っている
+    starlistを作る段階でnstarsの情報を上げなければいけない
+    '''
     def read_photometry(self, ccd, rad, frame, add_metadata=False):
         filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
         metadata = {}
