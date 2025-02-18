@@ -293,7 +293,10 @@ class ApPhotometry:
             print(max_sky)
             print("Cameo")
             print(cameo)
-            cameo[aper_mask]
+            print(cameo.shape)
+            print(aper_mask)
+            print(aper_mask.shape)
+
 
             plt.imshow(cameo[aper_mask], cmap="coolwarm", aspect="auto")
             plt.show()
