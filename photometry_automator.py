@@ -494,7 +494,7 @@ class MuSCAT_PHOTOMETRY:
                 else:
                     print(f"## >>Photometry already available for CCD={i}, rad={rad}")
                     continue
-
+                
             apphot = ApPhotometry(tid             = self.tid,
                                   rads            = rad_to_use,
                                   gain            = ccd.gain,
