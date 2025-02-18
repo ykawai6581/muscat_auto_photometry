@@ -2,6 +2,7 @@ import numpy as np
 from astropy.io import fits
 import argparse
 from typing import List, Tuple, Optional
+import matplotlib.pyplot as plt
 
 '''
   // Parameters for aperture and sky radii
@@ -186,6 +187,7 @@ class ApPhotometry:
             y_max = int(y) + half_cameo + 1
             
             cameo = image_data[y_min:y_max, x_min:x_max].copy() 
+
             #"cameo" refers to a small sub-image or cutout centered around a star or object of interest, 
             # similar to how a cameo brooch features a small portrait or miniature scene.
             #カモフラージュのcamoとは別物勘違い
@@ -232,6 +234,9 @@ class ApPhotometry:
                     xx = xx + x_min #because this is a subimage, add the min value to count the number of pixels from the edge of the actual image
                     yy = yy + y_min
                     r = np.sqrt((xx - xcen)**2 + (yy - ycen)**2) #distance from center in pixels
+
+                    plt.imshow(r, cmap="coolwarm", aspect="auto")
+                    plt.show()
                     print(r)
                     #takes the same shape as cameo, with each element representing the distance from the center of the star
                     
