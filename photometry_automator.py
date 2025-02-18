@@ -554,7 +554,7 @@ class MuSCAT_PHOTOMETRY:
                                 )
 
             for file in missing_files:
-                geoparam_file_path = f"{self.target_dir}/geoparam/{file[:-4].split("/")[-1]}.geo" #extract the frame name and modify to geoparam path 
+                geoparam_file_path = f"{self.target_dir}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
                 geo = SimpleNamespace(**geoparams)
 
