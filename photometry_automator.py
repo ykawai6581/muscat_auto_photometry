@@ -436,7 +436,7 @@ class MuSCAT_PHOTOMETRY:
             
         # Run photometry for missing files
         #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
-        asyncio.create_task(self._run_photometry_for_missing_files(rad_to_use, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
+        asyncio.run(self._run_photometry_for_missing_files(rad_to_use, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
 
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
@@ -520,7 +520,8 @@ class MuSCAT_PHOTOMETRY:
                                 )
             print(f"Starting aperture photometry for CCD={i} with radii: {rad_to_use}")
 
-            progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
+            #progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
+            progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", leave=True)
 
             for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
