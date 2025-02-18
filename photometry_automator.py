@@ -211,6 +211,7 @@ class MuSCAT_PHOTOMETRY:
                 print(pick_target)
                 self.target = self.obj_names[int(pick_target[0])]
             print(f"Continuing photometry for {self.target}")
+            self.tid = None
             self.target_dir = f"{self.obsdate}/{self.target}"
             self.flat_dir = f"{self.obsdate}/FLAT"
             #self.target_dir = f"{self.obsdate}/{self.target}
@@ -310,6 +311,7 @@ class MuSCAT_PHOTOMETRY:
             with open(Path(f"{self.obsdate}/{self.target}_0/list/ref.lst"), 'r') as f:
                 ref_file = f.read()
                 print(f'Ref file:\n {ref_file} exists.')
+        self.find_tid()
 
     def show_reference(self, rad=10):
         ## Showing reference image
@@ -516,7 +518,7 @@ class MuSCAT_PHOTOMETRY:
                                 )
 
             for file in missing_files:
-                geoparam_file_path = f"{self.target_dir}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
+                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
                 geo = SimpleNamespace(**geoparams)
 
@@ -749,10 +751,12 @@ class MuSCAT_PHOTOMETRY:
             self.cids_list.append(cids)
     '''
     def select_comparison(self, tid=None, nstars=5):
-        if tid is None:
+        if tid is None and self.tid is None:
             self.find_tid()
-        else:
+        elif self.tid is not None:
             self.tid = tid
+        else: #tid is None and self.tid is not None
+            pass
         self.check_saturation(self.rad2)
         self.cids_list = []
         for saturation_cid in self.saturation_cids: 
