@@ -295,6 +295,7 @@ class ApPhotometry:
             print(cameo)
             print(cameo.shape)
             print(aper_mask)
+            print(np.unique(aper_mask))
             print(aper_mask.shape)
 
 
