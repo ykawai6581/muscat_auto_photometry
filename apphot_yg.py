@@ -214,9 +214,9 @@ class ApPhotometry:
                 for dy in np.arange(-self.hbox, self.hbox + self.dcen, self.dcen):
                     xcen = x + dx
                     ycen = y + dy
-                    print("xcoord,y")
-                    print(xcen)
-                    print(ycen)
+                    #print("xcoord,y")
+                    #print(xcen)
+                    #print(ycen)
                     # Calculate distances from center
                     yy, xx = np.indices(cameo.shape)
                     '''
@@ -236,20 +236,18 @@ class ApPhotometry:
                     xx = xx + x_min #because this is a subimage, add the min value to count the number of pixels from the edge of the actual image
                     yy = yy + y_min
                     r = np.sqrt((xx - xcen)**2 + (yy - ycen)**2) #distance from center in pixels has the dimensions of 
-                    print(np.min(r))
+                    #print(np.min(r))
 
                     #plt.imshow(r, cmap="coolwarm", aspect="auto")
                     #plt.show()
-                    print(r)
+                    #print(r)
                     #takes the same shape as cameo, with each element representing the distance from the center of the star
                     
                     # Define aperture and sky annulus
                     aper_mask = r <= ap_r #pixels within the aperture (it means that up until this point, the pixels are still in the aperture)
-                    print(ap_r)
-                    print(np.unique(aper_mask))
+                    #print(ap_r)
+                    #print(np.unique(aper_mask))
                     sky_mask = (r >= self.sky_sep) & (r <= self.sky_sep + self.sky_wid) #pixels within the sky annulus
-                    print("ap mask")
-                    print(aper_mask)
                     
                     # Calculate sky
                     if not self.global_sky_flag and not self.const_sky_flag:
@@ -295,6 +293,7 @@ class ApPhotometry:
             print(max_sky)
             print("Cameo")
             print(cameo)
+            cameo[aper_mask]
 
             peak_flux = np.max(cameo[aper_mask] - max_sky)
             hm = peak_flux / 2.0
