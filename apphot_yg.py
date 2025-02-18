@@ -178,8 +178,8 @@ class ApPhotometry:
                 
             x, y = self.x[starid], self.y[starid]
             
-            # Extract sub-image (cameo)
-            x_min = int(x) - half_cameo
+            # Extract sub-image (cameo) / square containing sky annulus
+            x_min = int(x) - half_cameo 
             x_max = int(x) + half_cameo + 1
             y_min = int(y) - half_cameo
             y_max = int(y) + half_cameo + 1
@@ -236,6 +236,8 @@ class ApPhotometry:
                     # Define aperture and sky annulus
                     aper_mask = r <= ap_r #pixels within the aperture (it means that up until this point, the pixels are still in the aperture)
                     sky_mask = (r >= self.sky_sep) & (r <= self.sky_sep + self.sky_wid) #pixels within the sky annulus
+                    print("ap mask")
+                    print(aper_mask)
                     
                     # Calculate sky
                     if not self.global_sky_flag and not self.const_sky_flag:
@@ -277,6 +279,11 @@ class ApPhotometry:
             snr = max_flux / noise
             
             # Calculate FWHM
+            print("Maxsky")
+            print(max_sky)
+            print("Cameo")
+            print(cameo)
+
             peak_flux = np.max(cameo[aper_mask] - max_sky)
             hm = peak_flux / 2.0
             fwhm_mask = (cameo[aper_mask] - max_sky > hm)
