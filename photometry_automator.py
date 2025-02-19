@@ -563,7 +563,7 @@ class MuSCAT_PHOTOMETRY:
             
             # Run all files in parallel
             await asyncio.gather(*tasks_per_ccd)
-            '''
+            
             for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
@@ -578,6 +578,25 @@ class MuSCAT_PHOTOMETRY:
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 #await asyncio.to_thread(apphot.process_image_over_rads)
                 await apphot.process_image_over_rads()
+            '''
+            async def process_missng_files(file):
+                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
+                geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
+                geo = SimpleNamespace(**geoparams)
+
+                x = geo.dx + geo.a * x0 + geo.b * y0
+                y = geo.dy + geo.c * x0 + geo.d * y0
+                starlist = [x, y]
+                dffits_file_path = f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits" #extract the frame name and modify to dark flat reduced fits path 
+                
+                await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
+                #await asyncio.to_thread(apphot.process_image_over_rads)
+                await apphot.process_image_over_rads()
+            
+            tasks = [process_missng_files(file) for file in missing_files]
+            await asyncio.gather(*tasks)
+
+
 
             print(f"## >> CCD={i} | Completed aperture photometry")
             
@@ -585,7 +604,6 @@ class MuSCAT_PHOTOMETRY:
         tasks = [aperture_photometry(i, files) for i, files in missing_files_per_ccd.items()]
         
         await asyncio.gather(*tasks)
-
 
         #first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
         #i, missing_files = first_item  # Unpack the first pair
@@ -601,7 +619,7 @@ class MuSCAT_PHOTOMETRY:
         Args:
             interval (int): Time in seconds to wait between progress checks
         """
-        print(">> Querying photometry progress (takes about 5 seconds)...\n")
+        #print(">> Querying photometry progress (takes about 5 seconds)...\n")
         
         # First check
         initial_time = time.time()    
