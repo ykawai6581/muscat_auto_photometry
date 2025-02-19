@@ -576,13 +576,15 @@ class MuSCAT_PHOTOMETRY:
         # First check
         initial_time = time.time()    
         missing1, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
-        print(len(missing_files_per_ccd1[0]))
+        initial_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd1.items()}
+        print(f"Initial missing files per CCD: {initial_missing_files}")
         # Wait for interval
         time.sleep(interval)
         
         # Second check
         missing2, missing_files_per_ccd2, nframes = self._check_missing_photometry(self.rad_to_use)
-        print(len(missing_files_per_ccd2[0]))
+        second_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd2.items()}
+        print(f"Current missing files per CCD: {second_missing_files}")
         current_time = time.time()
         
         # Calculate progress for each CCD
