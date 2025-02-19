@@ -584,7 +584,7 @@ class MuSCAT_PHOTOMETRY:
         current_time = time.time()
         
         # Calculate progress for each CCD
-        total_frames_per_ccd = len(self.rad_to_use) * nframes
+        total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
         
         print("=" * 80)
         print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
