@@ -614,7 +614,7 @@ class MuSCAT_PHOTOMETRY:
             # Format rate as files/minute for more readable values
             rate_per_minute = rate * 60
             
-            print(f"{ccd_id:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[i]:<7} "
+            print(f"{ccd_id:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[ccd_id]:<7} "
                 f"{rate_per_minute:>6.1f} f/min  {remaining_minutes:>12}")
         
         print("=" * 80)
