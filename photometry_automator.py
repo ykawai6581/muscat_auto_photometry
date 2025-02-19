@@ -587,7 +587,7 @@ class MuSCAT_PHOTOMETRY:
         
         # Second check
         missing_files_per_ccd2, nframes = self._fetch_missing_files()
-        seconds_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd2.items()}
+        second_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd2.items()}
         print(f"Current missing files per CCD: {second_missing_files}")
         current_time = time.time()
         
