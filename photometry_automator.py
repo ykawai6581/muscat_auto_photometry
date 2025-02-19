@@ -472,7 +472,7 @@ class MuSCAT_PHOTOMETRY:
             if existing_rads:
                 existing_files = [filename[:-4][-4:] for filename in os.listdir(f"{apphot_directory}/rad{existing_rads[0]}")
                                 if filename.endswith('.dat')]
-                df, meta = self.read_photometry(dir=apphot_directory, ccd=i, rad=existing_rads[0], frame=existing_files[0], add_metadata=True) #it takes too long to scan through all ccds, rad and frames
+                df, meta = self.read_photometry(dir=apphot_directory, ccd=i, rad=existing_rads[0], frame=int(existing_files[0]), add_metadata=True) #it takes too long to scan through all ccds, rad and frames
 
             def file_does_not_exist(rad, frame): #nested helper function to help judge if photometry exists
                 file_path = f"{apphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
