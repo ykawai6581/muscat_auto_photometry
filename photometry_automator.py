@@ -543,8 +543,7 @@ class MuSCAT_PHOTOMETRY:
                                     const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
                                 )
             print(f"## >> CCD={i} | Begin aperture photometry")
-
-            #progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
+            '''
             async def process_single_file(file):
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo"
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)
@@ -581,7 +580,7 @@ class MuSCAT_PHOTOMETRY:
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
             print(f"## >> CCD={i} | Completed aperture photometry")
-            '''
+            
         # Run all CCDs in parallel
         tasks = [aperture_photometry(i, files) for i, files in missing_files_per_ccd.items()]
         
