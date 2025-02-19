@@ -65,6 +65,7 @@ class ApPhotometry:
                  const_sky_flag: int  =0, #Use constant sky value
                  const_sky_flux: float=0.0,#Constant sky flux value
                  const_sky_sdev: float=0.0,#Constant sky standard deviation
+                 method:         str="mapping"#apphot method either mapping or centroid
 
                  ):
         
@@ -88,6 +89,7 @@ class ApPhotometry:
         self.const_sky_flag = const_sky_flag
         self.const_sky_flux = const_sky_flux
         self.const_sky_sdev = const_sky_sdev
+        self.method = method
 
         self.version = "3.0.0"
 
@@ -141,7 +143,7 @@ class ApPhotometry:
         mode = stats.mode(sky.astype(int))[0][0]
         return float(mode), 0.0
 
-    def process_image(self, ap_r) -> None:
+    def process_image(self, ap_r, outpath) -> None:
         """Main processing function for aperture photometry."""
         #print(f"## apphot version {self.version} ##")
         
@@ -312,8 +314,8 @@ class ApPhotometry:
             })
             
         # save results
-        '''
-        with open("output.dat", "w") as f:
+
+        with open(outpath, "w") as f:
             f.write("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n")
             for result in results:
                 f.write(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
@@ -321,7 +323,7 @@ class ApPhotometry:
                         f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
                         f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n")
 
-        
+        '''
         
         print("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak")
         for result in results:
@@ -334,5 +336,7 @@ class ApPhotometry:
 
     def process_image_over_rads(self):
         for rad in self.rads:
-            self.process_image(ap_r=rad)
+            dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
+            outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
+            self.process_image(ap_r=rad,outpath=outpath)
         #print(f"Done with {self.rads}")

@@ -495,9 +495,6 @@ class MuSCAT_PHOTOMETRY:
         metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
         x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
 
-        progress = JupyterProgressManager(len(missing_files_per_ccd))
-        progress.create_bars()
-
         async def aperture_photometry(i, missing_files):
             apphot = ApPhotometry(tid             = self.tid,
                                     rads            = rad_to_use,
@@ -520,10 +517,9 @@ class MuSCAT_PHOTOMETRY:
                                     const_sky_flux  = const_sky_flux,#Constant sky flux value
                                     const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
                                 )
-            #print(f"## >> Begin aperture photometry for CCD={i}")
+            print(f"## >>  CCD={i} | Begin aperture photometry")
 
             #progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
-            pbar = progress.create_ccd_bar(i, len(missing_files))
 
             for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
@@ -538,23 +534,13 @@ class MuSCAT_PHOTOMETRY:
 
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
-                pbar.update(1)
-                await asyncio.sleep(0.01)  # Small delay to prevent display issues
-
-                
-            progress.update_main()
-
-        tqdm.monitor_interval = 0
-        # Pre-create newlines for all bars
-        print('\n' * len(missing_files_per_ccd))
+            print(f"## >> CCD={i} | Completed aperture photometry")
 
         # Run all CCDs in parallel
         tasks = [aperture_photometry(i, files) for i, files in missing_files_per_ccd.items()]
         
-        try:
-            await asyncio.gather(*tasks)
-        finally:
-            progress.close_all()
+        await asyncio.gather(*tasks)
+
 
         #first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
         #i, missing_files = first_item  # Unpack the first pair
