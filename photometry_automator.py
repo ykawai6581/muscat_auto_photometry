@@ -470,7 +470,6 @@ class MuSCAT_PHOTOMETRY:
             self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
 
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
-        print(f">> Performing photometry for radius: {rads} | nstars = {nstars} | method = {method}")
 
         # Check for missing photometry files
         missing, missing_files_per_ccd = self._check_missing_photometry(rads)
@@ -485,9 +484,9 @@ class MuSCAT_PHOTOMETRY:
                 print(f"## >> Photometry already available for CCD={i}, rads = {rads}")
                 continue
             elif len(rad_to_use) != len(rads):
-                
                 print(f"## >> Photometry already available for CCD={i}, rads = {[rad for rad in rads if rad not in rad_to_use]}")
-            
+
+        print(f">> Performing photometry for radius: {rad_to_use} | nstars = {nstars} | method = {method}")
         # Run photometry for missing files
         #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
         asyncio.create_task(self._run_photometry_for_missing_files(rad_to_use, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
@@ -574,7 +573,7 @@ class MuSCAT_PHOTOMETRY:
                                     const_sky_flux  = const_sky_flux,#Constant sky flux value
                                     const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
                                 )
-            print(f"Starting aperture photometry for CCD={i} with radii: {rad_to_use}")
+            #print(f"## >> Begin aperture photometry for CCD={i}")
 
             #progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
             pbar = progress.create_ccd_bar(i, len(missing_files))
@@ -595,7 +594,7 @@ class MuSCAT_PHOTOMETRY:
                 pbar.update(1)
                 
             progress.update_main()
-            print(f"## >> Completed aperture photometry for CCD={i}")
+            #print(f"## >> Completed aperture photometry for CCD={i}")
 
         # Run all CCDs in parallel
         tasks = [aperture_photometry(i, files) for i, files in missing_files_per_ccd.items()]
