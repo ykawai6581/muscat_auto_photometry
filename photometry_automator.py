@@ -575,12 +575,14 @@ class MuSCAT_PHOTOMETRY:
         
         # First check
         missing1, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
+        print(len(missing_files_per_ccd1[0]))
         initial_time = time.time()    
         # Wait for interval
         time.sleep(interval)
         
         # Second check
         missing2, missing_files_per_ccd2, nframes = self._check_missing_photometry(self.rad_to_use)
+        print(len(missing_files_per_ccd2[0]))
         current_time = time.time()
         
         # Calculate progress for each CCD
@@ -601,8 +603,6 @@ class MuSCAT_PHOTOMETRY:
             files_processed = initial_remaining - remaining_files
             time_diff = current_time - initial_time
             rate = files_processed / time_diff  # files per second
-            print(files_processed)
-            print(rate)
             # Calculate remaining minutes
             remaining_minutes = "∞" if rate <= 0 else f"{(remaining_files / rate) / 60:.1f}"
             
@@ -614,7 +614,7 @@ class MuSCAT_PHOTOMETRY:
             # Format rate as files/minute for more readable values
             rate_per_minute = rate * 60
             
-            print(f"{i:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[i]:<7} "
+            print(f"{ccd_id:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[i]:<7} "
                 f"{rate_per_minute:>6.1f} f/min  {remaining_minutes:>12}")
         
         print("=" * 80)
