@@ -29,7 +29,7 @@ from concurrent.futures import ProcessPoolExecutor
 import time
 
 import LC_funcs as lc
-from apphot_yg import ApPhotometry, PhotometryProcessor
+from apphot_yg import ApPhotometry
 from astropy.table import Table
 from astropy.coordinates import Angle
 import astropy.units as u
