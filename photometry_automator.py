@@ -564,6 +564,10 @@ class MuSCAT_PHOTOMETRY:
         # Now you can run aperture_photometry
         #await aperture_photometry(i, missing_files)
 
+    def _fetch_missing_files(self):
+        missing, missing_files_per_ccd, nframes = self._check_missing_photometry(self.rad_to_use)
+        return missing_files_per_ccd, nframes
+
     def monitor_photometry_progress(self, interval=5):
         """
         Monitor photometry progress, calculating processing rate and remaining time.
@@ -575,15 +579,15 @@ class MuSCAT_PHOTOMETRY:
         
         # First check
         initial_time = time.time()    
-        missing1, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
+        missing_files_per_ccd1, nframes = self._fetch_missing_files()
         initial_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd1.items()}
         print(f"Initial missing files per CCD: {initial_missing_files}")
         # Wait for interval
         time.sleep(interval)
         
         # Second check
-        missing2, missing_files_per_ccd2, nframes = self._check_missing_photometry(self.rad_to_use)
-        second_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd2.items()}
+        missing_files_per_ccd2, nframes = self._fetch_missing_files()
+        seconds_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd2.items()}
         print(f"Current missing files per CCD: {second_missing_files}")
         current_time = time.time()
         
