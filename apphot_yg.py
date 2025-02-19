@@ -4,6 +4,7 @@ import argparse
 from typing import List, Tuple, Optional
 import matplotlib.pyplot as plt
 import os
+import asyncio
 
 '''
   // Parameters for aperture and sky radii
@@ -316,7 +317,7 @@ class ApPhotometry:
             })
             
         # save results
-
+        
         with open(outfile, "w") as f:
             f.write(f"# gjd - 2450000 = {jd_2450000_mid}\n\n")
             f.write(f"## apphot version {self.version}##\n\n")
@@ -350,29 +351,57 @@ class ApPhotometry:
                         f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n")
 
         '''
+        output = []
         
+        output.append(f"# gjd - 2450000 = {jd_2450000_mid}\n")
+        output.append(f"## apphot version {self.version}##\n")
+        output.append(f"# nstars = {nstars}\n")
+        output.append(f"# filename = {outfile[:4].split('/')[-1]}.df.fits\n")
+        output.append(f"# gain = {self.gain}\n")
+        output.append(f"# readout_noise = {self.read_noise}\n")
+        output.append(f"# dark_noise = {self.dark_noise}\n")
+        output.append(f"# ADU_range = {self.adu_lo} - {self.adu_hi}\n")
+        output.append(f"# r = {ap_r}\n")
+        output.append(f"# hbox = {self.hbox}\n")
+        output.append(f"# dcen = {self.dcen}\n")
+        output.append(f"# sigma_cut = {self.sigma_cut}\n")
+        output.append(f"# altitude = {self.altitude}\n")
+        output.append(f"# Diameter = {self.diameter}\n")
+        output.append(f"# exptime = {exptime}\n")
+        output.append(f"# sigma_0 = {self.sigma_0}\n")
+        output.append(f"# airmass = {airmass}\n")
 
+        output.append(f"# global_sky_flag = {self.global_sky_flag}\n")
+        output.append(f"# const_sky_flag = {self.const_sky_flag}\n")
+        output.append(f"# sky_calc_mode = {self.sky_calc_mode}\n")
+        output.append(f"# sky_sep = {self.sky_wid}\n")
+        output.append(f"# sky_wid = {self.sky_wid}\n")
 
-
-        print("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak")
+        output.append("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n")
+        
         for result in results:
-            print(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
-                  f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
-                  f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
-                  f"0 {result['fwhm']:.2f} {result['peak']:.1f}")
-        #this prints the parameters for all stars
-        '''
+            output.append(
+                f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
+                f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
+                f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
+                f"0 {result['fwhm']:.2f} {result['peak']:.1f}"
+            )
 
+        return "\n".join(output)
+        '''
     def process_image_over_rads(self):
         dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
 
         with fits.open(self.frame) as hdul:
             image_data = hdul[0].data
             image_header = hdul[0].header
-            
+
         for rad in self.rads:
             outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/"
             os.makedirs(outpath, exist_ok=True)
             filename =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
-            self.process_image(ap_r=rad, infile=[image_header,image_data], outfile=f"{outpath}/{filename}")
+            data = self.process_image(ap_r=rad, infile=[image_header,image_data], outfile=f"{outpath}/{filename}")
+            #consider asynchrounously writing
+
         #print(f"Done with {self.rads}")
+    

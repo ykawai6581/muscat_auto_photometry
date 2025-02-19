@@ -564,13 +564,10 @@ class MuSCAT_PHOTOMETRY:
         # Now you can run aperture_photometry
         #await aperture_photometry(i, missing_files)
 
-    def _fetch_missing_files(self):
-        missing, missing_files_per_ccd, nframes = self._check_missing_photometry(self.rad_to_use)
-        return missing_files_per_ccd, nframes
-
-    def monitor_photometry_progress(self, interval=5):
+    async def monitor_photometry_progress(self, interval=5):
         """
         Monitor photometry progress, calculating processing rate and remaining time.
+        this also needs to be an asynchronous method, since if i use time.sleep, sequencial execution will block the async processes
         
         Args:
             interval (int): Time in seconds to wait between progress checks
@@ -579,18 +576,21 @@ class MuSCAT_PHOTOMETRY:
         
         # First check
         initial_time = time.time()    
-        missing_files_per_ccd1, nframes = self._fetch_missing_files()
+        _, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
         initial_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd1.items()}
         print(f"Initial missing files per CCD: {initial_missing_files}")
-        # Wait for interval
-        time.sleep(interval)
         
+        # Wait for interval using async sleep
+        await asyncio.sleep(interval)
+        
+
         # Second check
-        missing_files_per_ccd2, nframes = self._fetch_missing_files()
+        _, missing_files_per_ccd2, nframes = self._check_missing_photometry(self.rad_to_use)
         second_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd2.items()}
         print(f"Current missing files per CCD: {second_missing_files}")
         current_time = time.time()
         
+        # Rest of the method remains the same...
         # Calculate progress for each CCD
         total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
         
@@ -609,6 +609,7 @@ class MuSCAT_PHOTOMETRY:
             files_processed = initial_remaining - remaining_files
             time_diff = current_time - initial_time
             rate = files_processed / time_diff  # files per second
+            
             # Calculate remaining minutes
             remaining_minutes = "∞" if rate <= 0 else f"{(remaining_files / rate) / 60:.1f}"
             
