@@ -3,6 +3,7 @@ from astropy.io import fits
 import argparse
 from typing import List, Tuple, Optional
 import matplotlib.pyplot as plt
+import os
 
 '''
   // Parameters for aperture and sky radii
@@ -143,7 +144,7 @@ class ApPhotometry:
         mode = stats.mode(sky.astype(int))[0][0]
         return float(mode), 0.0
 
-    def process_image(self, ap_r, outpath) -> None:
+    def process_image(self, ap_r, outfile) -> None:
         """Main processing function for aperture photometry."""
         #print(f"## apphot version {self.version} ##")
         
@@ -315,7 +316,7 @@ class ApPhotometry:
             
         # save results
 
-        with open(outpath, "w") as f:
+        with open(outfile, "w") as f:
             f.write("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n")
             for result in results:
                 f.write(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
@@ -337,6 +338,10 @@ class ApPhotometry:
     def process_image_over_rads(self):
         for rad in self.rads:
             dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
-            outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
-            self.process_image(ap_r=rad,outpath=outpath)
+            
+            outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/"
+            if not os.path.exists(outpath):
+                os.mkdir(outpath)
+            filename =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
+            self.process_image(ap_r=rad,outfile=f"{outpath}/{filename}")
         #print(f"Done with {self.rads}")
