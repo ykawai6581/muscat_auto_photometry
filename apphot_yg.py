@@ -144,15 +144,12 @@ class ApPhotometry:
         mode = stats.mode(sky.astype(int))[0][0]
         return float(mode), 0.0
 
-    def process_image(self, ap_r, outfile) -> None:
+    def process_image(self, ap_r, infile, outfile) -> None:
         """Main processing function for aperture photometry."""
         #print(f"## apphot version {self.version} ##")
-        
-        # Read FITS image
-        with fits.open(self.frame) as hdul:
-            image_data = hdul[0].data
-            image_header = hdul[0].header
+        image_header, image_data = infile
 
+        # Read FITS image
         exptime = image_header["EXPTIME"]
         airmass = image_header["AIRMASS"]
         mjd_strt = image_header["MJD-STRT"]
@@ -367,11 +364,15 @@ class ApPhotometry:
         '''
 
     def process_image_over_rads(self):
+        with fits.open(self.frame) as hdul:
+            image_data = hdul[0].data
+            image_header = hdul[0].header
+
         for rad in self.rads:
             dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
             
             outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/"
             os.makedirs(outpath, exist_ok=True)
             filename =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
-            self.process_image(ap_r=rad,outfile=f"{outpath}/{filename}")
+            self.process_image(ap_r=rad, infile=[image_header,image_data], outfile=f"{outpath}/{filename}")
         #print(f"Done with {self.rads}")
