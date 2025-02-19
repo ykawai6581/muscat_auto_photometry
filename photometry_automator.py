@@ -536,6 +536,27 @@ class MuSCAT_PHOTOMETRY:
             print(f"## >> CCD={i} | Begin aperture photometry")
 
             #progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
+            async def process_single_file(file):
+                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo"
+                geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)
+                geo = SimpleNamespace(**geoparams)
+
+                x = geo.dx + geo.a * x0 + geo.b * y0
+                y = geo.dy + geo.c * x0 + geo.d * y0
+                starlist = [x, y]
+                
+                dffits_file_path = f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits"
+
+                await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
+                await asyncio.to_thread(apphot.process_image_over_rads)
+
+            # Create tasks for all files in this CCD
+            tasks_per_ccd = [process_single_file(file) for file in missing_files]
+            
+            # Run all files in parallel
+            await asyncio.gather(*tasks_per_ccd)
+            '''
+            print(f"## >> CCD={i} | Completed aperture photometry")
 
             for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
@@ -551,7 +572,7 @@ class MuSCAT_PHOTOMETRY:
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
             print(f"## >> CCD={i} | Completed aperture photometry")
-
+            '''
         # Run all CCDs in parallel
         tasks = [aperture_photometry(i, files) for i, files in missing_files_per_ccd.items()]
         
@@ -577,17 +598,13 @@ class MuSCAT_PHOTOMETRY:
         # First check
         initial_time = time.time()    
         _, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
-        initial_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd1.items()}
-        print(f"Initial missing files per CCD: {initial_missing_files}")
         
         # Wait for interval using async sleep
         await asyncio.sleep(interval)
         
-
         # Second check
         _, missing_files_per_ccd2, nframes = self._check_missing_photometry(self.rad_to_use)
         second_missing_files = {i: len(missing_files) for i, missing_files in missing_files_per_ccd2.items()}
-        print(f"Current missing files per CCD: {second_missing_files}")
         current_time = time.time()
         
         # Rest of the method remains the same...
