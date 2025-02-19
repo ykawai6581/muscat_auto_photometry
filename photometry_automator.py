@@ -574,9 +574,9 @@ class MuSCAT_PHOTOMETRY:
         print(">> Querying photometry progress (takes about 5 seconds)...\n")
         
         # First check
+        initial_time = time.time()    
         missing1, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
         print(len(missing_files_per_ccd1[0]))
-        initial_time = time.time()    
         # Wait for interval
         time.sleep(interval)
         
