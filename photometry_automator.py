@@ -522,7 +522,7 @@ class MuSCAT_PHOTOMETRY:
 
         async def aperture_photometry(i, missing_files):
             print(f"## >> CCD={i} | Begin aperture photometry")
-            '''
+            
             apphot = ApPhotometry(tid             = self.tid,
                                     rads            = self.rad_to_use,
                                     gain            = ccd.gain,
@@ -556,7 +556,7 @@ class MuSCAT_PHOTOMETRY:
                 
                 dffits_file_path = f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits" #extract the frame name and modify to dark flat reduced fits path 
 
-                await asyncio.to_thread(apphot.set_frame, dffits_file_path, starlist)
+                apphot.set_frame(dffits_file_path, starlist)
                 #await asyncio.to_thread(apphot.process_image_over_rads)
                 await apphot.process_image_over_rads()
             '''
@@ -602,7 +602,7 @@ class MuSCAT_PHOTOMETRY:
                 
                 tasks = [process_missng_files(file) for file in missing_files]
                 await asyncio.gather(*tasks)
-            
+            '''
             print(f"## >> CCD={i} | Completed aperture photometry")
             
         # Run all CCDs in parallel
