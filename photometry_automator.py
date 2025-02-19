@@ -564,8 +564,6 @@ class MuSCAT_PHOTOMETRY:
             # Run all files in parallel
             await asyncio.gather(*tasks_per_ccd)
             '''
-            print(f"## >> CCD={i} | Completed aperture photometry")
-
             for file in missing_files:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
@@ -578,7 +576,9 @@ class MuSCAT_PHOTOMETRY:
                 dffits_file_path = f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits" #extract the frame name and modify to dark flat reduced fits path 
 
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
-                await asyncio.to_thread(apphot.process_image_over_rads)
+                #await asyncio.to_thread(apphot.process_image_over_rads)
+                await apphot.process_image_over_rads()
+
             print(f"## >> CCD={i} | Completed aperture photometry")
             
         # Run all CCDs in parallel

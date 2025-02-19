@@ -338,8 +338,8 @@ class ApPhotometry:
         results = []
         # Process each star
         for starid in range(nstars):
-            if starid == self.tid - 1:
-                continue
+            #if starid == self.tid - 1:
+            #    continue
                 
             x, y = self.x[starid], self.y[starid]
             #print(f"coord of star{starid+1}:{x,y}")
@@ -476,7 +476,7 @@ class ApPhotometry:
             })
             
         # save results
-        
+        '''
         with open(outfile, "w") as f:
             f.write(f"# gjd - 2450000 = {jd_2450000_mid}\n\n")
             f.write(f"## apphot version {self.version}##\n\n")
@@ -547,14 +547,48 @@ class ApPhotometry:
             )
 
         return "\n".join(output)
-        '''
+    
+
+    async def process_image_over_rads(self):
+        dirs = self.frame.split("/")  # -> obsdate/target_ccd/df/frame_df.fits
+
+        with fits.open(self.frame) as hdul:
+            image_data = hdul[0].data
+            image_header = hdul[0].header
+
+        filename = f"{dirs[-1][:-8]}.dat"  # -> target_ccd/apphot_method/rad/frame.dat
+
+        async def process_and_write(rad):
+            """Processes an image and writes output asynchronously."""
+            outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/"
+            os.makedirs(outpath, exist_ok=True)
+
+            # Process image
+            data = await asyncio.to_thread(self.process_image, ap_r=rad, infile=[image_header, image_data], outfile=f"{outpath}/{filename}")
+
+            # Asynchronous file writing
+            out_file = os.path.join(outpath, filename)
+            await asyncio.to_thread(write_to_file, out_file, data)
+
+        async def write_to_file(filepath, content):
+            """Writes content to a file asynchronously."""
+            with open(filepath, "w") as f:
+                f.write(content)
+
+        # Create tasks for processing and writing
+        tasks = [process_and_write(rad) for rad in self.rads]
+        
+        # Run all tasks concurrently
+        await asyncio.gather(*tasks)
+    '''
+        
     def process_image_over_rads(self):
         dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
 
         with fits.open(self.frame) as hdul:
             image_data = hdul[0].data
             image_header = hdul[0].header
-
+        
         for rad in self.rads:
             outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/"
             os.makedirs(outpath, exist_ok=True)
@@ -564,3 +598,4 @@ class ApPhotometry:
 
         #print(f"Done with {self.rads}")
     
+    '''
