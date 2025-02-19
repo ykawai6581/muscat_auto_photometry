@@ -11,6 +11,9 @@ import sys
 from tqdm.asyncio import tqdm as tqdm_async
 from tqdm import tqdm
 from progress_bar import JupyterProgressManager
+import time
+from datetime import datetime, timedelta
+
 
 #from tqdm import tqdm
 
@@ -419,35 +422,39 @@ class MuSCAT_PHOTOMETRY:
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
 
         # Check for missing photometry files
-        missing, missing_files_per_ccd = self._check_missing_photometry(rads)
+        missing, missing_files_per_ccd, _ = self._check_missing_photometry(rads)
 
         if not missing:
             print(f"## >> Photometry is already available for radius: {available_rad}")
             return
         
         for i, missing_files in missing_files_per_ccd.items():
-            rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files)]
-            if not rad_to_use:
-                print(f"## >> Photometry already available for CCD={i}, rads = {rads}")
+            self.rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files)]
+            if not self.rad_to_use:
+                print(f"## >> CCD={i} | Photometry already available for rads = {rads}")
                 continue
-            elif len(rad_to_use) != len(rads):
-                print(f"## >> Photometry already available for CCD={i}, rads = {[rad for rad in rads if rad not in rad_to_use]}")
+            elif len(self.rad_to_use) != len(rads):
+                print(f"## >> CCD={i} | Photometry already available for rads = {[rad for rad in rads if rad not in self.rad_to_use]}")
 
-        print(f">> Performing photometry for radius: {rad_to_use} | nstars = {nstars} | method = {method}")
+        print(f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}")
         # Run photometry for missing files
         #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
-        asyncio.create_task(self._run_photometry_for_missing_files(rad_to_use, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
+        asyncio.create_task(self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
         #create_task is preferred over run because of this code running in jupyter??
+
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
         missing = False
         missing_files_per_ccd = {}
+        nframes = []
 
         for i in range(self.nccd):
-            appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
+            #appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
+            appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}_test"
             frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
+            nframes.append(last_frame-first_frame+1)
             df, meta = self.read_photometry(ccd=i, rad=rads[1], frame=first_frame, add_metadata=True) #it takes too long to scan through all ccds, rad and frames
             #photometry may not have been performed for the first rad (or the last rad) because of the iteration algorithm so the second rad is the safest.
 
@@ -470,9 +477,9 @@ class MuSCAT_PHOTOMETRY:
                 #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
         #print("Checking for missing photometry")
         #print(f"Missing {missing}")
-        return missing, missing_files_per_ccd
+        return missing, missing_files_per_ccd, nframes
 
-    async def _run_photometry_for_missing_files(self, rad_to_use, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):        
+    async def _run_photometry_for_missing_files(self, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):        
         """Runs photometry for CCDs where files are missing in parallel."""
 
         telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
@@ -497,7 +504,7 @@ class MuSCAT_PHOTOMETRY:
 
         async def aperture_photometry(i, missing_files):
             apphot = ApPhotometry(tid             = self.tid,
-                                    rads            = rad_to_use,
+                                    rads            = self.rad_to_use,
                                     gain            = ccd.gain,
                                     read_noise      = ccd.readnoise,
                                     dark_noise      = ccd.darknoise,
@@ -517,7 +524,7 @@ class MuSCAT_PHOTOMETRY:
                                     const_sky_flux  = const_sky_flux,#Constant sky flux value
                                     const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
                                 )
-            print(f"## >>  CCD={i} | Begin aperture photometry")
+            print(f"## >> CCD={i} | Begin aperture photometry")
 
             #progress_bars[i] = tqdm(total=len(missing_files), desc=f"CCD {i}", position=i, leave=True)
 
@@ -547,7 +554,61 @@ class MuSCAT_PHOTOMETRY:
 
         # Now you can run aperture_photometry
         #await aperture_photometry(i, missing_files)
-    
+
+    def monitor_photometry_progress(self, interval=5):
+        """
+        Monitor photometry progress, calculating processing rate and remaining time.
+        
+        Args:
+            interval (int): Time in seconds to wait between progress checks
+        """
+        print(">> Querying photometry progress (takes about 5 seconds)...\n")
+        
+        # First check
+        missing1, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
+        initial_time = time.time()    
+        # Wait for interval
+        time.sleep(interval)
+        
+        # Second check
+        missing2, missing_files_per_ccd2, nframes = self._check_missing_photometry(self.rad_to_use)
+        current_time = time.time()
+        
+        # Calculate progress for each CCD
+        total_frames_per_ccd = len(self.rad_to_use) * nframes
+        
+        print("=" * 80)
+        print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
+        print("-" * 80)
+        
+        for i in missing_files_per_ccd2.keys():
+            # Current progress
+            remaining_files = len(missing_files_per_ccd2[i])
+            completed_files = total_frames_per_ccd - remaining_files
+            percentage = (completed_files / total_frames_per_ccd) * 100
+            
+            # Calculate processing rate
+            initial_remaining = len(missing_files_per_ccd1[i])
+            files_processed = initial_remaining - remaining_files
+            time_diff = current_time - initial_time
+            rate = files_processed / time_diff  # files per second
+            
+            # Calculate remaining minutes
+            remaining_minutes = "∞" if rate <= 0 else f"{(remaining_files / rate) / 60:.1f}"
+            
+            # Create progress bar
+            bar_length = 20
+            completed_blocks = int((percentage / 100) * bar_length)
+            progress_bar = "█" * completed_blocks + "░" * (bar_length - completed_blocks)
+            
+            # Format rate as files/minute for more readable values
+            rate_per_minute = rate * 60
+            
+            print(f"{i:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd:<7} "
+                f"{rate_per_minute:>6.1f} f/min  {remaining_minutes:>12}")
+        
+        print("=" * 80)
+
     '''
     def _run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
         """Runs photometry for CCDs where files are missing in parallel."""
