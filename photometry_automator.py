@@ -402,7 +402,7 @@ class MuSCAT_PHOTOMETRY:
 
     ## Performing aperture photometry
     @time_keeper
-    async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
+    def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
@@ -439,11 +439,12 @@ class MuSCAT_PHOTOMETRY:
         print(f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}")
         # Run photometry for missing files
         #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
-        processor = PhotometryProcessor(self.target_dir, self.tid, self.rad_to_use, self.nstars)
-        await processor.run_photometry(missing_files_per_ccd, sky_calc_mode, 
-                                       const_sky_flag, const_sky_flux, const_sky_sdev)
+        #processor = PhotometryProcessor(self.target_dir, self.tid, self.rad_to_use, self.nstars)
+        #await processor.run_photometry(missing_files_per_ccd, sky_calc_mode, 
+        #                               const_sky_flag, const_sky_flux, const_sky_sdev)
+        
 
-        #asyncio.create_task(self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
+        asyncio.create_task(self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
         #create_task is preferred over run because of this code running in jupyter??
 
     def _check_missing_photometry(self, rads):
