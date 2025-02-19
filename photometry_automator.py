@@ -539,6 +539,8 @@ class MuSCAT_PHOTOMETRY:
                 await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
                 await asyncio.to_thread(apphot.process_image_over_rads)
                 pbar.update(1)
+                await asyncio.sleep(0.01)  # Small delay to prevent display issues
+
                 
             progress.update_main()
 
