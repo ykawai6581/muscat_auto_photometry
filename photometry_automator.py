@@ -457,7 +457,11 @@ class MuSCAT_PHOTOMETRY:
             nframes.append(last_frame-first_frame+1)
 
             #photometry may not have been performed for the first rad (or the last rad) because of the iteration algorithm so the second rad is the safest.
-            existing_rads = [rad for rad in rads if os.path.exists(f"{appphot_directory}/rad{rad}")]
+            existing_rads = [
+                rad for rad in rads
+                if os.path.exists(f"{appphot_directory}/rad{rad}") and 
+                any(filename.endswith('.dat') for filename in os.listdir(f"{appphot_directory}/rad{rad}"))
+            ]
             if existing_rads:
                 df, meta = self.read_photometry(ccd=i, rad=existing_rads[0], frame=first_frame, add_metadata=True) #it takes too long to scan through all ccds, rad and frames
 
