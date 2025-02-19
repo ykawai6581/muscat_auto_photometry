@@ -450,7 +450,7 @@ class MuSCAT_PHOTOMETRY:
 
         for i in range(self.nccd):
             #appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
-            appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}_test"
+            apphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}_test"
             frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
@@ -459,14 +459,14 @@ class MuSCAT_PHOTOMETRY:
             #photometry may not have been performed for the first rad (or the last rad) because of the iteration algorithm so the second rad is the safest.
             existing_rads = [
                 rad for rad in rads
-                if os.path.exists(f"{appphot_directory}/rad{rad}") and 
-                any(filename.endswith('.dat') for filename in os.listdir(f"{appphot_directory}/rad{rad}"))
+                if os.path.exists(f"{apphot_directory}/rad{rad}") and 
+                any(filename.endswith('.dat') for filename in os.listdir(f"{apphot_directory}/rad{rad}"))
             ]
             if existing_rads:
-                df, meta = self.read_photometry(ccd=i, rad=existing_rads[0], frame=first_frame, add_metadata=True) #it takes too long to scan through all ccds, rad and frames
+                df, meta = self.read_photometry(dir=apphot_directory, ccd=i, rad=existing_rads[0], frame=first_frame, add_metadata=True) #it takes too long to scan through all ccds, rad and frames
 
             def file_does_not_exist(rad, frame): #nested helper function to help judge if photometry exists
-                file_path = f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                file_path = f"{apphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 if not existing_rads:
                     return True
                 if not os.path.exists(file_path):
@@ -474,7 +474,7 @@ class MuSCAT_PHOTOMETRY:
                 return meta['nstars'] < self.nstars  #if previous photometry has smaller number of stars than requested -> need to redo
                 
             missing_files = [
-                f"{appphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                f"{apphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 for rad in rads
                 for frame in range(first_frame, last_frame+1)
                 if file_does_not_exist(rad, frame)
@@ -658,8 +658,9 @@ class MuSCAT_PHOTOMETRY:
     starlistは各行に各frameのxyが入っている
     starlistを作る段階でnstarsの情報を上げなければいけない
     '''
-    def read_photometry(self, ccd, rad, frame, add_metadata=False):
-        filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
+    def read_photometry(self, dir, ccd, rad, frame, add_metadata=False):
+        #filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
+        filepath = f"{dir}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
         metadata = {}
         table_started = False
         table_data = []
@@ -723,11 +724,12 @@ class MuSCAT_PHOTOMETRY:
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
         last_frame = int(frame_range["FRAME#2"].iloc[0])
-        
+        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}_test"
+
         all_frames = []
         
         for frame in range(first_frame, last_frame+1):
-            result = self.read_photometry(ccd=ccd, rad=rad, frame=frame, add_metadata=False)
+            result = self.read_photometry(dir=apphot_directory, ccd=ccd, rad=rad, frame=frame, add_metadata=False)
             #print(frame)
             #print(result)
             #print(type(result))
