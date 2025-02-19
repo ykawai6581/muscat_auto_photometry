@@ -340,8 +340,7 @@ class ApPhotometry:
             dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
             
             outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/"
-            if not os.path.exists(outpath):
-                os.mkdir(outpath)
+            os.makedirs(outpath, exist_ok=True)
             filename =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
             self.process_image(ap_r=rad,outfile=f"{outpath}/{filename}")
         #print(f"Done with {self.rads}")
