@@ -155,6 +155,10 @@ class ApPhotometry:
 
         exptime = image_header["EXPTIME"]
         airmass = image_header["AIRMASS"]
+        mjd_strt = image_header["MJD-STRT"]
+        jd_2450000_strt = mjd_strt - 49999.5 #jd = mjd - 2450000.5
+        jd_2450000_mid = jd_2450000_strt + (exptime/2/86400)
+
         # Read star positions
         nstars = len(self.x)
         #print(f"# nstars = {nstars}")
@@ -317,6 +321,30 @@ class ApPhotometry:
         # save results
 
         with open(outfile, "w") as f:
+            f.write(f"# gjd - 2450000 = {jd_2450000_mid}")
+            f.write(f"## apphot version {self.version}##")
+            f.write(f"# nstars = {nstars}")
+            f.write(f"# filename = {outfile.split("/"[-1])}")
+            f.write(f"# gain = {self.gain}")
+            f.write(f"# readout_noise = {self.read_noise}")
+            f.write(f"# dark_noise = {self.dark_noise}")
+            f.write(f"# ADU_range = {self.adu_lo} - {self.adu_hi}")
+            f.write(f"# r = {ap_r}" )
+            f.write(f"# hbox = {self.hbox}")
+            f.write(f"# dcen = {self.dcen}")
+            f.write(f"# sigma_cut = {self.sigma_cut}")
+            f.write(f"# altitude = {self.altitude}")
+            f.write(f"# Diameter = {self.diameter}")
+            f.write(f"# exptime = {exptime}")
+            f.write(f"# sigma_0 = {self.sigma_0}")
+            f.write(f"# airmass = {airmass}")
+
+            f.write(f"# global_sky_flag = {self.global_sky_flag}")
+            f.write(f"# const_sky_flag = {self.const_sky_flag}")
+            f.write(f"# sky_calc_mode = {self.sky_calc_mode}")
+            f.write(f"# sky_sep = {self.sky_wid}")
+            f.write(f"# sky_wid = {self.sky_wid}")
+
             f.write("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n")
             for result in results:
                 f.write(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
@@ -326,6 +354,9 @@ class ApPhotometry:
 
         '''
         
+
+
+
         print("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak")
         for result in results:
             print(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
