@@ -10,6 +10,7 @@ from astropy.visualization import ZScaleInterval, ImageNormalize
 import sys
 from tqdm.asyncio import tqdm as tqdm_async
 from tqdm import tqdm
+from progress_bar import JupyterProgressManager
 
 #from tqdm import tqdm
 
@@ -155,60 +156,6 @@ os.nice(19)
 
 print(f"Running notebook for {target_from_filename()}")
 print(f"Available obsdates {obsdates_from_filename()}")
-
-
-class ProgressManager:
-    def __init__(self, total_ccds):
-        self.total_ccds = total_ccds
-        self.progress_bars = {}
-        self.main_bar = None
-        # Disable any default output that might interfere
-        tqdm.monitor_interval = 0
-        
-    def create_bars(self):
-        # Move cursor to starting position
-        sys.stdout.write('\n' * (self.total_ccds + 1))
-        sys.stdout.write('\033[?25l')  # Hide cursor
-        
-        # Create main progress bar for CCDs
-        self.main_bar = tqdm(
-            total=self.total_ccds,
-            desc="CCDs",
-            position=0,
-            leave=True,
-            bar_format='{desc}: {percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
-            file=sys.stdout,
-            dynamic_ncols=True,
-            mininterval=0.1,
-            maxinterval=0.5
-        )
-        
-    def create_ccd_bar(self, ccd_num, total_files):
-        # Create individual CCD progress bars
-        self.progress_bars[ccd_num] = tqdm(
-            total=total_files,
-            desc=f"CCD {ccd_num}",
-            position=ccd_num + 1,
-            leave=True,
-            bar_format='{desc}: {bar:10} {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
-            file=sys.stdout,
-            dynamic_ncols=True,
-            mininterval=0.1,
-            maxinterval=0.5
-        )
-        return self.progress_bars[ccd_num]
-    
-    def update_main(self):
-        self.main_bar.update(1)
-        self.main_bar.refresh()
-    
-    def close_all(self):
-        # Close all progress bars
-        for bar in self.progress_bars.values():
-            bar.close()
-        self.main_bar.close()
-        sys.stdout.write('\033[?25h')  # Show cursor
-        sys.stdout.flush()
 
 class MuSCAT_PHOTOMETRY:
     def __init__(self,instrument=None,obsdate=None,parent=None,ra=None,dec=None):
@@ -548,7 +495,7 @@ class MuSCAT_PHOTOMETRY:
         metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
         x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
 
-        progress = ProgressManager(len(missing_files_per_ccd))
+        progress = JupyterProgressManager(len(missing_files_per_ccd))
         progress.create_bars()
 
         async def aperture_photometry(i, missing_files):
@@ -594,7 +541,10 @@ class MuSCAT_PHOTOMETRY:
                 pbar.update(1)
                 
             progress.update_main()
-            #print(f"## >> Completed aperture photometry for CCD={i}")
+
+        tqdm.monitor_interval = 0
+        # Pre-create newlines for all bars
+        print('\n' * len(missing_files_per_ccd))
 
         # Run all CCDs in parallel
         tasks = [aperture_photometry(i, files) for i, files in missing_files_per_ccd.items()]
