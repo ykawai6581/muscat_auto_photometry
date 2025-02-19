@@ -5,6 +5,10 @@ from typing import List, Tuple, Optional
 import matplotlib.pyplot as plt
 import os
 import asyncio
+from types import SimpleNamespace
+import re
+import pandas as pd
+from pathlib import Path
 
 '''
   // Parameters for aperture and sky radii
@@ -44,6 +48,161 @@ import asyncio
   does that for all stars identified in the starlist file  
   i shoudl add to this class a functionality that allows a loop over given stellar radii r1 & r2
 '''
+
+def load_par_file(filename):
+    """Load a .par file into a dictionary."""
+    params = {}
+    with open(filename, "r") as file:
+        for line in file:
+            line = line.strip()
+            if line and not line.startswith("#"):  # Ignore empty lines and comments
+                key, value = line.split(None, 1)  # Split on first whitespace
+                try:
+                    params[key] = float(value)  # Convert numerical values to float
+                except ValueError:
+                    params[key] = value  # Keep as string if conversion fails
+    return params
+
+def load_geo_file(filename):
+    """Returns the relevant coefficients needed for transformation of pixels in ref file to object file"""
+    with open(filename, "r") as file:
+        lines = file.readlines()
+
+    # Get the last non-empty line
+    last_line = lines[-1].strip()
+    
+    # Convert it into a list of floats
+    values = list(map(float, last_line.split()))
+    
+    # Assign to relevant variable names
+    geoparam = {
+        "dx": values[0],
+        "dy": values[1],
+        "a": values[2],
+        "b": values[3],
+        "c": values[4],
+        "d": values[5],
+        "rms": values[6],
+        "nmatch": int(values[7])  # Convert last value to int
+    }
+
+    return geoparam
+
+def parse_obj_file(input_file): #helper function to parse objectfile
+    """Parses the .df file to extract metadata and tabular data."""
+    metadata = {}
+    data_rows = []
+
+    with open(input_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line.startswith("#"):  # Metadata lines
+                key_value = re.match(r"#\s*(.+?)\s*=\s*(.+)", line)
+                if key_value:
+                    key, value = key_value.groups()
+                    metadata[key.strip()] = value.strip()
+            elif line and not line.startswith("#"):  # Data rows
+                parts = line.split()
+                if len(parts) >= 7:  # Ensure it matches expected column structure
+                    data_rows.append(list(map(float, parts)))
+
+    col_names = ['ID', 'x', 'y', 'x_int', 'y_int', 'Flux', 'Peak']
+    data = pd.DataFrame(data_rows,columns=col_names)
+    return metadata, data
+
+class PhotometryProcessor:
+    def __init__(self, target_dir, tid, rad_to_use, nstars):
+        self.target_dir = target_dir
+        self.tid = tid
+        self.rad_to_use = rad_to_use
+        self.nstars = nstars
+        # Load parameters once during initialization
+        self.tel = self._load_telescope_params()
+        self.app = self._load_apphot_params()
+        self.ccd = self._load_ccd_params()
+        self.x0, self.y0 = self._load_reference_coordinates()
+        
+    def _load_telescope_params(self):
+        telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
+        return SimpleNamespace(**telescope_param)
+        
+    def _load_apphot_params(self):
+        apphot_param = load_par_file(f"{self.target_dir}/param/param-apphot.par")
+        return SimpleNamespace(**apphot_param)
+        
+    def _load_ccd_params(self):
+        ccd_param = load_par_file(f"{self.target_dir}/param/param-ccd.par")
+        return SimpleNamespace(**ccd_param)
+        
+    def _load_reference_coordinates(self):
+        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
+            ref_file = f.read()
+        ref_frame = ref_file.replace('\n','')
+        metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
+        return (np.array(data["x"][:self.nstars]), 
+                np.array(data["y"][:self.nstars]))
+
+    def _create_apphot_instance(self, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):
+        return ApPhotometry(
+            tid=self.tid,
+            rads=self.rad_to_use,
+            gain=self.ccd.gain,
+            read_noise=self.ccd.readnoise,
+            dark_noise=self.ccd.darknoise,
+            sky_sep=self.app.sky_sep,
+            sky_wid=self.app.sky_wid,
+            hbox=self.app.hbox,
+            dcen=self.app.dcen,
+            sigma_cut=self.app.sigma_cut,
+            adu_lo=self.ccd.ADUlo,
+            adu_hi=self.ccd.ADUhi,
+            sigma_0=self.app.sigma_0,
+            altitude=self.tel.altitude,
+            diameter=self.tel.diameter,
+            global_sky_flag=self.app.global_sky_flag,
+            sky_calc_mode=sky_calc_mode,
+            const_sky_flag=const_sky_flag,
+            const_sky_flux=const_sky_flux,
+            const_sky_sdev=const_sky_sdev,
+        )
+
+    async def _process_single_file(self, ccd_id, file, apphot):
+        """Process a single file's photometry."""
+        geoparam_file_path = f"{self.target_dir}_{ccd_id}/geoparam/{file[:-4].split('/')[-1]}.geo"
+        geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)
+        geo = SimpleNamespace(**geoparams)
+
+        x = geo.dx + geo.a * self.x0 + geo.b * self.y0
+        y = geo.dy + geo.c * self.x0 + geo.d * self.y0
+        starlist = [x, y]
+        
+        dffits_file_path = f"{self.target_dir}_{ccd_id}/df/{file[:-4].split('/')[-1]}.df.fits"
+        await asyncio.to_thread(apphot.add_frame, dffits_file_path, starlist)
+        await asyncio.to_thread(apphot.process_image_over_rads)
+
+    async def process_ccd(self, ccd_id, missing_files, sky_params):
+        """Process all files for a single CCD."""
+        print(f"## >> CCD={ccd_id} | Begin aperture photometry")
+        apphot = self._create_apphot_instance(**sky_params)
+        
+        tasks = [self._process_single_file(ccd_id, file, apphot) 
+                for file in missing_files]
+        await asyncio.gather(*tasks)
+        print(f"## >> CCD={ccd_id} | Completed aperture photometry")
+
+    async def run_photometry(self, missing_files_per_ccd, sky_calc_mode, 
+                           const_sky_flag, const_sky_flux, const_sky_sdev):
+        """Main entry point for running photometry on all CCDs."""
+        sky_params = {
+            'sky_calc_mode': sky_calc_mode,
+            'const_sky_flag': const_sky_flag,
+            'const_sky_flux': const_sky_flux,
+            'const_sky_sdev': const_sky_sdev
+        }
+        
+        tasks = [self.process_ccd(ccd_id, files, sky_params) 
+                for ccd_id, files in missing_files_per_ccd.items()]
+        await asyncio.gather(*tasks)
 
 class ApPhotometry:
     def __init__(self, 
