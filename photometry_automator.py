@@ -593,9 +593,8 @@ class MuSCAT_PHOTOMETRY:
         for i in missing_files_per_ccd2.keys():
             # Current progress
             remaining_files = len(missing_files_per_ccd2[i])
-            completed_files = total_frames_per_ccd - remaining_files
-            percentage = (completed_files / total_frames_per_ccd) * 100
-            print(percentage)
+            completed_files = total_frames_per_ccd[i] - remaining_files
+            percentage = (completed_files / total_frames_per_ccd[i]) * 100
             # Calculate processing rate
             initial_remaining = len(missing_files_per_ccd1[i])
             files_processed = initial_remaining - remaining_files
@@ -613,7 +612,7 @@ class MuSCAT_PHOTOMETRY:
             # Format rate as files/minute for more readable values
             rate_per_minute = rate * 60
             
-            print(f"{i:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd:<7} "
+            print(f"{i:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[i]:<7} "
                 f"{rate_per_minute:>6.1f} f/min  {remaining_minutes:>12}")
         
         print("=" * 80)
