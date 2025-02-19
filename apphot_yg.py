@@ -324,7 +324,7 @@ class ApPhotometry:
             f.write(f"# gjd - 2450000 = {jd_2450000_mid}")
             f.write(f"## apphot version {self.version}##")
             f.write(f"# nstars = {nstars}")
-            f.write(f"# filename = {outfile[:4].split("/")[-1]}.df.fits")
+            f.write(f"# filename = {outfile[:4].split('/')[-1]}.df.fits")
             f.write(f"# gain = {self.gain}")
             f.write(f"# readout_noise = {self.read_noise}")
             f.write(f"# dark_noise = {self.dark_noise}")
