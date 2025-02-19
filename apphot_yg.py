@@ -572,5 +572,5 @@ class ApPhotometry:
             image_data = hdul[0].data
             image_header = hdul[0].header
 
-        tasks = [self.process_image(ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=outpath) for rad in self.rads]
+        tasks = [self.process_image(ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}") for rad in self.rads]
         await asyncio.gather(*tasks)
