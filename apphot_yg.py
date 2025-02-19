@@ -364,13 +364,13 @@ class ApPhotometry:
         '''
 
     def process_image_over_rads(self):
+        dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
+
         with fits.open(self.frame) as hdul:
             image_data = hdul[0].data
             image_header = hdul[0].header
-
-        for rad in self.rads:
-            dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
             
+        for rad in self.rads:
             outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test/rad{rad}/"
             os.makedirs(outpath, exist_ok=True)
             filename =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
