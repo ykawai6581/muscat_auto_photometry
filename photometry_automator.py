@@ -600,7 +600,8 @@ class MuSCAT_PHOTOMETRY:
             files_processed = initial_remaining - remaining_files
             time_diff = current_time - initial_time
             rate = files_processed / time_diff  # files per second
-            
+            print(files_processed)
+            print(rate)
             # Calculate remaining minutes
             remaining_minutes = "∞" if rate <= 0 else f"{(remaining_files / rate) / 60:.1f}"
             
