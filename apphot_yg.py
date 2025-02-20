@@ -5,10 +5,37 @@ from typing import List, Tuple, Optional
 import matplotlib.pyplot as plt
 import os
 import asyncio
+import aiofiles
 from types import SimpleNamespace
 import re
 import pandas as pd
 from pathlib import Path
+from dataclasses import dataclass
+
+@dataclass
+class PhotometryConfig:
+    tid:            int #target star id
+    rads:           np.ndarray                 #list of aperture radius
+    gain:           float #ccd gain (e/ADU) 
+    read_noise:     float 
+    dark_noise:     float 
+    sky_sep:        int  =50
+    sky_wid:        int  =40
+    hbox:           int  =0 #number of pixels around a given point to search for max flux aperture
+    dcen:           float=0.1 #step in pixels to move within hbox
+    sigma_cut:      int  =3#sigma clipping used for sky calculation
+    adu_lo:         int  =1000
+    adu_hi:         int  =65000#16bit adu limit 2^16-1=65,535,
+    sigma_0:        float=0.064#scintillation coefficient
+    altitude:       int  =1013#observatory altitude in meters (used for scintillation noise calculation)
+    diameter:       int  =61#telescope diameter in cm (also used for scintillation noise calculation)
+    sky_calc_mode:  int  =0 #Sky calculation mode (0=mean, 1=median, 2=mode)
+    global_sky_flag:int  =0 #Use global sky calculation meaning calculate sky dont assume as constant
+    const_sky_flag: int  =0 #Use constant sky value
+    const_sky_flux: float=0.0#Constant sky flux value
+    const_sky_sdev: float=0.0#Constant sky standard deviation
+    method:         str="mapping"#apphot method either mapping or centroid
+
 
 '''
   // Parameters for aperture and sky radii
@@ -49,59 +76,43 @@ from pathlib import Path
   i shoudl add to this class a functionality that allows a loop over given stellar radii r1 & r2
 '''
 class ApPhotometry:
-    def __init__(self, 
-                 tid:            int, #target star id
-                 rads,                 #list of aperture radius
-                 gain:           float, #ccd gain (e/ADU) 
-                 read_noise:     float, 
-                 dark_noise:     float, 
-                 sky_sep:        int  =50,
-                 sky_wid:        int  =40,
-                 hbox:           int  =0, #number of pixels around a given point to search for max flux aperture
-                 dcen:           float=0.1, #step in pixels to move within hbox
-                 sigma_cut:      int  =3,#sigma clipping used for sky calculation
-                 adu_lo:         int  =1000,
-                 adu_hi:         int  =65000,#16bit adu limit 2^16-1=65,535,
-                 sigma_0:        float=0.064,#scintillation coefficient
-                 altitude:       int  =1013,#observatory altitude in meters (used for scintillation noise calculation)
-                 diameter:       int  =61,#telescope diameter in cm (also used for scintillation noise calculation)
-                 sky_calc_mode:  int  =0, #Sky calculation mode (0=mean, 1=median, 2=mode)
-                 global_sky_flag:int  =0, #Use global sky calculation meaning calculate sky dont assume as constant
-                 const_sky_flag: int  =0, #Use constant sky value
-                 const_sky_flux: float=0.0,#Constant sky flux value
-                 const_sky_sdev: float=0.0,#Constant sky standard deviation
-                 method:         str="mapping"#apphot method either mapping or centroid
-
+    def __init__(self,
+                 frame, 
+                 starlist,
+                 config=PhotometryConfig 
                  ):
         
-        self.tid = tid
-        self.rads = rads
-        self.gain = gain
-        self.read_noise = read_noise
-        self.dark_noise = dark_noise
-        self.sky_sep = sky_sep
-        self.sky_wid = sky_wid
-        self.hbox = hbox
-        self.dcen = dcen
-        self.sigma_cut = sigma_cut
-        self.adu_lo = adu_lo
-        self.adu_hi = adu_hi
-        self.sigma_0 = sigma_0
-        self.altitude = altitude
-        self.diameter = diameter
-        self.sky_calc_mode = sky_calc_mode
-        self.global_sky_flag = global_sky_flag
-        self.const_sky_flag = const_sky_flag
-        self.const_sky_flux = const_sky_flux
-        self.const_sky_sdev = const_sky_sdev
-        self.method = method
+        self.frame = frame
+        self.x, self.y = starlist
+
+        self.tid = config.tid
+        self.rads = config.rads
+        self.gain = config.gain
+        self.read_noise = config.read_noise
+        self.dark_noise = config.dark_noise
+        self.sky_sep = config.sky_sep
+        self.sky_wid = config.sky_wid
+        self.hbox = config.hbox
+        self.dcen = config.dcen
+        self.sigma_cut = config.sigma_cut
+        self.adu_lo = config.adu_lo
+        self.adu_hi = config.adu_hi
+        self.sigma_0 = config.sigma_0
+        self.altitude = config.altitude
+        self.diameter = config.diameter
+        self.sky_calc_mode = config.sky_calc_mode
+        self.global_sky_flag = config.global_sky_flag
+        self.const_sky_flag = config.const_sky_flag
+        self.const_sky_flux = config.const_sky_flux
+        self.const_sky_sdev = config.const_sky_sdev
+        self.method = config.method
 
         self.version = "3.0.0"
-
+    '''
     def set_frame(self, frame, starlist):
         self.frame = frame
         self.x, self.y = starlist
-        
+    '''
     def pixel_fraction(self, x: int, y: int, xcen: float, ycen: float, r: float) -> float:
         """Calculate the fraction of a pixel that falls within the aperture."""
         nsubpix = 100
@@ -322,34 +333,34 @@ class ApPhotometry:
             
         # save results
         
-        with open(f"{outpath}/{outfile}", "w") as f:
-            f.write(f"# gjd - 2450000 = {jd_2450000_mid}\n\n")
-            f.write(f"## apphot version {self.version}##\n\n")
-            f.write(f"# nstars = {nstars}\n")
-            f.write(f"# filename = {outfile[:4].split('/')[-1]}.df.fits\n")
-            f.write(f"# gain = {self.gain}\n")
-            f.write(f"# readout_noise = {self.read_noise}\n")
-            f.write(f"# dark_noise = {self.dark_noise}\n")
-            f.write(f"# ADU_range = {self.adu_lo} {self.adu_hi}\n")
-            f.write(f"# r = {ap_r}\n")
-            f.write(f"# hbox = {self.hbox}\n")
-            f.write(f"# dcen = {self.dcen}\n")
-            f.write(f"# sigma_cut = {self.sigma_cut}\n")
-            f.write(f"# altitude = {self.altitude}\n")
-            f.write(f"# Diameter = {self.diameter}\n")
-            f.write(f"# exptime = {exptime}\n")
-            f.write(f"# sigma_0 = {self.sigma_0}\n")
-            f.write(f"# airmass = {airmass}\n\n")
+        async with aiofiles.open(f"{outpath}/{outfile}", "w") as f:
+            await f.write(f"# gjd - 2450000 = {jd_2450000_mid}\n\n")
+            await f.write(f"## apphot version {self.version}##\n\n")
+            await f.write(f"# nstars = {nstars}\n")
+            await f.write(f"# filename = {outfile[:4].split('/')[-1]}.df.fits\n")
+            await f.write(f"# gain = {self.gain}\n")
+            await f.write(f"# readout_noise = {self.read_noise}\n")
+            await f.write(f"# dark_noise = {self.dark_noise}\n")
+            await f.write(f"# ADU_range = {self.adu_lo} {self.adu_hi}\n")
+            await f.write(f"# r = {ap_r}\n")
+            await f.write(f"# hbox = {self.hbox}\n")
+            await f.write(f"# dcen = {self.dcen}\n")
+            await f.write(f"# sigma_cut = {self.sigma_cut}\n")
+            await f.write(f"# altitude = {self.altitude}\n")
+            await f.write(f"# Diameter = {self.diameter}\n")
+            await f.write(f"# exptime = {exptime}\n")
+            await f.write(f"# sigma_0 = {self.sigma_0}\n")
+            await f.write(f"# airmass = {airmass}\n\n")
 
-            f.write(f"# global_sky_flag = {self.global_sky_flag}\n")
-            f.write(f"# const_sky_flag = {self.const_sky_flag}\n")
-            f.write(f"# sky_calc_mode = {self.sky_calc_mode}\n")
-            f.write(f"# sky_sep = {self.sky_wid}\n")
-            f.write(f"# sky_wid = {self.sky_wid}\n")
+            await f.write(f"# global_sky_flag = {self.global_sky_flag}\n")
+            await f.write(f"# const_sky_flag = {self.const_sky_flag}\n")
+            await f.write(f"# sky_calc_mode = {self.sky_calc_mode}\n")
+            await f.write(f"# sky_sep = {self.sky_wid}\n")
+            await f.write(f"# sky_wid = {self.sky_wid}\n")
 
-            f.write("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n")
+            await f.write("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n")
             for result in results:
-                f.write(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
+                await f.write(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
                         f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
                         f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
                         f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n")
@@ -365,4 +376,10 @@ class ApPhotometry:
 
         tasks = [self.process_image(ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}") for rad in self.rads]
         await asyncio.gather(*tasks) #this async task
+
+    @classmethod
+    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
+        instances = [cls(frame, starlist, config) for frame, starlist in zip(frames, starlists)]
+        tasks = [instance.process_image_over_rads() for instance in instances]
+        await asyncio.gather(*tasks)
 
