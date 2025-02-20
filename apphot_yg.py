@@ -159,7 +159,7 @@ class ApPhotometry:
         mode = stats.mode(sky.astype(int))[0][0]
         return float(mode), 0.0
 
-    async def process_image(self, ap_r, infile, outfile, outpath) -> None:
+    def process_image(self, ap_r, infile, outfile, outpath):
         """Main processing function for aperture photometry."""
         #print(f"## apphot version {self.version} ##")
         os.makedirs(outpath, exist_ok=True)
@@ -331,40 +331,82 @@ class ApPhotometry:
                 'peak': peak_flux + max_sky
             })
             
+        output = (
+            f"# gjd - 2450000 = {jd_2450000_mid}\n\n"
+            f"## apphot version {self.version}##\n\n"
+            f"# nstars = {nstars}\n"
+            f"# filename = {outfile[:4].split('/')[-1]}.df.fits\n"
+            f"# gain = {self.gain}\n"
+            f"# readout_noise = {self.read_noise}\n"
+            f"# dark_noise = {self.dark_noise}\n"
+            f"# ADU_range = {self.adu_lo} {self.adu_hi}\n"
+            f"# r = {ap_r}\n"
+            f"# hbox = {self.hbox}\n"
+            f"# dcen = {self.dcen}\n"
+            f"# sigma_cut = {self.sigma_cut}\n"
+            f"# altitude = {self.altitude}\n"
+            f"# Diameter = {self.diameter}\n"
+            f"# exptime = {exptime}\n"
+            f"# sigma_0 = {self.sigma_0}\n"
+            f"# airmass = {airmass}\n\n"
+            f"# global_sky_flag = {self.global_sky_flag}\n"
+            f"# const_sky_flag = {self.const_sky_flag}\n"
+            f"# sky_calc_mode = {self.sky_calc_mode}\n"
+            f"# sky_sep = {self.sky_wid}\n"
+            f"# sky_wid = {self.sky_wid}\n"
+            f"# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n"
+        )
+
+        for result in results:
+            output += (
+                f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
+                f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
+                f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
+                f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n"
+            )
+
+        return output, f"{outpath}/{outfile}"
+    
+    async def write_results(self, output, filepath):
         # save results
-        print(f"writing to {outpath}/{outfile}")
-        async with aiofiles.open(f"{outpath}/{outfile}", "w") as f:
-            await f.write(f"# gjd - 2450000 = {jd_2450000_mid}\n\n")
-            await f.write(f"## apphot version {self.version}##\n\n")
-            await f.write(f"# nstars = {nstars}\n")
-            await f.write(f"# filename = {outfile[:4].split('/')[-1]}.df.fits\n")
-            await f.write(f"# gain = {self.gain}\n")
-            await f.write(f"# readout_noise = {self.read_noise}\n")
-            await f.write(f"# dark_noise = {self.dark_noise}\n")
-            await f.write(f"# ADU_range = {self.adu_lo} {self.adu_hi}\n")
-            await f.write(f"# r = {ap_r}\n")
-            await f.write(f"# hbox = {self.hbox}\n")
-            await f.write(f"# dcen = {self.dcen}\n")
-            await f.write(f"# sigma_cut = {self.sigma_cut}\n")
-            await f.write(f"# altitude = {self.altitude}\n")
-            await f.write(f"# Diameter = {self.diameter}\n")
-            await f.write(f"# exptime = {exptime}\n")
-            await f.write(f"# sigma_0 = {self.sigma_0}\n")
-            await f.write(f"# airmass = {airmass}\n\n")
+        #print(f"writing to {outpath}/{outfile}")
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)  # Ensure directory exists
+        async with aiofiles.open(filepath, "w") as f:
+            await f.write(output)
 
-            await f.write(f"# global_sky_flag = {self.global_sky_flag}\n")
-            await f.write(f"# const_sky_flag = {self.const_sky_flag}\n")
-            await f.write(f"# sky_calc_mode = {self.sky_calc_mode}\n")
-            await f.write(f"# sky_sep = {self.sky_wid}\n")
-            await f.write(f"# sky_wid = {self.sky_wid}\n")
+    async def photometry_routine(self, rad, image_header, image_data, filename, outpath):
+        """Runs processing in a thread and writes asynchronously."""
+        processed_output = await asyncio.to_thread(
+            self.process_image, ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}"
+        )
+        filepath = f"{outpath}/rad{rad}/{filename}"
+        await self.write_results(processed_output, filepath)
 
-            await f.write("# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n")
-            for result in results:
-                await f.write(f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
-                        f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
-                        f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
-                        f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n")
+    async def photometry_routine_over_rads(self):
+        """Manages the overall image processing workflow for multiple radii."""
+        dirs = self.frame.split("/")
+        filename = f"{dirs[-1][:-8]}.dat"
+        outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
 
+        # Load FITS file (synchronously)
+        with fits.open(self.frame) as hdul:
+            image_data = hdul[0].data
+            image_header = hdul[0].header
+
+        # Create tasks for each radius
+        tasks = [
+            self.photometry_routine(rad, image_header, image_data, filename, outpath)
+            for rad in self.rads
+        ]
+        await asyncio.gather(*tasks)  # Run tasks concurrently
+
+    @classmethod
+    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
+        instances = [cls(frame, starlist, config) for frame, starlist in zip(frames, starlists)]
+        tasks = [instance.photometry_routine_over_rads() for instance in instances]
+        await asyncio.gather(*tasks)
+
+    '''
     async def process_image_over_rads(self):
         dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
         filename =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
@@ -376,11 +418,4 @@ class ApPhotometry:
 
         tasks = [self.process_image(ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}") for rad in self.rads]
         await asyncio.gather(*tasks) #this async task
-
-    @classmethod
-    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
-        print("here")
-        instances = [cls(frame, starlist, config) for frame, starlist in zip(frames, starlists)]
-        tasks = [instance.process_image_over_rads() for instance in instances]
-        await asyncio.gather(*tasks)
-
+    '''
