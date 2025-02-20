@@ -332,7 +332,7 @@ class ApPhotometry:
             })
             
         # save results
-        
+        print(f"writing to {outpath}/{outfile}")
         async with aiofiles.open(f"{outpath}/{outfile}", "w") as f:
             await f.write(f"# gjd - 2450000 = {jd_2450000_mid}\n\n")
             await f.write(f"## apphot version {self.version}##\n\n")
