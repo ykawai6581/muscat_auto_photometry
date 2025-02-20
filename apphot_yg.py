@@ -35,6 +35,7 @@ class PhotometryConfig:
     const_sky_flux: float=0.0#Constant sky flux value
     const_sky_sdev: float=0.0#Constant sky standard deviation
     method:         str="mapping"#apphot method either mapping or centroid
+    max_concurrent: int=20
 
 
 '''
@@ -106,6 +107,7 @@ class ApPhotometry:
         self.const_sky_flux = config.const_sky_flux
         self.const_sky_sdev = config.const_sky_sdev
         self.method = config.method
+        self.semaphore = asyncio.Semaphore(config.max_concurrent)
 
         self.version = "3.0.0"
     '''
@@ -376,11 +378,12 @@ class ApPhotometry:
 
     async def photometry_routine(self, rad, image_header, image_data, filename, outpath):
         """Runs processing in a thread and writes asynchronously."""
-        processed_output = await asyncio.to_thread(
-            self.process_image, ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}"
-        )
-        filepath = f"{outpath}/rad{rad}/{filename}"
-        await self.write_results(processed_output, filepath)
+        async with self.semaphore:
+            processed_output = await asyncio.to_thread(
+                self.process_image, ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}"
+            )
+            filepath = f"{outpath}/rad{rad}/{filename}"
+            await self.write_results(processed_output, filepath)
 
     async def photometry_routine_over_rads(self):
         """Manages the overall image processing workflow for multiple radii."""

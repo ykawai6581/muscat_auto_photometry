@@ -497,7 +497,7 @@ class MuSCAT_PHOTOMETRY:
         #print(f"Missing {missing}")
         return missing, missing_files_per_ccd, nframes
 
-    async def _run_photometry_for_missing_files(self, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):        
+    async def _run_photometry_for_missing_files(self, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev, max_concurrent=20):        
         """Runs photometry for CCDs where files are missing in parallel."""
 
         telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
@@ -543,6 +543,7 @@ class MuSCAT_PHOTOMETRY:
                                         const_sky_flag  = const_sky_flag, #Use constant sky value
                                         const_sky_flux  = const_sky_flux,#Constant sky flux value
                                         const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation)
+                                        max_concurrent  = max_concurrent
                                     )
 
             starlists = []
