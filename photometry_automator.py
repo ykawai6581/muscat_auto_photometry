@@ -543,7 +543,7 @@ class MuSCAT_PHOTOMETRY:
                                         const_sky_flag  = const_sky_flag, #Use constant sky value
                                         const_sky_flux  = const_sky_flux,#Constant sky flux value
                                         const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation)
-                                        max_concurrent  = max_concurrent
+                                        #max_concurrent  = max_concurrent
                                     )
 
             starlists = []
