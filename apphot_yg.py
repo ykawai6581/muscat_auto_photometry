@@ -379,6 +379,7 @@ class ApPhotometry:
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
+        print("here")
         instances = [cls(frame, starlist, config) for frame, starlist in zip(frames, starlists)]
         tasks = [instance.process_image_over_rads() for instance in instances]
         await asyncio.gather(*tasks)
