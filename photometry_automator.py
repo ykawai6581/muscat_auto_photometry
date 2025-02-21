@@ -460,7 +460,7 @@ class MuSCAT_PHOTOMETRY:
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         starlists = []
         missing_images = []
-        for i, missing_files_per_ccd in missing_files:
+        for i, missing_files_per_ccd in enumerate(missing_files):
             starlist_per_ccd = []
             missing_images_per_ccd = []
             for file in missing_files_per_ccd:
