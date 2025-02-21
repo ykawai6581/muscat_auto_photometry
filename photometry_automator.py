@@ -10,7 +10,6 @@ from astropy.visualization import ZScaleInterval, ImageNormalize
 import sys
 from tqdm.asyncio import tqdm as tqdm_async
 from tqdm import tqdm
-from progress_bar import JupyterProgressManager
 import time
 from datetime import datetime, timedelta
 
