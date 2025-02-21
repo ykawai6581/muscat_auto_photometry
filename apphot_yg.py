@@ -162,11 +162,20 @@ class ApPhotometry:
         mode = stats.mode(sky.astype(int))[0][0]
         return float(mode), 0.0
 
-    def process_image(self, ap_r, infile, outfile, outpath):
+    def process_image(self):
         """Main processing function for aperture photometry."""
         #print(f"## apphot version {self.version} ##")
+        dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
+        outfile =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
+        outpath=f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
+
         os.makedirs(outpath, exist_ok=True)
-        image_header, image_data = infile
+
+        with fits.open(self.frame) as hdul:
+            image_data = hdul[0].data
+            image_header = hdul[0].header
+
+        #image_header, image_data = infile
 
         # Read FITS image
         exptime = image_header["EXPTIME"]
@@ -227,10 +236,11 @@ class ApPhotometry:
                         cameo[i,j] = np.mean(good_neighbors) #サチってるピクセルを周囲の平均値で置き換える
             
             # Find optimal position and calculate flux
-            max_flux = 0
-            max_sky = 0
-            max_sky_std = 0
-            max_pos = (0, 0)
+            max_flux = [0 for _ in self.rads]
+            max_sky = [0 for _ in self.rads]
+            max_sky_std = [0 for _ in self.rads]
+            max_pos = [(0, 0) for _ in self.rads]
+            aper_masks = [[] for _ in self.rads]
 
             # loop for xy center in (2*hbox)*(2*hbox) box and search the maximum flux
             for dx in np.arange(-self.hbox, self.hbox + self.dcen, self.dcen):
@@ -265,14 +275,9 @@ class ApPhotometry:
                     #plt.show()
                     #print(r)
                     #takes the same shape as cameo, with each element representing the distance from the center of the star
-                    
-                    # Define aperture and sky annulus
-                    aper_mask = r <= ap_r #pixels within the aperture (it means that up until this point, the pixels are still in the aperture)
-                    #print(ap_r)
-                    #print(np.unique(aper_mask))
                     sky_mask = (r >= self.sky_sep) & (r <= self.sky_sep + self.sky_wid) #pixels within the sky annulus
-                    
-                    # Calculate sky
+                        
+                        # Calculate sky
                     if not self.global_sky_flag and not self.const_sky_flag:
                         sky_pixels = cameo[sky_mask]
                         if self.sky_calc_mode == 1:
@@ -284,15 +289,22 @@ class ApPhotometry:
                     else:
                         sky = self.const_sky_flux
                         sky_std = self.const_sky_sdev
-                    
-                    # Calculate flux
-                    flux = np.sum(cameo[aper_mask]) - sky * np.sum(aper_mask)
+                        
+                    for rad_index, rad in enumerate(self.rads):
+                        # Define aperture and sky annulus
+                        aper_mask = r <= rad #pixels within the aperture (it means that up until this point, the pixels are still in the aperture)
+                        #print(ap_r)
+                        #print(np.unique(aper_mask))
+    
+                        # Calculate flux
+                        flux = np.sum(cameo[aper_mask]) - sky * np.sum(aper_mask)
 
-                    if flux > max_flux:
-                        max_flux = flux
-                        max_sky = sky
-                        max_sky_std = sky_std
-                        max_pos = (xcen, ycen)
+                        if flux > max_flux[rad_index]:
+                            max_flux[rad_index] = flux
+                            max_sky[rad_index] = sky
+                            max_sky_std[rad_index] = sky_std
+                            max_pos[rad_index] = (xcen, ycen)
+                            aper_masks[rad_index] = aper_mask
 
             # Calculate noise and SNR
             '''
@@ -301,113 +313,118 @@ class ApPhotometry:
             ##the uncertainty in subtracted sky level estimated from pixels in sky annulus (npix * max_sky_std**2)/n_sky_pixels
             ####affects all pixels in the aperture hence npix but divided by n_sky_pixels because more sky pixels reduce uncertainty
             '''
-            n_pix = np.sum(aper_mask)
-            noise = np.sqrt(max_flux * self.gain + #flux*gain -> shot noise in electrons
-                          n_pix * max_sky_std**2 * self.gain**2 + #uncertainty in pixel-to-pixel variation in the sky background in electrons (inherent)
-                          n_pix**2 / len(sky_pixels) * max_sky_std**2 * self.gain**2 + #uncertainty in mean sky level in electrons 
-                          n_pix * self.read_noise**2 + #read noise in electrons
-                          n_pix * self.dark_noise**2 * exptime**2 + #dark current noise in electrons
-                          (sigma_scin * max_flux * self.gain)**2) / self.gain #scintillation noise in electrons and division by gain to convert to ADU
-            
-            snr = max_flux / noise
-            
-            # Calculate FWHM
+            outputs = [] #outputs for different rads
 
-            peak_flux = np.max(cameo[aper_mask] - max_sky)
-            hm = peak_flux / 2.0
-            fwhm_mask = (cameo[aper_mask] - max_sky > hm)
-            if np.any(fwhm_mask):
-                fwhm = 2 * np.mean(r[aper_mask][fwhm_mask])
-            else:
-                fwhm = 0
+            for rad_index, rad in enumerate(self.rads):
+                flux = max_flux[rad_index]
+                sky = max_sky[rad_index]
+                sky_std = max_sky_std[rad_index]
+                pos = max_pos[rad_index]
+                aper_mask = aper_masks[rad_index]
+                n_pix= np.sum(aper_mask)
+
+                noise = np.sqrt(flux * self.gain + #flux*gain -> shot noise in electrons
+                            n_pix * sky_std**2 * self.gain**2 + #uncertainty in pixel-to-pixel variation in the sky background in electrons (inherent)
+                            n_pix**2 / len(sky_pixels) * sky_std**2 * self.gain**2 + #uncertainty in mean sky level in electrons 
+                            n_pix * self.read_noise**2 + #read noise in electrons
+                            n_pix * self.dark_noise**2 * exptime**2 + #dark current noise in electrons
+                            (sigma_scin * flux * self.gain)**2) / self.gain #scintillation noise in electrons and division by gain to convert to ADU
                 
-            results.append({
-                'id': starid+1,
-                'xcen': max_pos[0],
-                'ycen': max_pos[1],
-                'flux': max_flux,
-                'sky': max_sky,
-                'sky_std': max_sky_std,
-                'noise': noise,
-                'snr': snr,
-                'fwhm': fwhm,
-                'peak': peak_flux + max_sky
-            })
-            
-        output = (
-            f"# gjd - 2450000 = {jd_2450000_mid}\n\n"
-            f"## apphot version {self.version}##\n\n"
-            f"# nstars = {nstars}\n"
-            f"# filename = {outfile[:4].split('/')[-1]}.df.fits\n"
-            f"# gain = {self.gain}\n"
-            f"# readout_noise = {self.read_noise}\n"
-            f"# dark_noise = {self.dark_noise}\n"
-            f"# ADU_range = {self.adu_lo} {self.adu_hi}\n"
-            f"# r = {ap_r}\n"
-            f"# hbox = {self.hbox}\n"
-            f"# dcen = {self.dcen}\n"
-            f"# sigma_cut = {self.sigma_cut}\n"
-            f"# altitude = {self.altitude}\n"
-            f"# Diameter = {self.diameter}\n"
-            f"# exptime = {exptime}\n"
-            f"# sigma_0 = {self.sigma_0}\n"
-            f"# airmass = {airmass}\n\n"
-            f"# global_sky_flag = {self.global_sky_flag}\n"
-            f"# const_sky_flag = {self.const_sky_flag}\n"
-            f"# sky_calc_mode = {self.sky_calc_mode}\n"
-            f"# sky_sep = {self.sky_wid}\n"
-            f"# sky_wid = {self.sky_wid}\n"
-            f"# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n"
-        )
+                snr = flux / noise
+                
+                # Calculate FWHM
 
-        for result in results:
-            output += (
-                f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
-                f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
-                f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
-                f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n"
-            )
+                peak_flux = np.max(cameo[aper_mask] - sky)
+                hm = peak_flux / 2.0
+                fwhm_mask = (cameo[aper_mask] - sky > hm)
+                if np.any(fwhm_mask):
+                    fwhm = 2 * np.mean(r[aper_mask][fwhm_mask])
+                else:
+                    fwhm = 0
+                    
+                output = (
+                    f"# gjd - 2450000 = {jd_2450000_mid}\n\n"
+                    f"## apphot version {self.version}##\n\n"
+                    f"# nstars = {nstars}\n"
+                    f"# filename = {outfile[:4].split('/')[-1]}.df.fits\n"
+                    f"# gain = {self.gain}\n"
+                    f"# readout_noise = {self.read_noise}\n"
+                    f"# dark_noise = {self.dark_noise}\n"
+                    f"# ADU_range = {self.adu_lo} {self.adu_hi}\n"
+                    f"# r = {rad}\n"
+                    f"# hbox = {self.hbox}\n"
+                    f"# dcen = {self.dcen}\n"
+                    f"# sigma_cut = {self.sigma_cut}\n"
+                    f"# altitude = {self.altitude}\n"
+                    f"# Diameter = {self.diameter}\n"
+                    f"# exptime = {exptime}\n"
+                    f"# sigma_0 = {self.sigma_0}\n"
+                    f"# airmass = {airmass}\n\n"
+                    f"# global_sky_flag = {self.global_sky_flag}\n"
+                    f"# const_sky_flag = {self.const_sky_flag}\n"
+                    f"# sky_calc_mode = {self.sky_calc_mode}\n"
+                    f"# sky_sep = {self.sky_wid}\n"
+                    f"# sky_wid = {self.sky_wid}\n"
+                    f"# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n"
+                )
 
-        return output, f"{outpath}/{outfile}"
+                results.append({
+                    'id': starid+1,
+                    'xcen': pos[0],
+                    'ycen': pos[1],
+                    'flux': flux,
+                    'sky': sky,
+                    'sky_std': sky_std,
+                    'noise': noise,
+                    'snr': snr,
+                    'fwhm': fwhm,
+                    'peak': peak_flux + sky
+                })
+                
+                for result in results:
+                    output += (
+                        f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
+                        f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
+                        f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
+                        f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n"
+                    )
+
+                outputs.append({"data": output, "path": f"{outpath}/rad{rad}/{outfile}"})
+
+        return outputs
     
-    async def write_results(self, output, filepath):
-        # save results
-        #print(f"writing to {outpath}/{outfile}")
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)  # Ensure directory exists
-        async with aiofiles.open(filepath, "w") as f:
-            await f.write(output)
+    async def write_results(self, outputs):
+        """
+        Write multiple results to files asynchronously.
+        
+        Parameters:
+        outputs (list of dict): Each dictionary should have keys:
+            - "path": The file path where the data should be written.
+            - "data": The content to be written.
+        """
+        tasks = []
+        for output in outputs:
+            os.makedirs(os.path.dirname(output["path"]), exist_ok=True)  # Ensure directory exists
+            tasks.append(self._write_single_file(output["path"], output["data"]))
+        
+        await asyncio.gather(*tasks)
 
-    async def photometry_routine(self, rad, image_header, image_data, filename, outpath):
+    async def _write_single_file(self, path, data):
+        """Helper function to write a single file asynchronously."""
+        async with aiofiles.open(path, "w") as f:
+            await f.write(data)
+
+    async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
         async with ApPhotometry.semaphore:
-            processed_output = await asyncio.to_thread(
-                self.process_image, ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}"
-            )
-            filepath = f"{outpath}/rad{rad}/{filename}"
-            await self.write_results(processed_output, filepath)
-
-    async def photometry_routine_over_rads(self):
-        """Manages the overall image processing workflow for multiple radii."""
-        dirs = self.frame.split("/")
-        filename = f"{dirs[-1][:-8]}.dat"
-        outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
-
-        # Load FITS file (synchronously)
-        with fits.open(self.frame) as hdul:
-            image_data = hdul[0].data
-            image_header = hdul[0].header
-
-        # Create tasks for each radius
-        tasks = [
-            self.photometry_routine(rad, image_header, image_data, filename, outpath)
-            for rad in self.rads
-        ]
-        await asyncio.gather(*tasks)  # Run tasks concurrently
+            outputs = await asyncio.to_thread(self.process_image)
+            #filepath = f"{outpath}/rad{rad}/{filename}"
+            await self.write_results(outputs)
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
         instances = [cls(frame, starlist, config) for frame, starlist in zip(frames, starlists)]
-        tasks = [instance.photometry_routine_over_rads() for instance in instances]
+        tasks = [instance.photometry_routine() for instance in instances]
         await asyncio.gather(*tasks)
 
     '''
@@ -422,4 +439,44 @@ class ApPhotometry:
 
         tasks = [self.process_image(ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}") for rad in self.rads]
         await asyncio.gather(*tasks) #this async task
+    '''
+                
+    '''
+    async def write_results(self, output):
+        # save results
+        #print(f"writing to {outpath}/{outfile}")
+        os.makedirs(os.path.dirname(output["path"]), exist_ok=True)  # Ensure directory exists
+        async with aiofiles.open(output["path"], "w") as f:
+            await f.write(output["data"])
+
+        
+    
+    async def photometry_routine(self, rad, image_header, image_data, filename, outpath):
+        """Runs processing in a thread and writes asynchronously."""
+        async with ApPhotometry.semaphore:
+            processed_output = await asyncio.to_thread(
+                self.process_image, ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}"
+            )
+            filepath = f"{outpath}/rad{rad}/{filename}"
+            await self.write_results(processed_output, filepath)
+    '''
+
+    '''
+    async def photometry_routine_over_rads(self):
+        """Manages the overall image processing workflow for multiple radii."""
+        dirs = self.frame.split("/")
+        filename = f"{dirs[-1][:-8]}.dat"
+        outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
+
+        # Load FITS file (synchronously)
+        with fits.open(self.frame) as hdul:
+            image_data = hdul[0].data
+            image_header = hdul[0].header
+
+        # Create tasks for each radius
+        tasks = [
+            self.photometry_routine()
+            for rad in self.rads
+        ]
+        await asyncio.gather(*tasks)  # Run tasks concurrently
     '''
