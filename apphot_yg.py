@@ -346,7 +346,7 @@ class ApPhotometry:
                     f"# gjd - 2450000 = {jd_2450000_mid}\n\n"
                     f"## apphot version {self.version}##\n\n"
                     f"# nstars = {nstars}\n"
-                    f"# filename = {outfile[:4].split('/')[-1]}.df.fits\n"
+                    f"# filename = {self.frame}\n"
                     f"# gain = {self.gain}\n"
                     f"# readout_noise = {self.read_noise}\n"
                     f"# dark_noise = {self.dark_noise}\n"
@@ -428,7 +428,7 @@ class ApPhotometry:
         await asyncio.gather(*tasks)
 
     @classmethod
-    async def process_multiple_ccd(cls, frames_list, starlists_list, config):
+    async def process_multiple_ccd(cls, frames_list, starlists_list, config: PhotometryConfig):
         [print(f"## >> CCD={i} | Begin aperture photometry") for i in enumerate(frames_list)]
         tasks = [cls.process_multiple_images(frames, starlists, config) for frames, starlists in zip(frames_list, starlists_list)]
         await asyncio.gather(*tasks)

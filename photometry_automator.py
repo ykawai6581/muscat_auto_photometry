@@ -472,9 +472,6 @@ class MuSCAT_PHOTOMETRY:
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
 
-        print(missing_images)
-        print(starlists)
-
         await ApPhotometry.process_multiple_ccd(missing_images,starlists,config)
         #self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         #create_task is preferred over run because of this code running in jupyter??
