@@ -426,7 +426,15 @@ class ApPhotometry:
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
         instances = [cls(frame, starlist, config) for frame, starlist in zip(frames, starlists)]
         tasks = [instance.photometry_routine() for instance in instances]
-        await asyncio.gather(*tasks)
+        try:
+            await asyncio.gather(*tasks)
+        except Exception as e:
+            print(f"Error during photometry processing: {e}")
+            # Cancel any remaining tasks
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            raise
 
     @classmethod
     async def process_multiple_ccd(cls, frames_list, starlists_list, config: PhotometryConfig):
@@ -434,41 +442,6 @@ class ApPhotometry:
         tasks = [cls.process_multiple_images(frames, starlists, config) for frames, starlists in zip(frames_list, starlists_list)]
         await asyncio.gather(*tasks)
         [print(f"## >> CCD={i} | Completed aperture photometry") for i, _ in enumerate(frames_list)]
-
-    @classmethod
-    async def process_multiple_ccd(cls, frames_list: List[List[Any]], starlists_list: List[List[Any]], config: PhotometryConfig) -> None:
-        """
-        Process multiple CCDs concurrently.
-        
-        Args:
-            frames_list: List of frame lists, one per CCD
-            starlists_list: List of starlist lists, one per CCD
-            config: Configuration for photometry processing
-        """
-        
-        # Create tasks for each CCD with proper identification
-        ccd_tasks = []
-        for ccd_id, (frames, starlists) in enumerate(zip(frames_list, starlists_list)):
-            print(f"## >> CCD={ccd_id} | Begin aperture photometry")
-            task = asyncio.create_task(
-                cls.process_multiple_images(frames, starlists, config)
-            )
-            ccd_tasks.append(task)
-        
-        # Process all CCDs concurrently
-        try:
-            await asyncio.gather(*ccd_tasks)
-        except Exception as e:
-            print(f"Error during photometry processing: {e}")
-            # Cancel any remaining tasks
-            for task in ccd_tasks:
-                if not task.done():
-                    task.cancel()
-            raise
-        finally:
-            # Print completion status for all CCDs
-            for ccd_id in range(len(frames_list)):
-                print(f"## >> CCD={ccd_id} | Completed aperture photometry")
 
 
     '''
