@@ -203,7 +203,7 @@ class ApPhotometry:
         # we eventually loop over 2 x hbox to find the center defined as the position that maximizes the flux
         half_cameo = int(self.hbox + self.sky_sep + self.sky_wid)
         
-        results = []
+        results = [[] for _ in self.rads]
         # Process each star
         for starid in range(nstars):
             #if starid == self.tid - 1:
@@ -368,7 +368,7 @@ class ApPhotometry:
                     f"# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n"
                 )
 
-                results.append({
+                results[rad_index].append({
                     'id': starid+1,
                     'xcen': pos[0],
                     'ycen': pos[1],
@@ -381,7 +381,7 @@ class ApPhotometry:
                     'peak': peak_flux + sky
                 })
                 
-                for result in results:
+                for result in results[rad_index]:
                     output += (
                         f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
                         f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
@@ -427,6 +427,10 @@ class ApPhotometry:
         tasks = [instance.photometry_routine() for instance in instances]
         await asyncio.gather(*tasks)
 
+    @classmethod
+    async def process_multiple_ccd(cls, ccd_data):
+        tasks = [cls.process_multiple_images(frames, starlists, config) for frames, starlists, config in ccd_data]
+        await asyncio.gather(*tasks)
     '''
     async def process_image_over_rads(self):
         dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits

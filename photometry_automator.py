@@ -508,6 +508,29 @@ class MuSCAT_PHOTOMETRY:
         ccd_param = load_par_file(f"{self.target_dir}/param//param-ccd.par") ##gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
         ccd = SimpleNamespace(**ccd_param)
 
+        config = PhotometryConfig(tid             = self.tid,
+                                    rads            = self.rad_to_use,
+                                    gain            = ccd.gain,
+                                    read_noise      = ccd.readnoise,
+                                    dark_noise      = ccd.darknoise,
+                                    sky_sep         = app.sky_sep,
+                                    sky_wid         = app.sky_wid,
+                                    hbox            = app.hbox, #number of pixels around a given point to search for max flux aperture
+                                    dcen            = app.dcen,  #step in pixels to move within hbox
+                                    sigma_cut       = app.sigma_cut, #sigma clipping used for sky calculation
+                                    adu_lo          = ccd.ADUlo,
+                                    adu_hi          = ccd.ADUhi,
+                                    sigma_0         = app.sigma_0, #scintillation coefficient
+                                    altitude        = tel.altitude, #observatory altitude in meters (used for scintillation noise calculation)
+                                    diameter        = tel.diameter ,#telescope diameter in cm (also used for scintillation noise calculation)
+                                    global_sky_flag = app.global_sky_flag, #Use global sky calculation meaning calculate sky dont assume as constant
+                                    sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
+                                    const_sky_flag  = const_sky_flag, #Use constant sky value
+                                    const_sky_flux  = const_sky_flux,#Constant sky flux value
+                                    const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation)
+                                    #max_concurrent  = max_concurrent
+                                )
+
         with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
             ref_file = f.read()
 
@@ -521,29 +544,6 @@ class MuSCAT_PHOTOMETRY:
 
         async def aperture_photometry(i, missing_files):
             print(f"## >> CCD={i} | Begin aperture photometry")
-
-            config = PhotometryConfig(tid             = self.tid,
-                                        rads            = self.rad_to_use,
-                                        gain            = ccd.gain,
-                                        read_noise      = ccd.readnoise,
-                                        dark_noise      = ccd.darknoise,
-                                        sky_sep         = app.sky_sep,
-                                        sky_wid         = app.sky_wid,
-                                        hbox            = app.hbox, #number of pixels around a given point to search for max flux aperture
-                                        dcen            = app.dcen,  #step in pixels to move within hbox
-                                        sigma_cut       = app.sigma_cut, #sigma clipping used for sky calculation
-                                        adu_lo          = ccd.ADUlo,
-                                        adu_hi          = ccd.ADUhi,
-                                        sigma_0         = app.sigma_0, #scintillation coefficient
-                                        altitude        = tel.altitude, #observatory altitude in meters (used for scintillation noise calculation)
-                                        diameter        = tel.diameter ,#telescope diameter in cm (also used for scintillation noise calculation)
-                                        global_sky_flag = app.global_sky_flag, #Use global sky calculation meaning calculate sky dont assume as constant
-                                        sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
-                                        const_sky_flag  = const_sky_flag, #Use constant sky value
-                                        const_sky_flux  = const_sky_flux,#Constant sky flux value
-                                        const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation)
-                                        #max_concurrent  = max_concurrent
-                                    )
 
             starlists = []
             missing_images = []
