@@ -472,7 +472,7 @@ class MuSCAT_PHOTOMETRY:
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
 
-        task = asyncio.create_task(self._run_apphot(missing_images,starlists,config))
+        task = self._run_apphot(missing_images,starlists,config)
         await task
 
     async def _run_apphot(self,missing_images,starlists,config):
