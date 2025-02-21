@@ -472,9 +472,6 @@ class MuSCAT_PHOTOMETRY:
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
 
-        missing_images = []
-        starlists = []
-
         print(missing_images)
         print(starlists)
 
