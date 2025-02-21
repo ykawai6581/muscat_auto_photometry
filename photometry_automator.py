@@ -456,36 +456,25 @@ class MuSCAT_PHOTOMETRY:
                 print(f"## >> CCD={i} | Photometry already available for rads = {[rad for rad in rads if rad not in self.rad_to_use]}")
 
         print(f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}")
-        # Run photometry for missing files
-        #self._run_photometry_for_missing_files(rads, missing_files_per_ccd)
-        #processor = PhotometryProcessor(self.target_dir, self.tid, self.rad_to_use, self.nstars)
-        #await processor.run_photometry(missing_files_per_ccd, sky_calc_mode, 
-        #                               const_sky_flag, const_sky_flux, const_sky_sdev)
         
-        config = self._config_photoemtry()
-        starlist = self.
+        config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
+        starlists = []
+        missing_images = []
+        for i, missing_files_per_ccd in missing_files:
+            starlist_per_ccd = []
+            missing_images_per_ccd = []
+            for file in missing_files_per_ccd:
+                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
+                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
+                x, y = self.map_reference(geoparam_file_path) 
+                starlist_per_ccd.append([x,y])
+
+            missing_images.append(missing_images_per_ccd)
+            starlists.append(starlist_per_ccd)
 
         missing_images = []
         starlists = []
 
-        for i, missing_files_per_ccd in enumerate(missing_files):
-            missing_images_per_ccd = []
-            starlist_per_ccd = []
-
-            for file in missing_files_per_ccd:
-                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
-                geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
-                geo = SimpleNamespace(**geoparams)
-
-                x = geo.dx + geo.a * x0 + geo.b * y0
-                y = geo.dy + geo.c * x0 + geo.d * y0
-                starlist = [x, y]
-                starlist_per_ccd.append(starlist)
-                
-                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
-            missing_images.append(missing_images_per_ccd)
-            starlist.append(starlist_per_ccd)
-        #asyncio.create_task(self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
         ApPhotometry.process_multiple_ccd(missing_images,starlists,config)
         #self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         #create_task is preferred over run because of this code running in jupyter??
