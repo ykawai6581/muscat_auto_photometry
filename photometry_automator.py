@@ -350,6 +350,26 @@ class MuSCAT_PHOTOMETRY:
             ax.add_patch(circ)
             plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
 
+    def read_reference(self):
+        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
+            ref_file = f.read()
+        ref_frame = ref_file.replace('\n','')
+        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
+        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
+        ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
+
+        metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
+        x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
+        return x0, y0
+    
+    def map_reference(self, geoparam_file_path):        
+        x0, y0 = self.read_reference()
+        geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
+        geo = SimpleNamespace(**geoparams)
+        x = geo.dx + geo.a * x0 + geo.b * y0
+        y = geo.dy + geo.c * x0 + geo.d * y0
+        return x, y 
+
     def find_tid(self):
         with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
             ref_file = f.read()
@@ -421,14 +441,14 @@ class MuSCAT_PHOTOMETRY:
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
 
         # Check for missing photometry files
-        missing, missing_files_per_ccd, _ = self._check_missing_photometry(rads)
+        missing, missing_files, _ = self._check_missing_photometry(rads)
 
         if not missing:
             print(f"## >> Photometry is already available for radius: {available_rad}")
             return
         
-        for i, missing_files in missing_files_per_ccd.items():
-            self.rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files)]
+        for i, missing_files_per_ccd in missing_files.items():
+            self.rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files_per_ccd)]
             if not self.rad_to_use:
                 print(f"## >> CCD={i} | Photometry already available for rads = {rads}")
                 continue
@@ -442,8 +462,32 @@ class MuSCAT_PHOTOMETRY:
         #await processor.run_photometry(missing_files_per_ccd, sky_calc_mode, 
         #                               const_sky_flag, const_sky_flux, const_sky_sdev)
         
+        config = self._config_photoemtry()
+        starlist = self.
 
-        asyncio.create_task(self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
+        missing_images = []
+        starlists = []
+
+        for i, missing_files_per_ccd in enumerate(missing_files):
+            missing_images_per_ccd = []
+            starlist_per_ccd = []
+
+            for file in missing_files_per_ccd:
+                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
+                geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
+                geo = SimpleNamespace(**geoparams)
+
+                x = geo.dx + geo.a * x0 + geo.b * y0
+                y = geo.dy + geo.c * x0 + geo.d * y0
+                starlist = [x, y]
+                starlist_per_ccd.append(starlist)
+                
+                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
+            missing_images.append(missing_images_per_ccd)
+            starlist.append(starlist_per_ccd)
+        #asyncio.create_task(self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev))
+        ApPhotometry.process_multiple_ccd(missing_images,starlists,config)
+        #self._run_photometry_for_missing_files(missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         #create_task is preferred over run because of this code running in jupyter??
 
     def _check_missing_photometry(self, rads):
@@ -495,6 +539,40 @@ class MuSCAT_PHOTOMETRY:
         #print("Checking for missing photometry")
         #print(f"Missing {missing}")
         return missing, missing_files_per_ccd, nframes
+
+    def _config_photoemtry(self, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):
+        telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
+        tel = SimpleNamespace(**telescope_param)
+
+        apphot_param = load_par_file(f"{self.target_dir}/param/param-apphot.par") #skysep,wid,hbox,dcen,sigma_0
+        app = SimpleNamespace(**apphot_param)
+
+        ccd_param = load_par_file(f"{self.target_dir}/param//param-ccd.par") ##gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
+        ccd = SimpleNamespace(**ccd_param)
+
+        config = PhotometryConfig(tid             = self.tid,
+                                    rads            = self.rad_to_use,
+                                    gain            = ccd.gain,
+                                    read_noise      = ccd.readnoise,
+                                    dark_noise      = ccd.darknoise,
+                                    sky_sep         = app.sky_sep,
+                                    sky_wid         = app.sky_wid,
+                                    hbox            = app.hbox, #number of pixels around a given point to search for max flux aperture
+                                    dcen            = app.dcen,  #step in pixels to move within hbox
+                                    sigma_cut       = app.sigma_cut, #sigma clipping used for sky calculation
+                                    adu_lo          = ccd.ADUlo,
+                                    adu_hi          = ccd.ADUhi,
+                                    sigma_0         = app.sigma_0, #scintillation coefficient
+                                    altitude        = tel.altitude, #observatory altitude in meters (used for scintillation noise calculation)
+                                    diameter        = tel.diameter ,#telescope diameter in cm (also used for scintillation noise calculation)
+                                    global_sky_flag = app.global_sky_flag, #Use global sky calculation meaning calculate sky dont assume as constant
+                                    sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
+                                    const_sky_flag  = const_sky_flag, #Use constant sky value
+                                    const_sky_flux  = const_sky_flux,#Constant sky flux value
+                                    const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation)
+                                    #max_concurrent  = max_concurrent
+                                )
+        return config
 
     async def _run_photometry_for_missing_files(self, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev, max_concurrent=20):        
         """Runs photometry for CCDs where files are missing in parallel."""

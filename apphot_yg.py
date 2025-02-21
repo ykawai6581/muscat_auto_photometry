@@ -428,9 +428,12 @@ class ApPhotometry:
         await asyncio.gather(*tasks)
 
     @classmethod
-    async def process_multiple_ccd(cls, ccd_data):
-        tasks = [cls.process_multiple_images(frames, starlists, config) for frames, starlists, config in ccd_data]
+    async def process_multiple_ccd(cls, frames_list, starlists_list, config):
+        [print(f"## >> CCD={i} | Begin aperture photometry") for i in enumerate(frames_list)]
+        tasks = [cls.process_multiple_images(frames, starlists, config) for frames, starlists in zip(frames_list, starlists_list)]
         await asyncio.gather(*tasks)
+        [print(f"## >> CCD={i} | Completed aperture photometry") for i in enumerate(frames_list)]
+
     '''
     async def process_image_over_rads(self):
         dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
