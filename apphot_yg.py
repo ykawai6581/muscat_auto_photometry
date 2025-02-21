@@ -445,14 +445,13 @@ class ApPhotometry:
             starlists_list: List of starlist lists, one per CCD
             config: Configuration for photometry processing
         """
-        print("Starting photometry processing across all CCDs")
         
         # Create tasks for each CCD with proper identification
         ccd_tasks = []
         for ccd_id, (frames, starlists) in enumerate(zip(frames_list, starlists_list)):
             print(f"## >> CCD={ccd_id} | Begin aperture photometry")
             task = asyncio.create_task(
-                cls.process_multiple_images(frames, starlists, config, ccd_id)
+                cls.process_multiple_images(frames, starlists, config)
             )
             ccd_tasks.append(task)
         
