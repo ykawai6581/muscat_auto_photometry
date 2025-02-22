@@ -413,17 +413,16 @@ class ApPhotometry:
             with open(path, "w") as f:
                 f.write(data)
 
-    async def photometry_routine(self, queue):
+    async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
         outputs = await asyncio.to_thread(self.process_image)
         #filepath = f"{outpath}/rad{rad}/{filename}"
         await self.write_results(outputs)
-        queue.put(1)
 
     @classmethod
-    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore, queue):
+    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
-        tasks = [instance.photometry_routine(queue) for instance in instances]
+        tasks = [instance.photometry_routine() for instance in instances]
         try:
             await asyncio.gather(*tasks)
         except Exception as e:
@@ -435,7 +434,7 @@ class ApPhotometry:
             raise
 
     @classmethod
-    def process_ccd_wrapper(cls, frames, starlists, config, queue):
+    def process_ccd_wrapper(cls, frames, starlists, config):
         """Wrapper function to run async code in a separate process."""
         # Create new event loop for this process
         loop = asyncio.new_event_loop()
@@ -447,7 +446,7 @@ class ApPhotometry:
         try:
             # Run the async processing
             return loop.run_until_complete(
-                cls.process_multiple_images(frames, starlists, config, semaphore, queue)
+                cls.process_multiple_images(frames, starlists, config, semaphore)
             )
         finally:
             loop.close()
@@ -466,22 +465,12 @@ class ApPhotometry:
         # Create process pool with one process per CCD
         with ProcessPoolExecutor(max_workers=num_ccds) as executor:
             # Submit all CCDs for processing
-            '''
+            
             futures = [
                 executor.submit(process_ccd, frames, starlists, config)
                 for frames, starlists in zip(frames_list,starlists_list)
             ]
-            '''
-            futures = []
-            with tqdm(total=sum(len(frames) for frames in frames_list), desc="Processing Files", unit="file") as pbar:
-                for i, (frames, starlists) in enumerate(zip(frames_list, starlists_list)):
-                    # Set up a tqdm progress bar for the number of frames (files) in this CCD
-                    futures.append(executor.submit(process_ccd, frames, starlists, config, queue))
-
-                for _ in frames_list:
-                    queue.get()  # Block and get progress updates
-                    pbar.update(1)
-
+        
             # Wait for all processes to complete
             for future in futures:
                 try:
