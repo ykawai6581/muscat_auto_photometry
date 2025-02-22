@@ -613,6 +613,7 @@ class MuSCAT_PHOTOMETRY:
                 rate_per_minute = rate * 60
                 
                 # Determine remaining time string
+                print(len(remaining_files),f"{not remaining_files}")
                 if not remaining_files:
                     remaining_str = "Complete"
                 else:
@@ -623,7 +624,6 @@ class MuSCAT_PHOTOMETRY:
                     f"{rate_per_minute:>6.1f} f/min  {remaining_str:>12}")
             
             print("=" * 80)
-            print(complete)
             
             if all(complete):
                 break
