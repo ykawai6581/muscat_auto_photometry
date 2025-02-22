@@ -1,6 +1,7 @@
 import subprocess
 import pandas as pd
 from io import StringIO
+from IPython.display import clear_output
 
 import numpy as np
 import os
@@ -456,8 +457,6 @@ class MuSCAT_PHOTOMETRY:
             elif len(self.rad_to_use) != len(rads):
                 print(f"## >> CCD={i} | Photometry already available for rads = {[rad for rad in rads if rad not in self.rad_to_use]}")
 
-        print(f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}")
-        
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         starlists = []
         missing_images = []
@@ -473,7 +472,9 @@ class MuSCAT_PHOTOMETRY:
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
 
-        monitor = asyncio.create_task(self.monitor_photometry_progress())
+        header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
+
+        monitor = asyncio.create_task(self.monitor_photometry_progress(header))
         await asyncio.to_thread(ApPhotometry.process_all_ccds, missing_images,starlists,config)
         await monitor
 
@@ -562,133 +563,7 @@ class MuSCAT_PHOTOMETRY:
                                 )
         return config
 
-    async def _run_photometry_for_missing_files(self, missing_files_per_ccd, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev, max_concurrent=20):        
-        """Runs photometry for CCDs where files are missing in parallel."""
-
-        telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
-        tel = SimpleNamespace(**telescope_param)
-
-        apphot_param = load_par_file(f"{self.target_dir}/param/param-apphot.par") #skysep,wid,hbox,dcen,sigma_0
-        app = SimpleNamespace(**apphot_param)
-
-        ccd_param = load_par_file(f"{self.target_dir}/param//param-ccd.par") ##gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
-        ccd = SimpleNamespace(**ccd_param)
-
-        config = PhotometryConfig(tid             = self.tid,
-                                    rads            = self.rad_to_use,
-                                    gain            = ccd.gain,
-                                    read_noise      = ccd.readnoise,
-                                    dark_noise      = ccd.darknoise,
-                                    sky_sep         = app.sky_sep,
-                                    sky_wid         = app.sky_wid,
-                                    hbox            = app.hbox, #number of pixels around a given point to search for max flux aperture
-                                    dcen            = app.dcen,  #step in pixels to move within hbox
-                                    sigma_cut       = app.sigma_cut, #sigma clipping used for sky calculation
-                                    adu_lo          = ccd.ADUlo,
-                                    adu_hi          = ccd.ADUhi,
-                                    sigma_0         = app.sigma_0, #scintillation coefficient
-                                    altitude        = tel.altitude, #observatory altitude in meters (used for scintillation noise calculation)
-                                    diameter        = tel.diameter ,#telescope diameter in cm (also used for scintillation noise calculation)
-                                    global_sky_flag = app.global_sky_flag, #Use global sky calculation meaning calculate sky dont assume as constant
-                                    sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
-                                    const_sky_flag  = const_sky_flag, #Use constant sky value
-                                    const_sky_flux  = const_sky_flux,#Constant sky flux value
-                                    const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation)
-                                    #max_concurrent  = max_concurrent
-                                )
-
-        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
-            ref_file = f.read()
-
-        ref_frame = ref_file.replace('\n','')
-        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
-        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
-        ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
-
-        metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
-        x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
-
-        async def aperture_photometry(i, missing_files):
-            print(f"## >> CCD={i} | Begin aperture photometry")
-
-            starlists = []
-            missing_images = []
-
-            for file in missing_files:
-                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
-                geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
-                geo = SimpleNamespace(**geoparams)
-
-                x = geo.dx + geo.a * x0 + geo.b * y0
-                y = geo.dy + geo.c * x0 + geo.d * y0
-                starlist = [x, y]
-                starlists.append(starlist)
-                
-                missing_images.append(f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
-
-            await ApPhotometry.process_multiple_images(missing_images,starlists,config)
-            '''
-                apphot.set_frame(dffits_file_path, starlist)
-                #await asyncio.to_thread(apphot.process_image_over_rads)
-                await apphot.process_image_over_rads()
-            
-            semaphore = asyncio.Semaphore(6)  # Adjust number based on your system's resources
-
-            async def process_missng_files(file):
-                async with semaphore:  # This limits the number of concurrent ApPhotometry instances
-
-                    apphot = ApPhotometry(tid             = self.tid,
-                                rads            = self.rad_to_use,
-                                gain            = ccd.gain,
-                                read_noise      = ccd.readnoise,
-                                dark_noise      = ccd.darknoise,
-                                sky_sep         = app.sky_sep,
-                                sky_wid         = app.sky_wid,
-                                hbox            = app.hbox, #number of pixels around a given point to search for max flux aperture
-                                dcen            = app.dcen,  #step in pixels to move within hbox
-                                sigma_cut       = app.sigma_cut, #sigma clipping used for sky calculation
-                                adu_lo          = ccd.ADUlo,
-                                adu_hi          = ccd.ADUhi,
-                                sigma_0         = app.sigma_0, #scintillation coefficient
-                                altitude        = tel.altitude, #observatory altitude in meters (used for scintillation noise calculation)
-                                diameter        = tel.diameter ,#telescope diameter in cm (also used for scintillation noise calculation)
-                                global_sky_flag = app.global_sky_flag, #Use global sky calculation meaning calculate sky dont assume as constant
-                                sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
-                                const_sky_flag  = const_sky_flag, #Use constant sky value
-                                const_sky_flux  = const_sky_flux,#Constant sky flux value
-                                const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
-                            )
-        
-                    geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
-                    geoparams = await asyncio.to_thread(load_geo_file, geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
-                    geo = SimpleNamespace(**geoparams)
-
-                    x = geo.dx + geo.a * x0 + geo.b * y0
-                    y = geo.dy + geo.c * x0 + geo.d * y0
-                    starlist = [x, y]
-                    dffits_file_path = f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits" #extract the frame name and modify to dark flat reduced fits path 
-                    
-                    await asyncio.to_thread(apphot.set_frame, dffits_file_path, starlist)
-                    #await asyncio.to_thread(apphot.process_image_over_rads)
-                    await apphot.process_image_over_rads()
-                
-                tasks = [process_missng_files(file) for file in missing_files]
-                await asyncio.gather(*tasks)
-            '''
-            print(f"## >> CCD={i} | Completed aperture photometry")
-            
-        # Run all CCDs in parallel
-        tasks = [aperture_photometry(i, files) for i, files in missing_files_per_ccd.items()]
-        
-        await asyncio.gather(*tasks)
-
-        #first_item = list(missing_files_per_ccd.items())[0]  # Get the first key-value pair
-        #i, missing_files = first_item  # Unpack the first pair
-
-        # Now you can run aperture_photometry
-        #await aperture_photometry(i, missing_files)
-
-    async def monitor_photometry_progress(self, interval=5):
+    async def monitor_photometry_progress(self, header, interval=5):
         """
         Monitor photometry progress, calculating processing rate and remaining time.
         Updates progress in place using ANSI escape codes.
@@ -696,33 +571,25 @@ class MuSCAT_PHOTOMETRY:
         Args:
             interval (int): Time in seconds to wait between progress checks
         """
-        CLEAR_LINE = "\033[K"  # Clear line
-        MOVE_UP = "\033[F"     # Move cursor up one line
-        
         def print_header():
+            print(header)
             print("=" * 80)
             print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
             print("-" * 80)
-
-        def clear_previous_output(num_lines):
-            # Move cursor up and clear lines
-            if num_lines > 0:
-                print(MOVE_UP * (num_lines + 3), end='')  # +3 for header and separator lines
         
-        initial_time = time.time()
-        _, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
-        total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
         
         while True:
+            initial_time = time.time()
+            _, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
+            total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
+
             await asyncio.sleep(interval)
             
             _, missing_files_per_ccd2, _ = self._check_missing_photometry(self.rad_to_use)
             current_time = time.time()
-            
-            # Clear previous output (if any)
-            clear_previous_output(len(missing_files_per_ccd2))
-            
+                        
             # Print header
+            clear_output(wait=True)  # Clear the output completely
             print_header()
             
             all_complete = True  # Track if all CCDs are complete
