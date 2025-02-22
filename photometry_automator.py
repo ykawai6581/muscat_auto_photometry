@@ -522,9 +522,8 @@ class MuSCAT_PHOTOMETRY:
 
             if missing_files:
                 missing = True
-                missing_files_per_ccd[i] = missing_files
-            else:
-                missing_files_per_ccd[i] = []
+
+            missing_files_per_ccd[i] = missing_files
                 #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
         #print("Checking for missing photometry")
         #print(f"Missing {missing}")
@@ -599,6 +598,7 @@ class MuSCAT_PHOTOMETRY:
                 remaining_files = len(missing_files_per_ccd2)
                 completed_files = total_frames_per_ccd[ccd_id] - remaining_files
                 percentage = (completed_files / total_frames_per_ccd[ccd_id]) * 100
+                percentage = 100 if np.isnan(percentage) else percentage
                 
                 # Calculate processing rate
                 initial_remaining = len(missing_files_per_ccd1)
