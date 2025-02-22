@@ -562,6 +562,7 @@ class MuSCAT_PHOTOMETRY:
                                 )
         return config
 
+    @time_keeper
     async def monitor_photometry_progress(self, header, interval=5):
         """
         Monitor photometry progress, calculating processing rate and remaining time.
@@ -575,10 +576,9 @@ class MuSCAT_PHOTOMETRY:
             print("=" * 80)
             print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
             print("-" * 80)
-        
-        
+    
         while True:
-            initial_time = time.time()
+            previous_time = time.time()
             _, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
             total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
 
@@ -614,7 +614,7 @@ class MuSCAT_PHOTOMETRY:
                 rate_per_minute = rate * 60
                 
                 # Determine remaining time string
-                if remaining_files == 0:
+                if not remaining_files:
                     remaining_str = "Complete"
                 else:
                     all_complete = False
@@ -625,7 +625,6 @@ class MuSCAT_PHOTOMETRY:
             
             print("=" * 80)
             
-            # If all CCDs are complete, break the loop
             if all_complete:
                 break
                 
