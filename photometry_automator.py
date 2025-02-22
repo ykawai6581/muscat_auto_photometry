@@ -422,7 +422,6 @@ class MuSCAT_PHOTOMETRY:
             return
 
     ## Performing aperture photometry
-    @time_keeper
     async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
 
         # Assume the same available radius for all CCDs
