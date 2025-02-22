@@ -579,12 +579,12 @@ class MuSCAT_PHOTOMETRY:
     
         while True:
             initial_time = time.time()
-            _, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
+            _, missing_files1, nframes = self._check_missing_photometry(self.rad_to_use)
             total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
 
             await asyncio.sleep(interval)
             
-            _, missing_files_per_ccd2, _ = self._check_missing_photometry(self.rad_to_use)
+            _, missing_files2, _ = self._check_missing_photometry(self.rad_to_use)
             current_time = time.time()
                         
             # Print header
@@ -593,14 +593,14 @@ class MuSCAT_PHOTOMETRY:
             
             all_complete = True  # Track if all CCDs are complete
             
-            for (ccd_id, missing_files_ccd1), (_, missing_files_ccd2) in zip(missing_files_per_ccd1.items(), missing_files_per_ccd2.items()):
+            for (ccd_id, missing_files_per_ccd1), (_, missing_files_per_ccd2) in zip(missing_files1.items(), missing_files2.items()):
                 # Current progress
-                remaining_files = len(missing_files_ccd2)
+                remaining_files = len(missing_files_per_ccd2)
                 completed_files = total_frames_per_ccd[ccd_id] - remaining_files
                 percentage = (completed_files / total_frames_per_ccd[ccd_id]) * 100
                 
                 # Calculate processing rate
-                initial_remaining = len(missing_files_ccd1)
+                initial_remaining = len(missing_files_per_ccd1)
                 files_processed = initial_remaining - remaining_files
                 time_diff = current_time - initial_time
                 rate = files_processed / time_diff if time_diff > 0 else 0  # files per second

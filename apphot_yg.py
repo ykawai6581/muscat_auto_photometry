@@ -454,7 +454,7 @@ class ApPhotometry:
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""
-        num_ccds = len(frames_list)
+        ncores = min(len(frames_list),os.cpu_count())
         #print(f"Starting photometry with {num_ccds} cores...")
         
         # Create partial function with class method
@@ -463,7 +463,7 @@ class ApPhotometry:
         queue = Queue()
 
         # Create process pool with one process per CCD
-        with ProcessPoolExecutor(max_workers=num_ccds) as executor:
+        with ProcessPoolExecutor(max_workers=ncores) as executor:
             # Submit all CCDs for processing
             
             futures = [
