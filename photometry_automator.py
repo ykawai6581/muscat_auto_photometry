@@ -13,6 +13,7 @@ from tqdm import tqdm
 import time
 from datetime import datetime, timedelta
 
+import threading
 
 #from tqdm import tqdm
 
@@ -421,7 +422,7 @@ class MuSCAT_PHOTOMETRY:
 
     ## Performing aperture photometry
     @time_keeper
-    def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
+    async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
@@ -472,7 +473,9 @@ class MuSCAT_PHOTOMETRY:
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
 
-        ApPhotometry.process_all_ccds(missing_images,starlists,config)
+        monitor = asyncio.create_task(self.monitor_photometry_progress())
+        await asyncio.to_thread(ApPhotometry.process_all_ccds, missing_images,starlists,config)
+        await monitor
 
 
     def _check_missing_photometry(self, rads):
