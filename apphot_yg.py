@@ -471,7 +471,7 @@ class ApPhotometry:
             ]
             '''
             futures = []
-            for i, frames, starlists in enumerate(zip(frames_list, starlists_list)):
+            for i, (frames, starlists) in enumerate(zip(frames_list, starlists_list)):
                 # Set up a tqdm progress bar for the number of frames (files) in this CCD
                 progress_bar = tqdm(total=len(frames), desc=f"CCD {i}", unit="frames", position=0, leave=True)
                 futures.append(executor.submit(process_ccd, frames, starlists, config, progress_bar))
