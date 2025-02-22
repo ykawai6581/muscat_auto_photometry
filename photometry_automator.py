@@ -622,13 +622,11 @@ class MuSCAT_PHOTOMETRY:
                 
                 print(f"{ccd_id:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[ccd_id]:<7} "
                     f"{rate_per_minute:>6.1f} f/min  {remaining_str:>12}")
-            
-            print("=" * 80)
-            print(complete)
-            
-            if all(complete):
-                break
                 
+                print("=" * 80)
+                if all(complete):
+                    break            
+
     '''
     #information that needs to be supplied externally
     fits file
