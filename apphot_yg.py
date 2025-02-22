@@ -451,7 +451,7 @@ class ApPhotometry:
             loop.close()
 
     @classmethod
-    def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
+    async def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""
         num_ccds = 10
         print(f"Starting photometry with {num_ccds} cores...")

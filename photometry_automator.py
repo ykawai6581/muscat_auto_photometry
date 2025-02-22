@@ -421,7 +421,7 @@ class MuSCAT_PHOTOMETRY:
 
     ## Performing aperture photometry
     @time_keeper
-    def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
+    async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
@@ -472,7 +472,12 @@ class MuSCAT_PHOTOMETRY:
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
 
-        ApPhotometry.process_all_ccds(missing_images,starlists,config)
+        photometry = asyncio.create_task(ApPhotometry.process_all_ccds(missing_images,starlists,config))
+        monitor = asyncio.create_task(self.monitor_photometry_progress)
+
+        await asyncio.gather(photometry, monitor)
+
+
 
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
@@ -687,6 +692,83 @@ class MuSCAT_PHOTOMETRY:
     async def monitor_photometry_progress(self, interval=5):
         """
         Monitor photometry progress, calculating processing rate and remaining time.
+        Updates progress in place using ANSI escape codes.
+        
+        Args:
+            interval (int): Time in seconds to wait between progress checks
+        """
+        CLEAR_LINE = "\033[K"  # Clear line
+        MOVE_UP = "\033[F"     # Move cursor up one line
+        
+        def print_header():
+            print("=" * 80)
+            print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
+            print("-" * 80)
+
+        def clear_previous_output(num_lines):
+            # Move cursor up and clear lines
+            if num_lines > 0:
+                print(MOVE_UP * (num_lines + 3), end='')  # +3 for header and separator lines
+        
+        initial_time = time.time()
+        _, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
+        total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
+        
+        while True:
+            await asyncio.sleep(interval)
+            
+            _, missing_files_per_ccd2, _ = self._check_missing_photometry(self.rad_to_use)
+            current_time = time.time()
+            
+            # Clear previous output (if any)
+            clear_previous_output(len(missing_files_per_ccd2))
+            
+            # Print header
+            print_header()
+            
+            all_complete = True  # Track if all CCDs are complete
+            
+            for (ccd_id, missing_files_ccd1), (_, missing_files_ccd2) in zip(missing_files_per_ccd1.items(), missing_files_per_ccd2.items()):
+                # Current progress
+                remaining_files = len(missing_files_ccd2)
+                completed_files = total_frames_per_ccd[ccd_id] - remaining_files
+                percentage = (completed_files / total_frames_per_ccd[ccd_id]) * 100
+                
+                # Calculate processing rate
+                initial_remaining = len(missing_files_ccd1)
+                files_processed = initial_remaining - remaining_files
+                time_diff = current_time - initial_time
+                rate = files_processed / time_diff if time_diff > 0 else 0  # files per second
+                
+                # Create progress bar
+                bar_length = 20
+                completed_blocks = int((percentage / 100) * bar_length)
+                progress_bar = "█" * completed_blocks + "░" * (bar_length - completed_blocks)
+                
+                # Format rate as files/minute
+                rate_per_minute = rate * 60
+                
+                # Determine remaining time string
+                if remaining_files == 0:
+                    remaining_str = "Complete"
+                else:
+                    all_complete = False
+                    remaining_str = "∞" if rate <= 0 else f"{(remaining_files / rate) / 60:.1f}"
+                
+                print(f"{ccd_id:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[ccd_id]:<7} "
+                    f"{rate_per_minute:>6.1f} f/min  {remaining_str:>12}")
+            
+            print("=" * 80)
+            
+            # If all CCDs are complete, break the loop
+            if all_complete:
+                break
+
+    
+    '''
+    async def monitor_photometry_progress(self, interval=5):
+        """
+        Monitor photometry progress, calculating processing rate and remaining time.
         this also needs to be an asynchronous method, since if i use time.sleep, sequencial execution will block the async processes
         
         Args:
@@ -741,7 +823,7 @@ class MuSCAT_PHOTOMETRY:
                 f"{rate_per_minute:>6.1f} f/min  {remaining_minutes:>12}")
         
         print("=" * 80)
-
+    '''
     '''
     def _run_photometry_if_missing(self, script, nstars, rads, missing_files_per_ccd):
         """Runs photometry for CCDs where files are missing in parallel."""
