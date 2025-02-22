@@ -12,6 +12,11 @@ import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Any
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+
+
 
 @dataclass
 class PhotometryConfig:
@@ -78,12 +83,11 @@ class PhotometryConfig:
   i shoudl add to this class a functionality that allows a loop over given stellar radii r1 & r2
 '''
 class ApPhotometry:
-    semaphore = asyncio.Semaphore(20)
-
     def __init__(self,
                  frame, 
                  starlist,
-                 config=PhotometryConfig 
+                 config=PhotometryConfig,
+                 semaphore = asyncio.Semaphore(1000)
                  ):
         
         self.frame = frame
@@ -112,6 +116,8 @@ class ApPhotometry:
         self.method = config.method
 
         self.version = "3.0.0"
+        self.semaphore = semaphore
+
     '''
     def set_frame(self, frame, starlist):
         self.frame = frame
@@ -410,17 +416,16 @@ class ApPhotometry:
         
         await asyncio.gather(*tasks)
 
-    async def _write_single_file(self, path, data):
+    def _write_single_file(self, path, data):
         """Helper function to write a single file asynchronously."""
-        async with aiofiles.open(path, "w") as f:
-            await f.write(data)
+        with open(path, "w") as f:
+            f.write(data)
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
-        async with ApPhotometry.semaphore:
-            outputs = await asyncio.to_thread(self.process_image)
-            #filepath = f"{outpath}/rad{rad}/{filename}"
-            await self.write_results(outputs)
+        outputs = await asyncio.to_thread(self.process_image)
+        #filepath = f"{outpath}/rad{rad}/{filename}"
+        self.write_results(outputs)
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
@@ -437,14 +442,58 @@ class ApPhotometry:
             raise
 
     @classmethod
+    def process_ccd_wrapper(cls, frames, starlists, config):
+        """Wrapper function to run async code in a separate process."""
+        # Create new event loop for this process
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Create semaphore for this process
+        semaphore = asyncio.Semaphore(1000)
+        
+        try:
+            # Run the async processing
+            return loop.run_until_complete(
+                cls.process_multiple_images(frames, starlists, config, semaphore)
+            )
+        finally:
+            loop.close()
+
+
+    @classmethod
+    def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
+        """Main entry point for multiprocessing."""
+        num_ccds = len(frames_list)
+        print(f"Starting photometry with {num_ccds} CCDs/cores...")
+        
+        # Create partial function with class method
+        process_ccd = partial(cls.process_ccd_wrapper)
+        
+        # Create process pool with one process per CCD
+        with ProcessPoolExecutor(max_workers=num_ccds) as executor:
+            # Submit all CCDs for processing
+            futures = [
+                executor.submit(process_ccd, frames, starlists, config)
+                for frames, starlists in zip(frames_list,starlists_list)
+            ]
+            
+            # Wait for all processes to complete
+            for future in futures:
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Error in process: {e}")
+
+    '''
+
+    @classmethod
     async def process_multiple_ccd(cls, frames_list, starlists_list, config: PhotometryConfig):
         [print(f"## >> CCD={i} | Begin aperture photometry") for i, _ in enumerate(frames_list)]
         tasks = [cls.process_multiple_images(frames, starlists, config) for frames, starlists in zip(frames_list, starlists_list)]
         await asyncio.gather(*tasks)
         [print(f"## >> CCD={i} | Completed aperture photometry") for i, _ in enumerate(frames_list)]
 
-
-    '''
+        
     async def process_image_over_rads(self):
         dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
         filename =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat

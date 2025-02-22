@@ -472,8 +472,7 @@ class MuSCAT_PHOTOMETRY:
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
 
-        task = ApPhotometry.process_multiple_ccd(missing_images,starlists,config)
-        await task
+        ApPhotometry.process_all_ccds(missing_images,starlists,config)
 
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
