@@ -562,7 +562,6 @@ class MuSCAT_PHOTOMETRY:
                                 )
         return config
 
-    @time_keeper
     async def monitor_photometry_progress(self, header, interval=5):
         """
         Monitor photometry progress, calculating processing rate and remaining time.
