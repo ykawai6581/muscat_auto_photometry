@@ -523,6 +523,9 @@ class MuSCAT_PHOTOMETRY:
             if missing_files:
                 missing = True
                 missing_files_per_ccd[i] = missing_files
+            else:
+                missing = False
+                missing_files_per_ccd[i] = []
                 #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
         #print("Checking for missing photometry")
         #print(f"Missing {missing}")
