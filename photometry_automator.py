@@ -578,7 +578,7 @@ class MuSCAT_PHOTOMETRY:
             print("-" * 80)
     
         while True:
-            previous_time = time.time()
+            initial_time = time.time()
             _, missing_files_per_ccd1, nframes = self._check_missing_photometry(self.rad_to_use)
             total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
 
