@@ -585,7 +585,7 @@ class MuSCAT_PHOTOMETRY:
             
             _, missing_files2, _ = self._check_missing_photometry(self.rad_to_use)
             current_time = time.time()
-            complete = [True for _ in missing_files2.items()]  # Track if all CCDs are complete
+            complete = [True for _ in self.nccd]  # Track if all CCDs are complete
 
             # Print header
             clear_output(wait=True)  # Clear the output completely
@@ -624,6 +624,7 @@ class MuSCAT_PHOTOMETRY:
                     f"{rate_per_minute:>6.1f} f/min  {remaining_str:>12}")
             
             print("=" * 80)
+            print(complete)
             
             if all(complete):
                 break
