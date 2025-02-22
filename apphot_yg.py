@@ -416,10 +416,10 @@ class ApPhotometry:
         
         await asyncio.gather(*tasks)
 
-    def _write_single_file(self, path, data):
+    async def _write_single_file(self, path, data):
         """Helper function to write a single file asynchronously."""
-        with open(path, "w") as f:
-            f.write(data)
+        async with aiofiles.open(path, "w") as f:
+            await f.write(data)
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
@@ -458,7 +458,6 @@ class ApPhotometry:
             )
         finally:
             loop.close()
-
 
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
