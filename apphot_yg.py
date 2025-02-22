@@ -8,6 +8,7 @@ import asyncio
 import aiofiles
 from types import SimpleNamespace
 import re
+from tqdm import tqdm
 import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass
@@ -451,7 +452,7 @@ class ApPhotometry:
             loop.close()
 
     @classmethod
-    async def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
+    def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""
         num_ccds = 10
         print(f"Starting photometry with {num_ccds} cores...")
@@ -468,7 +469,7 @@ class ApPhotometry:
             ]
             
             # Wait for all processes to complete
-            for future in futures:
+            for future in tqdm(futures, desc="Processing CCDs", unit="CCD", total=len(futures)):
                 try:
                     future.result()
                 except Exception as e:
