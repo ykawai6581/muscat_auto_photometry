@@ -454,7 +454,7 @@ class ApPhotometry:
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""
-        num_ccds = 5
+        num_ccds = 10
         #print(f"Starting photometry with {num_ccds} cores...")
         
         # Create partial function with class method
