@@ -473,7 +473,7 @@ class MuSCAT_PHOTOMETRY:
             starlists.append(starlist_per_ccd)
 
         photometry = asyncio.create_task(ApPhotometry.process_all_ccds(missing_images,starlists,config))
-        monitor = asyncio.create_task(self.monitor_photometry_progress)
+        monitor = asyncio.create_task(self.monitor_photometry_progress())
 
         await asyncio.gather(photometry, monitor)
 
