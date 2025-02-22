@@ -576,7 +576,7 @@ class MuSCAT_PHOTOMETRY:
             print("=" * 80)
             print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
             print("-" * 80)
-    
+
         while True:
             initial_time = time.time()
             _, missing_files1, nframes = self._check_missing_photometry(self.rad_to_use)
@@ -586,12 +586,12 @@ class MuSCAT_PHOTOMETRY:
             
             _, missing_files2, _ = self._check_missing_photometry(self.rad_to_use)
             current_time = time.time()
-                        
+            complete = [True for _ in missing_files2.items()]  # Track if all CCDs are complete
+
             # Print header
             clear_output(wait=True)  # Clear the output completely
             print_header()
             
-            all_complete = True  # Track if all CCDs are complete
             
             for (ccd_id, missing_files_per_ccd1), (_, missing_files_per_ccd2) in zip(missing_files1.items(), missing_files2.items()):
                 # Current progress
@@ -617,15 +617,15 @@ class MuSCAT_PHOTOMETRY:
                 if not remaining_files:
                     remaining_str = "Complete"
                 else:
-                    all_complete = False
+                    complete[ccd_id] = False
                     remaining_str = "∞" if rate <= 0 else f"{(remaining_files / rate) / 60:.1f}"
                 
                 print(f"{ccd_id:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[ccd_id]:<7} "
-                    f"{rate_per_minute:>6.1f} f/min  {remaining_str:>12}")
+                    f"{rate_per_minute:>6.1f} f/min  {len(remaining_str):>12}")
             
             print("=" * 80)
             
-            if all_complete:
+            if all(complete):
                 break
                 
     '''

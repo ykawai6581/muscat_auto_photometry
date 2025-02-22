@@ -441,7 +441,7 @@ class ApPhotometry:
         asyncio.set_event_loop(loop)
         
         # Create semaphore for this process
-        semaphore = asyncio.Semaphore(1000)
+        semaphore = asyncio.Semaphore(500)
         
         try:
             # Run the async processing
