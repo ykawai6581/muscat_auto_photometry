@@ -399,27 +399,20 @@ class ApPhotometry:
                 outputs.append({"data": output, "path": f"{outpath}/rad{rad}/{outfile}"})
 
         return outputs
-    
-    async def write_results(self, outputs):
-        """
-        Write multiple results to files asynchronously.
-        
-        Parameters:
-        outputs (list of dict): Each dictionary should have keys:
-            - "path": The file path where the data should be written.
-            - "data": The content to be written.
-        """
-        tasks = []
-        for output in outputs:
-            os.makedirs(os.path.dirname(output["path"]), exist_ok=True)  # Ensure directory exists
-            tasks.append(self._write_single_file(output["path"], output["data"]))
-        
-        await asyncio.gather(*tasks)
 
-    async def _write_single_file(self, path, data):
-        """Helper function to write a single file asynchronously."""
-        async with aiofiles.open(path, "w") as f:
-            await f.write(data)
+
+    async def write_results(self, outputs):
+        """Write multiple results to files asynchronously."""
+        async with self.semaphore:  # Use semaphore for control
+            for output in outputs:
+                os.makedirs(os.path.dirname(output["path"]), exist_ok=True)
+                # Use to_thread for blocking I/O
+                await asyncio.to_thread(self._write_single_file, output["path"], output["data"])
+
+    def _write_single_file(self, path, data):
+        """Regular blocking file write"""
+        with open(path, "w") as f:
+            f.write(data)
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
