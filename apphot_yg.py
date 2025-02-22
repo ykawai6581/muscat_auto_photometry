@@ -425,7 +425,7 @@ class ApPhotometry:
         """Runs processing in a thread and writes asynchronously."""
         outputs = await asyncio.to_thread(self.process_image)
         #filepath = f"{outpath}/rad{rad}/{filename}"
-        self.write_results(outputs)
+        await self.write_results(outputs)
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
