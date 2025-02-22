@@ -524,7 +524,6 @@ class MuSCAT_PHOTOMETRY:
                 missing = True
                 missing_files_per_ccd[i] = missing_files
             else:
-                missing = False
                 missing_files_per_ccd[i] = []
                 #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
         #print("Checking for missing photometry")
@@ -616,7 +615,6 @@ class MuSCAT_PHOTOMETRY:
                 rate_per_minute = rate * 60
                 
                 # Determine remaining time string
-                print(remaining_files,f"{not remaining_files}")
                 if not remaining_files:
                     remaining_str = "Complete"
                 else:
@@ -626,9 +624,9 @@ class MuSCAT_PHOTOMETRY:
                 print(f"{ccd_id:<4} {progress_bar:<22} {completed_files:>5}/{total_frames_per_ccd[ccd_id]:<7} "
                     f"{rate_per_minute:>6.1f} f/min  {remaining_str:>12}")
                 
-                print("=" * 80)
-                if all(complete):
-                    break            
+            print("=" * 80)
+            if all(complete):
+                break            
 
     '''
     #information that needs to be supplied externally
