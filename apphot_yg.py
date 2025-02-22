@@ -428,8 +428,8 @@ class ApPhotometry:
         self.write_results(outputs)
 
     @classmethod
-    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
-        instances = [cls(frame, starlist, config) for frame, starlist in zip(frames, starlists)]
+    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
+        instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         tasks = [instance.photometry_routine() for instance in instances]
         try:
             await asyncio.gather(*tasks)
