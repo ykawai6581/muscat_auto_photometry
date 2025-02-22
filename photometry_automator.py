@@ -421,7 +421,7 @@ class MuSCAT_PHOTOMETRY:
 
     ## Performing aperture photometry
     @time_keeper
-    async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
+    def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
@@ -472,11 +472,7 @@ class MuSCAT_PHOTOMETRY:
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
 
-        photometry = asyncio.create_task(ApPhotometry.process_all_ccds(missing_images,starlists,config))
-        monitor = asyncio.create_task(self.monitor_photometry_progress())
-
-        await asyncio.gather(photometry, monitor)
-
+        ApPhotometry.process_all_ccds(missing_images,starlists,config)
 
 
     def _check_missing_photometry(self, rads):
