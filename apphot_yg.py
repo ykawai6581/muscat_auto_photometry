@@ -17,6 +17,7 @@ import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from multiprocessing import Queue
+import time
 
 
 @dataclass
@@ -417,8 +418,12 @@ class ApPhotometry:
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
         try:
+            print("Starting photometry_routine")
             outputs = await asyncio.to_thread(self.process_image)
+            print("process_image completed, writing results")
             await self.write_results(outputs)
+            print("write_results completed")
+            time.sleep(2)
             return outputs  # Return outputs for error checking
         except Exception as e:
             print(f"Error in photometry routine: {e}")
@@ -426,17 +431,20 @@ class ApPhotometry:
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
+        start_time = time.time()
+
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         tasks = [instance.photometry_routine() for instance in instances]
 
         results = []
         try:
+            for i, task in enumerate(tasks):
+                if not task.done():
+                    print(f"Task {i} status before gather: {task._state}")
+
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            print("Completed photometry for one of the ccds")
-            # Check for and handle any exceptions
-            for result in results:
-                if isinstance(result, Exception):
-                    raise result
+        
+            print(f"Gather completed after {time.time() - start_time:.2f} seconds")
             return results
         except Exception as e:
             print(f"Error during photometry processing: {e}")
