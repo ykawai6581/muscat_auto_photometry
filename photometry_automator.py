@@ -478,7 +478,7 @@ class MuSCAT_PHOTOMETRY:
         #await task
         monitor = asyncio.create_task(self.monitor_photometry_progress(header))
         missing_imagestest = [a[i][:100] for a in missing_images]
-        starliststest = [b[i][:100] for b in missing_images]
+        starliststest = [b[i][:100] for b in starlists]
         await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_imagestest,starliststest,config)
 
         #await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
