@@ -440,7 +440,6 @@ class ApPhotometry:
         try:
             #print(f"Task {i} status before gather: {task._state}")
             results = await asyncio.gather(*tasks, return_exceptions=True)
-        
             print(f"Gather completed after {time.time() - start_time:.2f} seconds")
             return results
         except Exception as e:
