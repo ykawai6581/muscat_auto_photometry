@@ -418,18 +418,19 @@ class ApPhotometry:
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
         try:
-            print("Starting photometry_routine")
+            #print("Starting photometry_routine")
             outputs = await asyncio.to_thread(self.process_image)
-            print("process_image completed, writing results")
+            #print("process_image completed, writing results")
             await self.write_results(outputs)
-            print("write_results completed")
+            #print("write_results completed")
             return outputs  # Return outputs for error checking
         except Exception as e:
-            print(f"Error in photometry routine: {e}")
+            #print(f"Error in photometry routine: {e}")
             raise
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
+        '''
         start_time = time.time()
 
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
@@ -450,6 +451,23 @@ class ApPhotometry:
             raise
         finally:
             return results  # Return results even if partial
+        '''
+        # Process in batches of 100 to avoid overwhelming the system
+        batch_size = 100
+        all_results = []
+        
+        for i in range(0, len(frames), batch_size):
+            batch_frames = frames[i:i + batch_size]
+            batch_starlists = starlists[i:i + batch_size]
+            
+            instances = [cls(frame, starlist, config, semaphore) 
+                        for frame, starlist in zip(batch_frames, batch_starlists)]
+            tasks = [instance.photometry_routine() for instance in instances]
+            
+            print(f"Processing batch {i//batch_size + 1}/{len(frames)//batch_size + 1}")
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            all_results.extend(batch_results)
+
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
