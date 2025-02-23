@@ -436,7 +436,7 @@ class ApPhotometry:
         max_frames_per_iter = 500
         for i in range(len(frames)//max_frames_per_iter+1):
             first_frame = i*max_frames_per_iter
-            last_frame = first_frame + max_frames_per_iter - 1
+            last_frame = first_frame + max_frames_per_iter
             tasks = [instance.photometry_routine() for instance in instances[first_frame:last_frame]]
             await asyncio.gather(*tasks, return_exceptions=True)
         
