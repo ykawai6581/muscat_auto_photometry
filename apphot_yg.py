@@ -475,7 +475,10 @@ class ApPhotometry:
             
             instances = [cls(frame, starlist, config, semaphore) 
                         for frame, starlist in zip(batch_frames, batch_starlists)]
-            tasks = [instance.photometry_routine() for instance in instances]
+            
+            # Create actual Task objects
+            tasks = [asyncio.create_task(instance.photometry_routine()) 
+                    for instance in instances]
             all_tasks.extend(tasks)
             
             # Before gather
