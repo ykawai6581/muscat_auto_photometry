@@ -474,7 +474,6 @@ class ApPhotometry:
         # Create partial function with class method
         process_ccd = partial(cls.process_ccd_wrapper)
         
-
         # Create process pool with one process per CCD
         with ProcessPoolExecutor(max_workers=ncores) as executor:
             # Submit all CCDs for processing
