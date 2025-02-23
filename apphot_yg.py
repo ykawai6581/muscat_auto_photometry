@@ -419,12 +419,12 @@ class ApPhotometry:
         """Runs processing in a thread and writes asynchronously."""
         routine_start = time.time()
         try:
-            #print("Starting photometry_routine")
+            print("Starting photometry_routine")
             outputs = await asyncio.to_thread(self.process_image)
             write_start = time.time()
             await self.write_results(outputs)
-            #print(f"Full routine completed in {time.time() - routine_start:.2f}s "
-            #    f"(writing took {time.time() - write_start:.2f}s)")
+            print(f"Full routine completed in {time.time() - routine_start:.2f}s "
+                f"(writing took {time.time() - write_start:.2f}s)")
             return outputs
         except Exception as e:
             print(f"Error in photometry routine: {e}")
