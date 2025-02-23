@@ -433,7 +433,7 @@ class ApPhotometry:
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         #limit to max 1000 frames per iteration
-        max_frames_per_iter = 1000
+        max_frames_per_iter = 500
         for i in range(len(frames)//max_frames_per_iter):
             first_frame = i*max_frames_per_iter
             last_frame = first_frame + max_frames_per_iter - 1
