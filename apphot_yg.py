@@ -468,30 +468,42 @@ class ApPhotometry:
         '''
         # Process in batches of 100 to avoid overwhelming the system
         batch_size = 100
-        all_results = []
+        pending_tasks = set()
         
         for i in range(0, len(frames), batch_size):
             batch_frames = frames[i:i + batch_size]
             batch_starlists = starlists[i:i + batch_size]
             
-            instances = [cls(frame, starlist, config, semaphore) 
-                        for frame, starlist in zip(batch_frames, batch_starlists)]
-            tasks = [instance.photometry_routine() for instance in instances]
+            # Create and start tasks
+            batch_tasks = {
+                asyncio.create_task(
+                    cls(frame, starlist, config, semaphore).photometry_routine()
+                )
+                for frame, starlist in zip(batch_frames, batch_starlists)
+            }
             
-            # Add timing around the gather specifically
-            gather_start = time.time()
-            print(f"Starting gather for batch {i//batch_size + 1}/{len(frames)//batch_size + 1}")
-            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-            gather_time = time.time() - gather_start
-            print(f"Gather completed in {gather_time:.2f}s for batch {i//batch_size + 1}")
+            pending_tasks.update(batch_tasks)
             
-            all_results.extend(batch_results)
+            # Wait only for current batch to complete
+            while pending_tasks:
+                done, pending_tasks = await asyncio.wait(
+                    pending_tasks, 
+                    timeout=0.1,  # Check status frequently
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Handle completed tasks without gathering results
+                for task in done:
+                    try:
+                        # Get result just to check for exceptions
+                        await task
+                    except Exception as e:
+                        print(f"Task failed: {e}")
             
-            # Check task states
-            completed = sum(1 for t in tasks if t.done())
-            print(f"Tasks completed: {completed}/{len(tasks)} in batch {i//batch_size + 1}")
+            print(f"Batch {i//batch_size + 1}/{len(frames)//batch_size + 1} completed")
+        
+        print("All processing completed")
 
-        return all_results
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
