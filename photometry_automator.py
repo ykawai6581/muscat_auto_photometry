@@ -422,7 +422,7 @@ class MuSCAT_PHOTOMETRY:
             return
 
     ## Performing aperture photometry
-    async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
+    async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0, limit_frames=400):
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
@@ -467,7 +467,7 @@ class MuSCAT_PHOTOMETRY:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 x, y = self.map_reference(geoparam_file_path) 
                 starlist_per_ccd.append([x,y])
-                if j == 400:
+                if j == limit_frames:
                     break
 
             missing_images.append(missing_images_per_ccd)
