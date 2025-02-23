@@ -423,7 +423,6 @@ class ApPhotometry:
             print("process_image completed, writing results")
             await self.write_results(outputs)
             print("write_results completed")
-            time.sleep(2)
             return outputs  # Return outputs for error checking
         except Exception as e:
             print(f"Error in photometry routine: {e}")
