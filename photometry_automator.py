@@ -474,7 +474,7 @@ class MuSCAT_PHOTOMETRY:
         #apphot = ApPhotometry(missing_images[1][0],starlists[1][0],config, semaphore = asyncio.Semaphore(10))
         #task = apphot.photometry_routine()
         #await task
-        task = ApPhotometry.process_multiple_images(missing_images[1][:100],starlists[1][:100],config, semaphore = asyncio.Semaphore(10))
+        task = ApPhotometry.process_multiple_images(missing_images[1][:200],starlists[1][:200],config, semaphore = asyncio.Semaphore(10))
         await task
         #monitor = asyncio.create_task(self.monitor_photometry_progress(header))
         #missing_imagestest = [a[i][:100] for a in missing_images]
