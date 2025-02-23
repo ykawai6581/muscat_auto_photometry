@@ -473,6 +473,8 @@ class MuSCAT_PHOTOMETRY:
 
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
 
+        task = ApPhotometry.process_multiple_images(missing_images[1],starlists[1],config)
+        await task
         #monitor = asyncio.create_task(self.monitor_photometry_progress(header))
         await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
         #await monitor
