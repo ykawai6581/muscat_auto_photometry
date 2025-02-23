@@ -417,6 +417,19 @@ class ApPhotometry:
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
+        routine_start = time.time()
+        try:
+            print("Starting photometry_routine")
+            outputs = await asyncio.to_thread(self.process_image)
+            write_start = time.time()
+            await self.write_results(outputs)
+            print(f"Full routine completed in {time.time() - routine_start:.2f}s "
+                f"(writing took {time.time() - write_start:.2f}s)")
+            return outputs
+        except Exception as e:
+            print(f"Error in photometry routine: {e}")
+            raise
+        '''
         try:
             #print("Starting photometry_routine")
             outputs = await asyncio.to_thread(self.process_image)
@@ -427,6 +440,7 @@ class ApPhotometry:
         except Exception as e:
             #print(f"Error in photometry routine: {e}")
             raise
+        '''
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
@@ -464,10 +478,20 @@ class ApPhotometry:
                         for frame, starlist in zip(batch_frames, batch_starlists)]
             tasks = [instance.photometry_routine() for instance in instances]
             
-            print(f"Processing batch {i//batch_size + 1}/{len(frames)//batch_size + 1}")
+            # Add timing around the gather specifically
+            gather_start = time.time()
+            print(f"Starting gather for batch {i//batch_size + 1}/{len(frames)//batch_size + 1}")
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            gather_time = time.time() - gather_start
+            print(f"Gather completed in {gather_time:.2f}s for batch {i//batch_size + 1}")
+            
             all_results.extend(batch_results)
+            
+            # Check task states
+            completed = sum(1 for t in tasks if t.done())
+            print(f"Tasks completed: {completed}/{len(tasks)} in batch {i//batch_size + 1}")
 
+        return all_results
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
