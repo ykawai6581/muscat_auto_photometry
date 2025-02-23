@@ -404,20 +404,21 @@ class ApPhotometry:
     async def write_results(self, outputs):
         """Write multiple results to files asynchronously."""
         tasks = [self._write_single_file(output["path"], output["data"]) for output in outputs]
-        asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
 
     async def _write_single_file(self, path, data):
         """Regular blocking file write"""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        async with self.semaphore:  # Use semaphore for control
-            with open(path, "w") as f:
-                f.write(data)
+        #async with self.semaphore:  # Use semaphore for control
+        with open(path, "w") as f:
+            f.write(data)
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
-        outputs = await asyncio.to_thread(self.process_image)
-        #filepath = f"{outpath}/rad{rad}/{filename}"
-        await self.write_results(outputs)
+        async with self.semaphore:  # Use semaphore for control
+            outputs = await asyncio.to_thread(self.process_image)
+            #filepath = f"{outpath}/rad{rad}/{filename}"
+            await self.write_results(outputs)
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
@@ -442,8 +443,8 @@ class ApPhotometry:
         
         # Create semaphore for this process
         semaphore = asyncio.Semaphore(20)
-        
-        try:
+
+        try: # why use this and not context manager
             # Run the async processing
             return loop.run_until_complete(
                 cls.process_multiple_images(frames, starlists, config, semaphore)
@@ -476,66 +477,3 @@ class ApPhotometry:
                     future.result()
                 except Exception as e:
                     print(f"Error in process: {e}")
-
-    '''
-
-    @classmethod
-    async def process_multiple_ccd(cls, frames_list, starlists_list, config: PhotometryConfig):
-        [print(f"## >> CCD={i} | Begin aperture photometry") for i, _ in enumerate(frames_list)]
-        tasks = [cls.process_multiple_images(frames, starlists, config) for frames, starlists in zip(frames_list, starlists_list)]
-        await asyncio.gather(*tasks)
-        [print(f"## >> CCD={i} | Completed aperture photometry") for i, _ in enumerate(frames_list)]
-
-        
-    async def process_image_over_rads(self):
-        dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
-        filename =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
-        outpath=f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
-
-        with fits.open(self.frame) as hdul:
-            image_data = hdul[0].data
-            image_header = hdul[0].header
-
-        tasks = [self.process_image(ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}") for rad in self.rads]
-        await asyncio.gather(*tasks) #this async task
-    '''
-                
-    '''
-    async def write_results(self, output):
-        # save results
-        #print(f"writing to {outpath}/{outfile}")
-        os.makedirs(os.path.dirname(output["path"]), exist_ok=True)  # Ensure directory exists
-        async with aiofiles.open(output["path"], "w") as f:
-            await f.write(output["data"])
-
-        
-    
-    async def photometry_routine(self, rad, image_header, image_data, filename, outpath):
-        """Runs processing in a thread and writes asynchronously."""
-        async with ApPhotometry.semaphore:
-            processed_output = await asyncio.to_thread(
-                self.process_image, ap_r=rad, infile=[image_header, image_data], outfile=filename, outpath=f"{outpath}/rad{rad}"
-            )
-            filepath = f"{outpath}/rad{rad}/{filename}"
-            await self.write_results(processed_output, filepath)
-    '''
-
-    '''
-    async def photometry_routine_over_rads(self):
-        """Manages the overall image processing workflow for multiple radii."""
-        dirs = self.frame.split("/")
-        filename = f"{dirs[-1][:-8]}.dat"
-        outpath = f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
-
-        # Load FITS file (synchronously)
-        with fits.open(self.frame) as hdul:
-            image_data = hdul[0].data
-            image_header = hdul[0].header
-
-        # Create tasks for each radius
-        tasks = [
-            self.photometry_routine()
-            for rad in self.rads
-        ]
-        await asyncio.gather(*tasks)  # Run tasks concurrently
-    '''
