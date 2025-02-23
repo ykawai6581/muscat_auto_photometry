@@ -625,7 +625,8 @@ class MuSCAT_PHOTOMETRY:
                 rate_per_minute = rate * 60
                 
                 # Determine remaining time string
-                if not remaining_files:
+                #if not remaining_files:
+                if not completed_files: #for testing only
                     remaining_str = "Complete"
                 else:
                     complete[ccd_id] = False
