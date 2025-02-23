@@ -466,42 +466,38 @@ class ApPhotometry:
         finally:
             return results  # Return results even if partial
         '''
-        batch_size = 100
-        all_tasks = []
+        tasks = [
+            asyncio.create_task(
+                cls(frame, starlist, config, semaphore).photometry_routine(),
+                name=f"task_{i}"  # Add names for debugging
+            )
+            for i, (frame, starlist) in enumerate(zip(frames, starlists))
+        ]
         
-        for i in range(0, len(frames), batch_size):
-            batch_frames = frames[i:i + batch_size]
-            batch_starlists = starlists[i:i + batch_size]
+        print(f"Created {len(tasks)} tasks")
+        
+        # Monitor completion without gathering results
+        remaining = set(tasks)
+        while remaining:
+            done, remaining = await asyncio.wait(
+                remaining,
+                return_when=asyncio.FIRST_COMPLETED
+            )
             
-            instances = [cls(frame, starlist, config, semaphore) 
-                        for frame, starlist in zip(batch_frames, batch_starlists)]
+            # Handle completed tasks immediately to free memory
+            for task in done:
+                try:
+                    # Check for exceptions but don't keep result
+                    await task
+                except Exception as e:
+                    print(f"Task {task.get_name()} failed: {e}")
             
-            # Create actual Task objects
-            tasks = [asyncio.create_task(instance.photometry_routine()) 
-                    for instance in instances]
-            all_tasks.extend(tasks)
-            
-            # Before gather
-            print(f"\nBefore gather for batch {i//batch_size + 1}:")
-            done_before = sum(1 for t in tasks if t.done())
-            print(f"Already done: {done_before}/{len(tasks)}")
-            
-            gather_start = time.time()
-            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-            gather_time = time.time() - gather_start
-            
-            # After gather
-            print(f"After gather for batch {i//batch_size + 1}:")
-            done_after = sum(1 for t in tasks if t.done())
-            print(f"Done after: {done_after}/{len(tasks)}")
-            print(f"Gather took: {gather_time:.2f}s")
-            
-            # Check memory of results
-            import sys
-            results_size = sys.getsizeof(batch_results)
-            print(f"Results size: {results_size} bytes")
+            # Print progress every 100 completions
+            if len(remaining) % 100 == 0:
+                print(f"Remaining tasks: {len(remaining)}")
 
-        return all_tasks
+        print("All tasks completed")
+
 
 
     @classmethod
