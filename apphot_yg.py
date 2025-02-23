@@ -438,10 +438,7 @@ class ApPhotometry:
 
         results = []
         try:
-            for i, task in enumerate(tasks):
-                if not task.done():
-                    print(f"Task {i} status before gather: {task._state}")
-
+            #print(f"Task {i} status before gather: {task._state}")
             results = await asyncio.gather(*tasks, return_exceptions=True)
         
             print(f"Gather completed after {time.time() - start_time:.2f} seconds")
