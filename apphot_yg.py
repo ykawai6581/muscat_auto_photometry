@@ -411,9 +411,9 @@ class ApPhotometry:
     async def _write_single_file(self, path, data):
         """Regular blocking file write"""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        async with self.semaphore:  # Use semaphore for control
-            with open(path, "w") as f:
-                f.write(data)
+        #async with self.semaphore:  # Use semaphore for control
+        with open(path, "w") as f:
+            f.write(data)
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
@@ -428,79 +428,13 @@ class ApPhotometry:
         except Exception as e:
             print(f"Error in photometry routine: {e}")
             raise
-        '''
-        try:
-            #print("Starting photometry_routine")
-            outputs = await asyncio.to_thread(self.process_image)
-            #print("process_image completed, writing results")
-            await self.write_results(outputs)
-            #print("write_results completed")
-            return outputs  # Return outputs for error checking
-        except Exception as e:
-            #print(f"Error in photometry routine: {e}")
-            raise
-        '''
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         tasks = [instance.photometry_routine() for instance in instances]
         await asyncio.gather(*tasks, return_exceptions=True)
-        '''
-        start_time = time.time()
-
-
-
-        results = []
-        try:
-            #print(f"Task {i} status before gather: {task._state}")
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            print(f"Gather completed after {time.time() - start_time:.2f} seconds")
-            return results
-        except Exception as e:
-            print(f"Error during photometry processing: {e}")
-            # Cancel any remaining tasks
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-            raise
-        finally:
-            return results  # Return results even if partial
         
-
-        tasks = [
-            asyncio.create_task(
-                cls(frame, starlist, config, semaphore).photometry_routine(),
-                name=f"task_{i}"  # Add names for debugging
-            )
-            for i, (frame, starlist) in enumerate(zip(frames, starlists))
-        ]
-        
-        print(f"Created {len(tasks)} tasks")
-        
-        # Monitor completion without gathering results
-        remaining = set(tasks)
-        while remaining:
-            done, remaining = await asyncio.wait(
-                remaining,
-                return_when=asyncio.FIRST_COMPLETED
-            )
-            
-            # Handle completed tasks immediately to free memory
-            for task in done:
-                try:
-                    # Check for exceptions but don't keep result
-                    await task
-                except Exception as e:
-                    print(f"Task {task.get_name()} failed: {e}")
-            
-            # Print progress every 100 completions
-            if len(remaining) % 100 == 0:
-                print(f"Remaining tasks: {len(remaining)}")
-
-        print("All tasks completed")
-        '''
-
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
