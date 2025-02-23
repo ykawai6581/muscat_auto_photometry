@@ -432,6 +432,7 @@ class ApPhotometry:
         results = []
         try:
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            print("Completed photometry for one of the ccds")
             # Check for and handle any exceptions
             for result in results:
                 if isinstance(result, Exception):
