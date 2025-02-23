@@ -434,7 +434,7 @@ class ApPhotometry:
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         #limit to max 1000 frames per iteration
         max_frames_per_iter = 1000
-        for i in len(frames)//max_frames_per_iter:
+        for i in range(len(frames)//max_frames_per_iter):
             first_frame = i*max_frames_per_iter
             last_frame = first_frame + max_frames_per_iter - 1
             tasks = [instance.photometry_routine() for instance in instances[first_frame:last_frame]]
