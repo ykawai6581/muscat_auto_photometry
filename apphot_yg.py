@@ -425,7 +425,7 @@ class ApPhotometry:
             await self.write_results(outputs)
             #print(f"Full routine completed in {time.time() - routine_start:.2f}s "
             #    f"(writing took {time.time() - write_start:.2f}s)")
-            return outputs
+            return None
         except Exception as e:
             print(f"Error in photometry routine: {e}")
             raise
@@ -444,11 +444,13 @@ class ApPhotometry:
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
+        instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
+        tasks = [instance.photometry_routine() for instance in instances]
+        await asyncio.gather(*tasks, return_exceptions=True)
         '''
         start_time = time.time()
 
-        instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
-        tasks = [instance.photometry_routine() for instance in instances]
+
 
         results = []
         try:
@@ -465,7 +467,8 @@ class ApPhotometry:
             raise
         finally:
             return results  # Return results even if partial
-        '''
+        
+
         tasks = [
             asyncio.create_task(
                 cls(frame, starlist, config, semaphore).photometry_routine(),
@@ -497,7 +500,7 @@ class ApPhotometry:
                 print(f"Remaining tasks: {len(remaining)}")
 
         print("All tasks completed")
-
+        '''
 
 
     @classmethod
