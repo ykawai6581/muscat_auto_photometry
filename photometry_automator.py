@@ -626,7 +626,7 @@ class MuSCAT_PHOTOMETRY:
                 
                 # Determine remaining time string
                 #if not remaining_files:
-                if not completed_files: #for testing only
+                if not files_processed: #for testing only
                     remaining_str = "Complete"
                 else:
                     complete[ccd_id] = False
