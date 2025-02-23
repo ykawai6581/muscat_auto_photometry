@@ -466,43 +466,39 @@ class ApPhotometry:
         finally:
             return results  # Return results even if partial
         '''
-        # Process in batches of 100 to avoid overwhelming the system
         batch_size = 100
-        pending_tasks = set()
+        all_tasks = []
         
         for i in range(0, len(frames), batch_size):
             batch_frames = frames[i:i + batch_size]
             batch_starlists = starlists[i:i + batch_size]
             
-            # Create and start tasks
-            batch_tasks = {
-                asyncio.create_task(
-                    cls(frame, starlist, config, semaphore).photometry_routine()
-                )
-                for frame, starlist in zip(batch_frames, batch_starlists)
-            }
+            instances = [cls(frame, starlist, config, semaphore) 
+                        for frame, starlist in zip(batch_frames, batch_starlists)]
+            tasks = [instance.photometry_routine() for instance in instances]
+            all_tasks.extend(tasks)
             
-            pending_tasks.update(batch_tasks)
+            # Before gather
+            print(f"\nBefore gather for batch {i//batch_size + 1}:")
+            done_before = sum(1 for t in tasks if t.done())
+            print(f"Already done: {done_before}/{len(tasks)}")
             
-            # Wait only for current batch to complete
-            while pending_tasks:
-                done, pending_tasks = await asyncio.wait(
-                    pending_tasks, 
-                    timeout=0.1,  # Check status frequently
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-                
-                # Handle completed tasks without gathering results
-                for task in done:
-                    try:
-                        # Get result just to check for exceptions
-                        await task
-                    except Exception as e:
-                        print(f"Task failed: {e}")
+            gather_start = time.time()
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            gather_time = time.time() - gather_start
             
-            print(f"Batch {i//batch_size + 1}/{len(frames)//batch_size + 1} completed")
-        
-        print("All processing completed")
+            # After gather
+            print(f"After gather for batch {i//batch_size + 1}:")
+            done_after = sum(1 for t in tasks if t.done())
+            print(f"Done after: {done_after}/{len(tasks)}")
+            print(f"Gather took: {gather_time:.2f}s")
+            
+            # Check memory of results
+            import sys
+            results_size = sys.getsizeof(batch_results)
+            print(f"Results size: {results_size} bytes")
+
+        return all_tasks
 
 
     @classmethod
