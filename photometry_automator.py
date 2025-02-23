@@ -470,6 +470,8 @@ class MuSCAT_PHOTOMETRY:
 
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
+            if i == 100:
+                break
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         #apphot = ApPhotometry(missing_images[1][0],starlists[1][0],config, semaphore = asyncio.Semaphore(10))
         #task = apphot.photometry_routine()
