@@ -404,9 +404,9 @@ class ApPhotometry:
 
     async def write_results(self, outputs):
         """Write multiple results to files asynchronously."""
-        #async with self.semaphore:  # Use semaphore for control
-        tasks = [self._write_single_file(output["path"], output["data"]) for output in outputs]
-        await asyncio.gather(*tasks)
+        async with self.semaphore:  # Use semaphore for control
+            tasks = [self._write_single_file(output["path"], output["data"]) for output in outputs]
+            await asyncio.gather(*tasks)
 
     async def _write_single_file(self, path, data):
         """Regular blocking file write"""
@@ -432,8 +432,13 @@ class ApPhotometry:
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
-        tasks = [instance.photometry_routine() for instance in instances]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        #limit to max 1000 frames per iteration
+        max_frames_per_iter = 1000
+        for i in frames//max_frames_per_iter:
+            first_frame = i*max_frames_per_iter
+            last_frame = first_frame + max_frames_per_iter - 1
+            tasks = [instance.photometry_routine() for instance in instances[first_frame:last_frame]]
+            await asyncio.gather(*tasks, return_exceptions=True)
         
 
     @classmethod
