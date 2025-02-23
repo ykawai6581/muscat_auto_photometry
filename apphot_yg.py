@@ -441,7 +441,7 @@ class ApPhotometry:
         asyncio.set_event_loop(loop)
         
         # Create semaphore for this process
-        semaphore = asyncio.Semaphore(500)
+        semaphore = asyncio.Semaphore(20)
         
         try:
             # Run the async processing
@@ -460,7 +460,6 @@ class ApPhotometry:
         # Create partial function with class method
         process_ccd = partial(cls.process_ccd_wrapper)
         
-        queue = Queue()
 
         # Create process pool with one process per CCD
         with ProcessPoolExecutor(max_workers=ncores) as executor:

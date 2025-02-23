@@ -364,7 +364,7 @@ class MuSCAT_PHOTOMETRY:
         x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
         return x0, y0
     
-    def map_reference(self, geoparam_file_path):        
+    def map_reference(self, geoparam_file_path):  #frameidにした方がいい  
         x0, y0 = self.read_reference()
         geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
         geo = SimpleNamespace(**geoparams)
@@ -473,9 +473,9 @@ class MuSCAT_PHOTOMETRY:
 
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
 
-        monitor = asyncio.create_task(self.monitor_photometry_progress(header))
-        await asyncio.to_thread(ApPhotometry.process_all_ccds, missing_images,starlists,config)
-        await monitor
+        #monitor = asyncio.create_task(self.monitor_photometry_progress(header))
+        ApPhotometry.process_all_ccds, missing_images,starlists,config
+        #await monitor
 
 
     def _check_missing_photometry(self, rads):
