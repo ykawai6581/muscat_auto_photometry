@@ -455,7 +455,7 @@ class ApPhotometry:
         asyncio.set_event_loop(loop)
         
         # Create semaphore for this process
-        semaphore = asyncio.Semaphore(20)
+        semaphore = asyncio.Semaphore(10)
 
         try: # why use this and not context manager
             # Run the async processing
