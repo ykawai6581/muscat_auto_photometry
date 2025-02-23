@@ -403,8 +403,9 @@ class ApPhotometry:
 
     async def write_results(self, outputs):
         """Write multiple results to files asynchronously."""
-        tasks = [self._write_single_file(output["path"], output["data"]) for output in outputs]
-        await asyncio.gather(*tasks)
+        async with self.semaphore:  # Use semaphore for control
+            tasks = [self._write_single_file(output["path"], output["data"]) for output in outputs]
+            await asyncio.gather(*tasks)
 
     async def _write_single_file(self, path, data):
         """Regular blocking file write"""
@@ -415,17 +416,27 @@ class ApPhotometry:
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
-        async with self.semaphore:  # Use semaphore for control
+        try:
             outputs = await asyncio.to_thread(self.process_image)
-            #filepath = f"{outpath}/rad{rad}/{filename}"
             await self.write_results(outputs)
+            return outputs  # Return outputs for error checking
+        except Exception as e:
+            print(f"Error in photometry routine: {e}")
+            raise
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         tasks = [instance.photometry_routine() for instance in instances]
+
+        results = []
         try:
-            await asyncio.gather(*tasks)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            # Check for and handle any exceptions
+            for result in results:
+                if isinstance(result, Exception):
+                    raise result
+            return results
         except Exception as e:
             print(f"Error during photometry processing: {e}")
             # Cancel any remaining tasks
@@ -433,6 +444,8 @@ class ApPhotometry:
                 if not task.done():
                     task.cancel()
             raise
+        finally:
+            return results  # Return results even if partial
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
