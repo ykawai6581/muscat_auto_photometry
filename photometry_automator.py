@@ -467,7 +467,7 @@ class MuSCAT_PHOTOMETRY:
                 geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
                 x, y = self.map_reference(geoparam_file_path) 
                 starlist_per_ccd.append([x,y])
-                if j == 100:
+                if j == 400:
                     break
 
             missing_images.append(missing_images_per_ccd)
