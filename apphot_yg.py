@@ -411,8 +411,8 @@ class ApPhotometry:
         """Regular blocking file write"""
         os.makedirs(os.path.dirname(path), exist_ok=True)
         async with self.semaphore:  # Use semaphore for control
-            async with aiofiles.open(path, "w") as f:
-                await f.write(data)
+            with aiofiles.open(path, "w") as f:
+                f.write(data)
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
