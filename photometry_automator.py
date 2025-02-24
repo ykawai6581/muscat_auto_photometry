@@ -442,7 +442,7 @@ class MuSCAT_PHOTOMETRY:
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
 
         # Check for missing photometry files
-        missing, missing_files, _ = self._check_missing_photometry()
+        missing, missing_files, _ = self._check_missing_photometry(rads)
 
         if not missing:
             print(f"## >> Photometry is already available for radius: {available_rad}")
@@ -492,7 +492,7 @@ class MuSCAT_PHOTOMETRY:
         await monitor
 
 
-    def _check_missing_photometry(self):
+    def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
         missing = False
         missing_files_per_ccd = {}
@@ -518,21 +518,22 @@ class MuSCAT_PHOTOMETRY:
                                 if filename.endswith('.dat')]
                 df, meta = self.read_photometry(dir=apphot_directory, ccd=i, rad=existing_rads[0], frame=int(existing_files[0]), add_metadata=True) #it takes too long to scan through all ccds, rad and frames
             '''
-            def file_exists(frame): #nested helper function to help judge if photometry exists
-                file_name = f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                return any(Path(apphot_directory).rglob(file_name))
-                #return meta['nstars'] < self.nstars  #if previous photometry has smaller number of stars than requested -> need to redo
-                
+            def file_exists(rad, frame): #nested helper function to help judge if photometry exists
+                file_path = f"{apphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                if os.path.exists(file_path):
+                    return True
+
             missing_files = [
                 f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                for rad in rads
                 for frame in range(first_frame, last_frame+1)
-                if not file_exists(frame)
+                if not file_exists(rad, frame)
             ]
 
             if missing_files:
                 missing = True
 
-            missing_files_per_ccd[i] = missing_files
+            missing_files_per_ccd[i] = list(set(missing_files))
                 #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
         #print("Checking for missing photometry")
         #print(f"Missing {missing}")
