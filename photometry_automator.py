@@ -431,7 +431,7 @@ class MuSCAT_PHOTOMETRY:
             objlist = f"{listdir}/object_ccd{ccd}_corr.lst"
 
         ## Starfind
-        print("\n")
+        #print("\n")
         print(f"starfind_centroid.pl {objlist}")
         #subprocess.run(f"starfind_centroid.pl {objlist}")
         subprocess.run(["starfind_centroid.pl", objlist], cwd=f"{objdir}_{ccd}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -448,13 +448,16 @@ class MuSCAT_PHOTOMETRY:
         print(f"ln -s {refdir} {objdir}/")
         
         # Create symbolic link if it doesn't exist
-        if not os.path.exists(ref_symlink):
-            os.symlink(refdir, ref_symlink)
+        try:
+            if not os.path.exists(ref_symlink):
+                os.symlink(refdir, ref_symlink)
+        except FileExistsError:
+            pass
 
         ## Starmatch
-        print("\n")
+        #print("\n")
         print(f"starmatch.pl {reflist} {objlist}")
-        s#ubprocess.run(f" {reflist} {objlist}")
+        #subprocess.run(f" {reflist} {objlist}")
         subprocess.run(["starmatch.pl", reflist, objlist], cwd=f"{objdir}_{ccd}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def process_object(self):        
