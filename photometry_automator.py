@@ -516,22 +516,19 @@ class MuSCAT_PHOTOMETRY:
                                 if filename.endswith('.dat')]
                 df, meta = self.read_photometry(dir=apphot_directory, ccd=i, rad=existing_rads[0], frame=int(existing_files[0]), add_metadata=True) #it takes too long to scan through all ccds, rad and frames
 
-            def file_does_not_exist(rad, frame): #nested helper function to help judge if photometry exists
-                file_path = f"{apphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+            def file_does_not_exist(frame): #nested helper function to help judge if photometry exists
+                file_name = f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 if not existing_rads:
                     return True
-                if not os.path.exists(file_path):
-                    return True  # Missing file
+                for file in glob.iglob(f'{apphot_directory}/**/{file_name}', recursive=True):
+                    return False  # If at least one match is found, return False
                 return meta['nstars'] < self.nstars  #if previous photometry has smaller number of stars than requested -> need to redo
                 
             missing_files = [
                 f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                for rad in rads
                 for frame in range(first_frame, last_frame+1)
-                if file_does_not_exist(rad, frame)
+                if file_does_not_exist(frame)
             ]
-
-            missing_files = np.unique(missing_files)
 
             if missing_files:
                 missing = True
