@@ -379,7 +379,7 @@ class MuSCAT_PHOTOMETRY:
 
         ref_frame = ref_file.replace('\n','')
         ref_ccd = ref_frame[4] #the fifth character in the refframe is the ccd number
-        ref_file = f"/df/{self.target_dir}_{ref_ccd}/{ref_frame}.df.fits"
+        ref_file = f"{self.target_dir}_{ref_ccd}/df/{ref_frame}.df.fits"
         pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
         buffer = 0.02
         search_radius = 15 #in arcmin
