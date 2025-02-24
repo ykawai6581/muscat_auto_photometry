@@ -432,14 +432,33 @@ class ApPhotometry:
 
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
-        instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
+        #instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         #limit to max 1000 frames per iteration
-        #max_frames_per_iter = 500
+        max_frames_per_iter = 2000
         #for i in range(len(frames)//max_frames_per_iter+1):
         #first_frame = i*max_frames_per_iter
         #last_frame = first_frame + max_frames_per_iter
-        tasks = [instance.photometry_routine() for instance in instances]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        #tasks = [instance.photometry_routine() for instance in instances]
+        #await asyncio.gather(*tasks, return_exceptions=True)
+
+        total_frames = len(frames)
+        
+        for i in range(0, total_frames, max_frames_per_iter):
+            # Get slice indices
+            start_idx = i
+            end_idx = min(i + max_frames_per_iter, total_frames)  
+            
+            print(f"Processing frames {start_idx} to {end_idx} out of {total_frames}")
+            
+            # Create instances and tasks for this chunk
+            chunk_instances = [cls(frame, starlist, config, semaphore) 
+                            for frame, starlist in zip(frames[start_idx:end_idx], 
+                                                    starlists[start_idx:end_idx])]
+            
+            chunk_tasks = [instance.photometry_routine() for instance in chunk_instances]
+            await asyncio.gather(*chunk_tasks, return_exceptions=True)
+            print(f"Completed chunk {i//max_frames_per_iter + 1}")
+
         
 
     @classmethod
