@@ -458,7 +458,7 @@ class MuSCAT_PHOTOMETRY:
         #print("\n")
         print(f"starmatch.pl {reflist} {objlist}")
         #subprocess.run(f" {reflist} {objlist}")
-        result = subprocess.run(["starmatch.pl", reflist, objlist], cwd=f"{objdir}_{ccd}", shell=True, capture_output=True, text=True)
+        result = subprocess.run(f"starmatch.pl {reflist} {objlist}", cwd=f"{objdir}_{ccd}", shell=True, capture_output=True, text=True)
         print(result.stdout)
 
     def process_object(self):        
