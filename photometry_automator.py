@@ -302,7 +302,7 @@ class MuSCAT_PHOTOMETRY:
                 print(f"df file already exisits under /{self.target}_{i}/df/")
 
     @time_keeper
-    def create_ref(self, ccd=0,refid_delta=0):
+    def create_ref(self, ccd=0, refid_delta=0, threshold=10):
         ## Creating a reference image
 
         ## Change the folloiwng value if necessary
@@ -315,7 +315,7 @@ class MuSCAT_PHOTOMETRY:
 
         ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/list/ref.lst") for i in range(self.nccd)])
         if not ref_exists:
-            cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid}"
+            cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid} --th={threshold}"
             subprocess.run(cmd, shell=True, capture_output=True, text=True)
         else:
             with open(Path(f"{self.obsdate}/{self.target}_0/list/ref.lst"), 'r') as f:
@@ -373,13 +373,13 @@ class MuSCAT_PHOTOMETRY:
         return x, y 
 
     def find_tid(self):
-        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
+        reflist = f"{self.target_dir}/list/ref.lst"
+        with open(Path(reflist), 'r') as f:
             ref_file = f.read()
 
         ref_frame = ref_file.replace('\n','')
-        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
-        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
-        ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits"
+        ref_ccd = ref_frame[4] #the fifth character in the refframe is the ccd number
+        ref_file = f"/df/{self.target_dir}_{ref_ccd}/{ref_frame}.df.fits"
         pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
         buffer = 0.02
         search_radius = 15 #in arcmin
@@ -390,9 +390,9 @@ class MuSCAT_PHOTOMETRY:
         print(result.stdout)
         print("## >> Complete.")
 
-        if os.path.exists(f"{ref_file_dir}/list/ref.lst"):            
-            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
-            wcsfits = f"{ref_file_dir}/df/{ref_frame}.df.new"
+        if os.path.exists(reflist):            
+            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects") #objfiles contain star information after starfind
+            wcsfits = f"{self.target_dir}_{ref_ccd}/df/{ref_frame}.df.new"
             with fits.open(wcsfits) as hdul:
                 header = hdul[0].header
                 w = wcs.WCS(header)
