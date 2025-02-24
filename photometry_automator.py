@@ -442,7 +442,7 @@ class MuSCAT_PHOTOMETRY:
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
 
         # Check for missing photometry files
-        missing, missing_files, _ = self._check_missing_photometry(rads)
+        missing, missing_files, _ = self._check_missing_photometry()
 
         if not missing:
             print(f"## >> Photometry is already available for radius: {available_rad}")
