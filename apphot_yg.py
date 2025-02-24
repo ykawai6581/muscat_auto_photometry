@@ -439,6 +439,14 @@ class ApPhotometry:
         #last_frame = first_frame + max_frames_per_iter
         tasks = [instance.photometry_routine() for instance in instances]
         await asyncio.gather(*tasks, return_exceptions=True)
+
+    @classmethod
+    async def process_multiple_ccds(cls,list_of_frames,list_of_starlists,config: PhotometryConfig):
+        semaphore = asyncio.Semaphore(10)
+        tasks = [cls.process_multiple_images(frames,starlists,config,semaphore) for frames, starlists in zip(list_of_frames,list_of_starlists)]
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
     '''
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
@@ -468,7 +476,7 @@ class ApPhotometry:
             print("Starting gather...")
             await asyncio.gather(*chunk_tasks, return_exceptions=True)
             print(f"Completed chunk {i//max_frames_per_iter + 1}")
-    '''
+    
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
@@ -480,7 +488,6 @@ class ApPhotometry:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        semaphore = asyncio.Semaphore(10)
 
         try:
             #print(f"Process {process_id} starting async processing")
@@ -519,3 +526,4 @@ class ApPhotometry:
                     #print(f"CCD {i} completed")
                 except Exception as e:
                     print(f"Error in CCD {i}: {e}")
+    '''

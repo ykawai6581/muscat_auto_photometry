@@ -488,7 +488,8 @@ class MuSCAT_PHOTOMETRY:
         #print(starliststest)
         #await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_imagestest,starliststest,config)
 
-        await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
+        #await (ApPhotometry.process_all_ccds,missing_images,starlists,config)
+        await ApPhotometry.process_multiple_ccds(missing_images,starlists,config)
         await monitor
 
 
