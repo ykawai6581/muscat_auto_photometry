@@ -423,8 +423,8 @@ class MuSCAT_PHOTOMETRY:
 
 
     def process_object_per_ccd(self, ccd):
-        objdir = f"{self.target_dir}_{ccd}"
-        listdir = f"{objdir}/list"
+        objdir = f"{self.instrument}/{self.target_dir}"
+        listdir = f"{objdir}_{ccd}/list"
         objlist = f"{listdir}/object_ccd{ccd}.lst"
 
         if self.instrument == "muscat":
@@ -432,17 +432,17 @@ class MuSCAT_PHOTOMETRY:
 
         ## Starfind
         print("\n")
-        print(f"cd {objdir}; starfind_centroid.pl {objlist}")
-        subprocess.run(f"cd {objdir}; starfind_centroid.pl {objlist}", shell=True)
+        print(f"cd {objdir}_{ccd}; starfind_centroid.pl {objlist}")
+        subprocess.run(f"cd {objdir}_{ccd}; starfind_centroid.pl {objlist}", shell=True)
 
         ## Set reference
-        reflist = f"{self.target_dir}/list/ref.lst"
+        reflist = f"{objdir}/list/ref.lst"
 
         print(f"cp {reflist} {listdir}/")
         shutil.copy(reflist, listdir)
 
-        refdir = f"{self.target_dir}/reference"
-        ref_symlink = f"{objdir}/reference"
+        refdir = f"{objdir}/reference"
+        ref_symlink = f"{objdir}_{ccd}/reference"
         
         print(f"ln -s {refdir} {objdir}/")
         
@@ -452,8 +452,8 @@ class MuSCAT_PHOTOMETRY:
 
         ## Starmatch
         print("\n")
-        print(f"cd {objdir}; starmatch.pl {reflist} {objlist}")
-        subprocess.run(f"cd {objdir}; starmatch.pl {reflist} {objlist}", shell=True)
+        print(f"cd {objdir}_{ccd}; starmatch.pl {reflist} {objlist}")
+        subprocess.run(f"cd {objdir}_{ccd}; starmatch.pl {reflist} {objlist}", shell=True)
 
     def process_object(self):        
         with ProcessPoolExecutor(max_workers=self.nccd) as executor:
