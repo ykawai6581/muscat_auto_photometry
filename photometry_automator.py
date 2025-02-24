@@ -447,10 +447,10 @@ class MuSCAT_PHOTOMETRY:
         print(f"ln -s {refdir} {self.target_dir}_{ccd}/list/")
         
         # Create symbolic link if it doesn't exist
-        if os.path.islink(refdir):
-            os.unlink(refdir)  # Remove the existing symlink
+        if os.path.islink(ref_symlink):
+            os.unlink(ref_symlink)  # Remove the existing symlink
 
-        os.symlink(refdir, ref_symlink)
+        os.symlink(ref_symlink, refdir)
 
         ## Starmatch
         #print("\n")
