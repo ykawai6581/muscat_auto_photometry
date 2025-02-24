@@ -491,7 +491,7 @@ class MuSCAT_PHOTOMETRY:
         await monitor
 
 
-    def _check_missing_photometry(self, rads):
+    def _check_missing_photometry(self):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
         missing = False
         missing_files_per_ccd = {}
@@ -588,12 +588,12 @@ class MuSCAT_PHOTOMETRY:
 
         while True:
             initial_time = time.time()
-            _, missing_files1, nframes = self._check_missing_photometry(self.rad_to_use)
-            total_frames_per_ccd = len(self.rad_to_use)# * np.array(nframes)
+            _, missing_files1, nframes = self._check_missing_photometry()
+            total_frames_per_ccd = np.array(nframes)
 
             await asyncio.sleep(interval)
             
-            _, missing_files2, _ = self._check_missing_photometry(self.rad_to_use)
+            _, missing_files2, _ = self._check_missing_photometry()
             current_time = time.time()
             complete = [True for _ in range(self.nccd)]  # Track if all CCDs are complete
 

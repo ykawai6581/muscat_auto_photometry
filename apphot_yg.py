@@ -416,7 +416,7 @@ class ApPhotometry:
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
-        routine_start = time.time()
+        #routine_start = time.time()
         try:
             #print("Starting photometry_routine")
             #outputs = await asyncio.to_thread(self.process_image)
@@ -480,7 +480,7 @@ class ApPhotometry:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        semaphore = asyncio.Semaphore(10)
+        semaphore = asyncio.Semaphore(500)
 
         try:
             #print(f"Process {process_id} starting async processing")
