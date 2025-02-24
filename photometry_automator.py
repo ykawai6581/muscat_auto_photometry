@@ -450,7 +450,7 @@ class MuSCAT_PHOTOMETRY:
         if os.path.islink(ref_symlink):
             os.unlink(ref_symlink)  # Remove the existing symlink
 
-        os.symlink(refdir, ref_symlink)
+        os.symlink(os.path.abspath(refdir), ref_symlink)
 
         ## Starmatch
         #print("\n")
