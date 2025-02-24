@@ -424,7 +424,7 @@ class MuSCAT_PHOTOMETRY:
 
     def process_object_per_ccd(self, ccd):
         objdir = f"{self.target_dir}"
-        listdir = f"{objdir}_{ccd}/list"
+        listdir = f"list"
         objlist = f"{listdir}/object_ccd{ccd}.lst"
 
         if self.instrument == "muscat":
@@ -433,7 +433,8 @@ class MuSCAT_PHOTOMETRY:
         ## Starfind
         print("\n")
         print(f"starfind_centroid.pl {objlist}")
-        subprocess.run(f"starfind_centroid.pl {objlist}")
+        #subprocess.run(f"starfind_centroid.pl {objlist}")
+        subprocess.run(["starfind_centroid.pl", objlist], cwd=f"{objdir}_{ccd}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         ## Set reference
         reflist = f"{objdir}/list/ref.lst"
@@ -453,7 +454,8 @@ class MuSCAT_PHOTOMETRY:
         ## Starmatch
         print("\n")
         print(f"starmatch.pl {reflist} {objlist}")
-        subprocess.run(f"starmatch.pl {reflist} {objlist}")
+        s#ubprocess.run(f" {reflist} {objlist}")
+        subprocess.run(["starmatch.pl", reflist, objlist], cwd=f"{objdir}_{ccd}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def process_object(self):        
         with ProcessPoolExecutor(max_workers=self.nccd) as executor:
