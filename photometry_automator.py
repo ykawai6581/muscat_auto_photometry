@@ -520,8 +520,7 @@ class MuSCAT_PHOTOMETRY:
             '''
             def file_exists(frame): #nested helper function to help judge if photometry exists
                 file_name = f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                for file in glob.iglob(f'{apphot_directory}/**/{file_name}', recursive=True):
-                    return True  # If at least one match is found, return true
+                return any(Path(apphot_directory).rglob(file_name))
                 #return meta['nstars'] < self.nstars  #if previous photometry has smaller number of stars than requested -> need to redo
                 
             missing_files = [
@@ -573,7 +572,7 @@ class MuSCAT_PHOTOMETRY:
                                 )
         return config
 
-    async def monitor_photometry_progress(self, header, interval=5):
+    async def monitor_photometry_progress(self, header, interval=3):
         """
         Monitor photometry progress, calculating processing rate and remaining time.
         Updates progress in place using ANSI escape codes.
@@ -581,11 +580,6 @@ class MuSCAT_PHOTOMETRY:
         Args:
             interval (int): Time in seconds to wait between progress checks
         """
-        def print_header():
-            print(header)
-            print("=" * 80)
-            print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
-            print("-" * 80)
 
         while True:
             initial_time = time.time()
@@ -600,8 +594,10 @@ class MuSCAT_PHOTOMETRY:
 
             # Print header
             clear_output(wait=True)  # Clear the output completely
-            print_header()
-            
+            print(header)
+            print("=" * 80)
+            print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
+            print("-" * 80)            
             
             for (ccd_id, missing_files_per_ccd1), (_, missing_files_per_ccd2) in zip(missing_files1.items(), missing_files2.items()):
                 # Current progress
@@ -625,8 +621,7 @@ class MuSCAT_PHOTOMETRY:
                 rate_per_minute = rate * 60
                 
                 # Determine remaining time string
-                #if not remaining_files:
-                if not files_processed: #for testing only
+                if not remaining_files:
                     remaining_str = "Complete"
                 else:
                     complete[ccd_id] = False
