@@ -463,8 +463,8 @@ class MuSCAT_PHOTOMETRY:
             starlist_per_ccd = []
             missing_images_per_ccd = []
             for j, file in enumerate(missing_files_per_ccd):
-                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4].split('/')[-1]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
-                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4].split('/')[-1]}.geo" #extract the frame name and modify to geoparam path 
+                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
+                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4]}.geo" #extract the frame name and modify to geoparam path 
                 x, y = self.map_reference(geoparam_file_path) 
                 starlist_per_ccd.append([x,y])
                 if j == limit_frames:
@@ -472,6 +472,7 @@ class MuSCAT_PHOTOMETRY:
 
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
+
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         #apphot = ApPhotometry(missing_images[1][0],starlists[1][0],config, semaphore = asyncio.Semaphore(10))
         #task = apphot.photometry_routine()
@@ -524,11 +525,13 @@ class MuSCAT_PHOTOMETRY:
                 return meta['nstars'] < self.nstars  #if previous photometry has smaller number of stars than requested -> need to redo
                 
             missing_files = [
-                f"{apphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
+                f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 for rad in rads
                 for frame in range(first_frame, last_frame+1)
                 if file_does_not_exist(rad, frame)
             ]
+
+            missing_files = np.unique(missing_files)
 
             if missing_files:
                 missing = True

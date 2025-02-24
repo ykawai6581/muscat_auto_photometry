@@ -429,12 +429,11 @@ class ApPhotometry:
         except Exception as e:
             print(f"Error in photometry routine: {e}")
             raise
-    '''
+    
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         #limit to max 1000 frames per iteration
-        max_frames_per_iter = 2000
         #for i in range(len(frames)//max_frames_per_iter+1):
         #first_frame = i*max_frames_per_iter
         #last_frame = first_frame + max_frames_per_iter
@@ -469,13 +468,14 @@ class ApPhotometry:
             print("Starting gather...")
             await asyncio.gather(*chunk_tasks, return_exceptions=True)
             print(f"Completed chunk {i//max_frames_per_iter + 1}")
+    '''
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
-        import os
-        process_id = os.getpid()
-        print(f"Process {process_id} starting with {len(frames)} frames")
-        print(f"First frame in this process: {frames[0]}")  # Identify which frames
+        #import os
+        #process_id = os.getpid()
+        #print(f"Process {process_id} starting with {len(frames)} frames")
+        #print(f"First frame in this process: {frames[0]}")  # Identify which frames
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -483,11 +483,11 @@ class ApPhotometry:
         semaphore = asyncio.Semaphore(10)
 
         try:
-            print(f"Process {process_id} starting async processing")
+            #print(f"Process {process_id} starting async processing")
             result = loop.run_until_complete(
                 cls.process_multiple_images(frames, starlists, config, semaphore)
             )
-            print(f"Process {process_id} completed")
+            #print(f"Process {process_id} completed")
             return result
         finally:
             loop.close()
@@ -499,8 +499,8 @@ class ApPhotometry:
         ncores = min(len(frames_list),os.cpu_count())
         #print(f"Starting photometry with {num_ccds} cores...")
         
-        print(f"Starting processing with {len(frames_list)} CCDs")
-        print(f"Each CCD has: {[len(frames) for frames in frames_list]} frames")
+        #print(f"Starting processing with {len(frames_list)} CCDs")
+        #print(f"Each CCD has: {[len(frames) for frames in frames_list]} frames")
         
         process_ccd = partial(cls.process_ccd_wrapper)
         
@@ -508,7 +508,7 @@ class ApPhotometry:
             futures = []
             # Add index for tracking
             for i, (frames, starlists) in enumerate(zip(frames_list, starlists_list)):
-                print(f"Submitting CCD {i} with {len(frames)} frames")
+                #print(f"Submitting CCD {i} with {len(frames)} frames")
                 futures.append(
                     executor.submit(process_ccd, frames, starlists, config)
                 )
@@ -516,6 +516,6 @@ class ApPhotometry:
             for i, future in enumerate(futures):
                 try:
                     future.result()
-                    print(f"CCD {i} completed")
+                    #print(f"CCD {i} completed")
                 except Exception as e:
                     print(f"Error in CCD {i}: {e}")
