@@ -419,9 +419,7 @@ class ApPhotometry:
         #routine_start = time.time()
         try:
             #print("Starting photometry_routine")
-            #outputs = await asyncio.to_thread(self.process_image)
-            outputs_coroutine = asyncio.to_thread(self.process_image)
-            outputs = await asyncio.create_task(outputs_coroutine)
+            outputs = await asyncio.to_thread(self.process_image)
             #write_start = time.time()
             await self.write_results(outputs)
             #print(f"Full routine completed in {time.time() - routine_start:.2f}s "
@@ -440,43 +438,13 @@ class ApPhotometry:
         tasks = [instance.photometry_routine() for instance in instances]
         await asyncio.gather(*tasks, return_exceptions=True)
 
+    '''
     @classmethod
     async def process_multiple_ccds(cls,list_of_frames,list_of_starlists,config: PhotometryConfig):
         semaphore = asyncio.Semaphore(10)
         tasks = [cls.process_multiple_images(frames,starlists,config,semaphore) for frames, starlists in zip(list_of_frames,list_of_starlists)]
         await asyncio.gather(*tasks, return_exceptions=True)
-
-
     '''
-    @classmethod
-    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
-        print("Starting process_multiple_images")
-        max_frames_per_iter = 2000
-        total_frames = len(frames)
-        
-        print("Before any processing")
-        # Let's check if any processing has already started
-        for frame in frames[:5]:  # Check first few frames
-            print(f"Checking frame {frame}")  # Add identifier for frame
-            
-        for i in range(0, total_frames, max_frames_per_iter):
-            start_idx = i
-            end_idx = min(i + max_frames_per_iter, total_frames)
-            
-            print(f"About to start processing frames {start_idx} to {end_idx}")
-            print("Creating instances...")
-            
-            chunk_instances = [cls(frame, starlist, config, semaphore) 
-                            for frame, starlist in zip(frames[start_idx:end_idx], 
-                                                    starlists[start_idx:end_idx])]
-            
-            print("Creating tasks...")
-            chunk_tasks = [instance.photometry_routine() for instance in chunk_instances]
-            
-            print("Starting gather...")
-            await asyncio.gather(*chunk_tasks, return_exceptions=True)
-            print(f"Completed chunk {i//max_frames_per_iter + 1}")
-    
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
@@ -526,4 +494,4 @@ class ApPhotometry:
                     #print(f"CCD {i} completed")
                 except Exception as e:
                     print(f"Error in CCD {i}: {e}")
-    '''
+    
