@@ -455,7 +455,7 @@ class ApPhotometry:
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+        semaphore = asyncio.Semaphore(1000)
 
         try:
             #print(f"Process {process_id} starting async processing")
