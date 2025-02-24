@@ -447,17 +447,16 @@ class MuSCAT_PHOTOMETRY:
         print(f"ln -s {refdir} {self.target_dir}_{ccd}/list/")
         
         # Create symbolic link if it doesn't exist
-        try:
-            if not os.path.exists(ref_symlink):
-                os.symlink(refdir, ref_symlink)
-        except FileExistsError:
-            pass
+        if os.path.islink(refdir):
+            os.unlink(refdir)  # Remove the existing symlink
+
+        os.symlink(refdir, ref_symlink)
 
         ## Starmatch
         #print("\n")
         print(f"starmatch.pl list/ref.lst {objlist}")
         #subprocess.run(f" {reflist} {objlist}")
-        result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=f"{objdir}_{ccd}", shell=True, capture_output=True, text=True)
+        result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=f"{self.target_dir}_{ccd}", shell=True, capture_output=True, text=True)
         print(result.stdout)
 
     def process_object(self):        
