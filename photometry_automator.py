@@ -589,7 +589,7 @@ class MuSCAT_PHOTOMETRY:
         while True:
             initial_time = time.time()
             _, missing_files1, nframes = self._check_missing_photometry(self.rad_to_use)
-            total_frames_per_ccd = len(self.rad_to_use) * np.array(nframes)
+            total_frames_per_ccd = len(self.rad_to_use)# * np.array(nframes)
 
             await asyncio.sleep(interval)
             
