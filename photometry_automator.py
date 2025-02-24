@@ -13,8 +13,7 @@ from tqdm.asyncio import tqdm as tqdm_async
 from tqdm import tqdm
 import time
 from datetime import datetime, timedelta
-
-import threading
+import shutil
 
 #from tqdm import tqdm
 
@@ -421,6 +420,57 @@ class MuSCAT_PHOTOMETRY:
         else:
             print("## >> Target search unsuccessful (Reference file not found)")
             return
+
+
+    def process_object_per_ccd(self, ccd):
+        objdir = f"{self.target_dir}_{ccd}"
+        listdir = f"{objdir}/list"
+        objlist = f"{listdir}/object_ccd{ccd}.lst"
+
+        if self.instrument == "muscat":
+            objlist = f"{listdir}/object_ccd{ccd}_corr.lst"
+
+        ## Starfind
+        print("\n")
+        print(f"cd {objdir}; starfind_centroid.pl {objlist}")
+        subprocess.run(f"cd {objdir}; starfind_centroid.pl {objlist}", shell=True)
+
+        ## Set reference
+        reflist = f"{self.target_dir}/list/ref.lst"
+
+        print(f"cp {reflist} {listdir}/")
+        shutil.copy(reflist, listdir)
+
+        refdir = f"{self.target_dir}/reference"
+        ref_symlink = f"{objdir}/reference"
+        
+        print(f"ln -s {refdir} {objdir}/")
+        
+        # Create symbolic link if it doesn't exist
+        if not os.path.exists(ref_symlink):
+            os.symlink(refdir, ref_symlink)
+
+        ## Starmatch
+        print("\n")
+        print(f"cd {objdir}; starmatch.pl {reflist} {objlist}")
+        subprocess.run(f"cd {objdir}; starmatch.pl {reflist} {objlist}", shell=True)
+
+    def process_object(self):        
+        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
+            futures = []
+            # Add index for tracking
+            for i in range(self.nccd):
+                #print(f"Submitting CCD {i} with {len(frames)} frames")
+                futures.append(
+                    executor.submit(self.process_object_per_ccd, i)
+                )
+        
+            for i, future in enumerate(futures):
+                try:
+                    future.result()
+                    #print(f"CCD {i} completed")
+                except Exception as e:
+                    print(f"Error in CCD {i}: {e}")
 
     ## Performing aperture photometry
     async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0, limit_frames=400):
