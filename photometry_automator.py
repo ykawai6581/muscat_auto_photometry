@@ -534,9 +534,6 @@ class MuSCAT_PHOTOMETRY:
                 missing = True
 
             missing_files_per_ccd[i] = list(set(missing_files))
-                #print(f"CCD {i}: Missing files for some radii: {missing_files[:5]}{'...' if len(missing_files) > 5 else ''}")
-        #print("Checking for missing photometry")
-        #print(f"Missing {missing}")
         return missing, missing_files_per_ccd, nframes
 
     def _config_photoemtry(self, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):
