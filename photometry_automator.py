@@ -450,7 +450,7 @@ class MuSCAT_PHOTOMETRY:
         
         for i, missing_files_per_ccd in missing_files.items():
             #self.rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files_per_ccd)]
-            self.rad_to_use = rads
+            self.rad_to_use = list(rads)
 
             if not self.rad_to_use:
                 print(f"## >> CCD={i} | Photometry already available for rads = {rads}")
