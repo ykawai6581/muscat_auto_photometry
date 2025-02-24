@@ -386,6 +386,7 @@ class MuSCAT_PHOTOMETRY:
 
         print(">> Running WCS Calculation of reference file...")
         cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file}"
+        print(cmd)
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         print(result.stdout)
         print("## >> Complete.")
