@@ -429,55 +429,69 @@ class ApPhotometry:
         except Exception as e:
             print(f"Error in photometry routine: {e}")
             raise
-
+    '''
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
-        #instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
+        instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
         #limit to max 1000 frames per iteration
         max_frames_per_iter = 2000
         #for i in range(len(frames)//max_frames_per_iter+1):
         #first_frame = i*max_frames_per_iter
         #last_frame = first_frame + max_frames_per_iter
-        #tasks = [instance.photometry_routine() for instance in instances]
-        #await asyncio.gather(*tasks, return_exceptions=True)
-
+        tasks = [instance.photometry_routine() for instance in instances]
+        await asyncio.gather(*tasks, return_exceptions=True)
+    '''
+    @classmethod
+    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
+        print("Starting process_multiple_images")
+        max_frames_per_iter = 2000
         total_frames = len(frames)
         
+        print("Before any processing")
+        # Let's check if any processing has already started
+        for frame in frames[:5]:  # Check first few frames
+            print(f"Checking frame {frame}")  # Add identifier for frame
+            
         for i in range(0, total_frames, max_frames_per_iter):
-            # Get slice indices
             start_idx = i
-            end_idx = min(i + max_frames_per_iter, total_frames)  
+            end_idx = min(i + max_frames_per_iter, total_frames)
             
-            print(f"Processing frames {start_idx} to {end_idx} out of {total_frames}")
+            print(f"About to start processing frames {start_idx} to {end_idx}")
+            print("Creating instances...")
             
-            # Create instances and tasks for this chunk
             chunk_instances = [cls(frame, starlist, config, semaphore) 
                             for frame, starlist in zip(frames[start_idx:end_idx], 
                                                     starlists[start_idx:end_idx])]
             
+            print("Creating tasks...")
             chunk_tasks = [instance.photometry_routine() for instance in chunk_instances]
+            
+            print("Starting gather...")
             await asyncio.gather(*chunk_tasks, return_exceptions=True)
             print(f"Completed chunk {i//max_frames_per_iter + 1}")
 
-        
-
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
-        """Wrapper function to run async code in a separate process."""
-        # Create new event loop for this process
+        import os
+        process_id = os.getpid()
+        print(f"Process {process_id} starting with {len(frames)} frames")
+        print(f"First frame in this process: {frames[0]}")  # Identify which frames
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Create semaphore for this process
         semaphore = asyncio.Semaphore(10)
 
-        try: # why use this and not context manager
-            # Run the async processing
-            return loop.run_until_complete(
+        try:
+            print(f"Process {process_id} starting async processing")
+            result = loop.run_until_complete(
                 cls.process_multiple_images(frames, starlists, config, semaphore)
             )
+            print(f"Process {process_id} completed")
+            return result
         finally:
             loop.close()
+
 
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
@@ -485,21 +499,23 @@ class ApPhotometry:
         ncores = min(len(frames_list),os.cpu_count())
         #print(f"Starting photometry with {num_ccds} cores...")
         
-        # Create partial function with class method
+        print(f"Starting processing with {len(frames_list)} CCDs")
+        print(f"Each CCD has: {[len(frames) for frames in frames_list]} frames")
+        
         process_ccd = partial(cls.process_ccd_wrapper)
         
-        # Create process pool with one process per CCD
         with ProcessPoolExecutor(max_workers=ncores) as executor:
-            # Submit all CCDs for processing
-            
-            futures = [
-                executor.submit(process_ccd, frames, starlists, config)
-                for frames, starlists in zip(frames_list,starlists_list)
-            ]
+            futures = []
+            # Add index for tracking
+            for i, (frames, starlists) in enumerate(zip(frames_list, starlists_list)):
+                print(f"Submitting CCD {i} with {len(frames)} frames")
+                futures.append(
+                    executor.submit(process_ccd, frames, starlists, config)
+                )
         
-            # Wait for all processes to complete
-            for future in futures:
+            for i, future in enumerate(futures):
                 try:
                     future.result()
+                    print(f"CCD {i} completed")
                 except Exception as e:
-                    print(f"Error in process: {e}")
+                    print(f"Error in CCD {i}: {e}")
