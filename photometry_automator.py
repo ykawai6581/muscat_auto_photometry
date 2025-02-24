@@ -449,7 +449,9 @@ class MuSCAT_PHOTOMETRY:
             return
         
         for i, missing_files_per_ccd in missing_files.items():
-            self.rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files_per_ccd)]
+            #self.rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files_per_ccd)]
+            self.rad_to_use = rads
+
             if not self.rad_to_use:
                 print(f"## >> CCD={i} | Photometry already available for rads = {rads}")
                 continue
@@ -502,32 +504,29 @@ class MuSCAT_PHOTOMETRY:
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
             nframes.append(last_frame-first_frame+1)
-
+            '''
             #photometry may not have been performed for the first rad (or the last rad) because of the iteration algorithm so the second rad is the safest.
             existing_rads = [
                 rad for rad in rads
                 if os.path.exists(f"{apphot_directory}/rad{rad}") and 
                 any(filename.endswith('.dat') for filename in os.listdir(f"{apphot_directory}/rad{rad}"))
             ]
-
-
+            
             if existing_rads:
                 existing_files = [filename[:-4][-4:] for filename in os.listdir(f"{apphot_directory}/rad{existing_rads[0]}")
                                 if filename.endswith('.dat')]
                 df, meta = self.read_photometry(dir=apphot_directory, ccd=i, rad=existing_rads[0], frame=int(existing_files[0]), add_metadata=True) #it takes too long to scan through all ccds, rad and frames
-
-            def file_does_not_exist(frame): #nested helper function to help judge if photometry exists
+            '''
+            def file_exists(frame): #nested helper function to help judge if photometry exists
                 file_name = f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                if not existing_rads:
-                    return True
                 for file in glob.iglob(f'{apphot_directory}/**/{file_name}', recursive=True):
-                    return False  # If at least one match is found, return False
-                return meta['nstars'] < self.nstars  #if previous photometry has smaller number of stars than requested -> need to redo
+                    return True  # If at least one match is found, return true
+                #return meta['nstars'] < self.nstars  #if previous photometry has smaller number of stars than requested -> need to redo
                 
             missing_files = [
                 f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 for frame in range(first_frame, last_frame+1)
-                if file_does_not_exist(frame)
+                if not file_exists(frame)
             ]
 
             if missing_files:
