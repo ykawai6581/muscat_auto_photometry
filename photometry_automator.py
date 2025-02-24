@@ -424,7 +424,7 @@ class MuSCAT_PHOTOMETRY:
 
     def process_object_per_ccd(self, ccd):
         objdir = f"{self.target_dir}"
-        listdir = f"{objdir}_{ccd}/list"
+        listdir = f"list"
         objlist = f"{listdir}/object_ccd{ccd}.lst"
 
         if self.instrument == "muscat":
