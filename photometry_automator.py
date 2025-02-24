@@ -424,28 +424,27 @@ class MuSCAT_PHOTOMETRY:
 
     def process_object_per_ccd(self, ccd):
         objdir = f"{self.target_dir}"
-        listdir = f"list"
-        objlist = f"{listdir}/object_ccd{ccd}.lst"
+        objlist = f"list/object_ccd{ccd}.lst"
 
         if self.instrument == "muscat":
-            objlist = f"{listdir}/object_ccd{ccd}_corr.lst"
+            objlist = f"list/object_ccd{ccd}_corr.lst"
 
         ## Starfind
         #print("\n")
         print(f"starfind_centroid.pl {objlist}")
         #subprocess.run(f"starfind_centroid.pl {objlist}")
-        subprocess.run(["starfind_centroid.pl", objlist], cwd=f"{objdir}_{ccd}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["starfind_centroid.pl", objlist], cwd=f"{self.target_dir}_{ccd}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         ## Set reference
-        reflist = f"{objdir}/list/ref.lst"
+        reflist = f"{self.target_dir}/list/ref.lst"
 
-        print(f"cp {reflist} {listdir}/")
-        shutil.copy(reflist, listdir)
+        print(f"cp {reflist} {self.target_dir}_{ccd}/list/")
+        shutil.copy(reflist, f"{self.target_dir}_{ccd}/list/")
 
-        refdir = f"{objdir}/reference"
-        ref_symlink = f"{objdir}_{ccd}/reference"
+        refdir = f"{self.target_dir}/reference"
+        ref_symlink = f"{self.target_dir}_{ccd}/reference"
         
-        print(f"ln -s {refdir} {objdir}/")
+        print(f"ln -s {refdir} {self.target_dir}_{ccd}/list/")
         
         # Create symbolic link if it doesn't exist
         try:
@@ -456,9 +455,9 @@ class MuSCAT_PHOTOMETRY:
 
         ## Starmatch
         #print("\n")
-        print(f"starmatch.pl {reflist} {objlist}")
+        print(f"starmatch.pl list/ref.lst {objlist}")
         #subprocess.run(f" {reflist} {objlist}")
-        result = subprocess.run(f"starmatch.pl {reflist} {objlist}", cwd=f"{objdir}_{ccd}", shell=True, capture_output=True, text=True)
+        result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=f"{objdir}_{ccd}", shell=True, capture_output=True, text=True)
         print(result.stdout)
 
     def process_object(self):        
