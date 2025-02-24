@@ -404,23 +404,24 @@ class ApPhotometry:
 
     async def write_results(self, outputs):
         """Write multiple results to files asynchronously."""
-        async with self.semaphore:  # Use semaphore for control
-            tasks = [self._write_single_file(output["path"], output["data"]) for output in outputs]
-            await asyncio.gather(*tasks)
+        tasks = [self._write_single_file(output["path"], output["data"]) for output in outputs]
+        await asyncio.gather(*tasks)
 
     async def _write_single_file(self, path, data):
         """Regular blocking file write"""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        #async with self.semaphore:  # Use semaphore for control
-        with open(path, "w") as f:
-            f.write(data)
+        async with self.semaphore:  # Use semaphore for control
+            with open(path, "w") as f:
+                f.write(data)
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
         routine_start = time.time()
         try:
             #print("Starting photometry_routine")
-            outputs = await asyncio.to_thread(self.process_image)
+            #outputs = await asyncio.to_thread(self.process_image)
+            outputs_coroutine = asyncio.to_thread(self.process_image)
+            outputs = await asyncio.create_task(outputs_coroutine)
             #write_start = time.time()
             await self.write_results(outputs)
             #print(f"Full routine completed in {time.time() - routine_start:.2f}s "
