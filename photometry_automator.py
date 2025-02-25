@@ -359,9 +359,10 @@ class MuSCAT_PHOTOMETRY:
         elif rads:
             rads = rads
             missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
-            frames = [f"{self.target_dir}_0/rawdata/{file[:4]}.fits" 
-                    for missing_files_per_ccd in missing_files 
-                    for file in missing_files_per_ccd]  # rawdata is a symbolic link
+            frames = [f"{self.target_dir}_0/rawdata/{file[:-4]}.fits" 
+                        for _, missing_files_per_ccd in missing_files.items() 
+                        for file in missing_files_per_ccd]  # rawdata is a symbolic link
+
             for frame in frames:
                 self.show_frame(frame=frame)
         else:
