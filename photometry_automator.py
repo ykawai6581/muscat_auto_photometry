@@ -210,17 +210,8 @@ class MuSCAT_PHOTOMETRY:
             self.bands = muscat_bands[self.instrument]
             os.chdir('/home/muscat/reduction_afphot/'+self.instrument)
 
-            for i in range(self.nccd):
-                print(f'\n=== CCD{i} ===')
-                cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {self.instrument} {obsdate} {i}'
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            self.load_obslog()
 
-                obslog_perccd = result.stdout
-                print(obslog_perccd)  # Optional: Print to verify
-                obslog_perccd = obslog_perccd.lstrip("# ")
-                obslog_perccd_df = pd.read_csv(StringIO(obslog_perccd), delim_whitespace=True)
-
-                self.obslog.append(obslog_perccd_df)
             self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
             if target in self.obj_names: #implement checks for variability in target name
                 self.target = target
@@ -235,7 +226,42 @@ class MuSCAT_PHOTOMETRY:
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     @time_keeper
-    def config_flat(self):
+    def run_all_ccds(self, method, *args, **kwargs):
+        """
+        Wrapper function to run a method in parallel for all CCDs.
+        - Collects return values if any.
+        - Runs the method in parallel for all CCDs.
+        """
+        results = {}
+
+        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
+            futures = {executor.submit(method, ccd, *args, **kwargs): ccd for ccd in range(self.nccd)}
+
+            for future in futures:
+                ccd = futures[future]
+                try:
+                    result = future.result()  # Capture return value if any
+                    results[ccd] = result  # Store per-CCD results
+                    print(f"CCD {ccd} completed")
+                except Exception as e:
+                    print(f"Error in CCD {ccd}: {e}")
+                    results[ccd] = None
+
+        return results if any(v is not None for v in results.values()) else None
+
+    def load_obslog(self):
+        for i in range(self.nccd):
+            print(f'\n=== CCD{i} ===')
+            cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {self.instrument} {self.obsdate} {i}'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+            obslog_perccd = result.stdout
+            print(obslog_perccd)  # Optional: Print to verify
+            obslog_perccd = obslog_perccd.lstrip("# ")
+            obslog_perccd_df = pd.read_csv(StringIO(obslog_perccd), delim_whitespace=True)
+            self.obslog.append(obslog_perccd_df)
+
+    def config_flat(self, ccd):
         ## Setting configure files for flat
 
         ## Change the following values
@@ -244,69 +270,66 @@ class MuSCAT_PHOTOMETRY:
         #flat_first_frameIDs = [1306, 1857, 2414] 
         #======
 
-        for i in range(self.nccd):
-            flat_conf_path = f"{self.flat_dir}/list/flat_ccd{i}.conf"
-            #print(flat_conf_path)
-            if not os.path.exists(flat_conf_path):
-                cmd = f'perl scripts/config_flat.pl {self.obsdate} {i} -set_dir_only'
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        flat_conf_path = f"{self.flat_dir}/list/flat_ccd{ccd}.conf"
+        #print(flat_conf_path)
+        if not os.path.exists(flat_conf_path):
+            cmd = f'perl scripts/config_flat.pl {self.obsdate} {ccd} -set_dir_only'
+            subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-                flat_conf = f'{self.flat_dir}/list/flat_ccd{i}.conf'
-                print(flat_conf)
-                text = f'flat {self.flat_first_frameIDs[i]} {self.flat_first_frameIDs[i]+49}\nflat_dark {self.flat_first_frameIDs[i]+50} {self.flat_first_frameIDs[i]+54}'
-                with open(flat_conf, mode='w') as f:
-                    f.write(text)
-                result = subprocess.run(['cat', flat_conf], capture_output=True, text=True)
-                print(result.stdout)
-                print('\n')
-            else:
-                print(f"config file already exisits under {self.flat_dir}/list/flat_ccd{i}.conf")
+            flat_conf = f'{self.flat_dir}/list/flat_ccd{ccd}.conf'
+            print(flat_conf)
+            text = f'flat {self.flat_first_frameIDs[ccd]} {self.flat_first_frameIDs[ccd]+49}\nflat_dark {self.flat_first_frameIDs[ccd]+50} {self.flat_first_frameIDs[ccd]+54}'
+            with open(flat_conf, mode='w') as f:
+                f.write(text)
+            result = subprocess.run(['cat', flat_conf], capture_output=True, text=True)
+            print(result.stdout)
+            print('\n')
+        else:
+            print(f"config file already exisits under {self.flat_dir}/list/flat_ccd{i}.conf")
 
-    @time_keeper
-    def config_object(self):
+    def config_object(self,ccd):
         ## Setting configure files for object
-        exposure = [float(ccd["EXPTIME(s)"][ccd["OBJECT"] == self.target]) for ccd in self.obslog]  # exposure times (sec) for object
-        for i in range(self.nccd):
-            obj_conf_path = f"{self.target_dir}_{i}/list/object_ccd{i}.conf"
-            #print(obj_conf_path)
-            if not os.path.exists(obj_conf_path):
-                exp=exposure[i]
-                cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {i} -auto_obj -auto_dark {exp}'
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                print(result.stdout)
-            else:
-                print(f"config file already exisits under {self.target_dir}_{i}/list/ as object_ccd{i}.conf")
+        obslog = self.obslog[ccd]
+        exposure = float(obslog["EXPTIME(s)"][obslog["OBJECT"] == self.target])  # exposure times (sec) for object
+        obj_conf_path = f"{self.target_dir}_{ccd}/list/object_ccd{ccd}.conf"
+        #print(obj_conf_path)
+        if not os.path.exists(obj_conf_path):
+            cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {ccd} -auto_obj -auto_dark {exposure}'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            print(result.stdout)
+        else:
+            print(f"config file already exisits under {self.target_dir}_{ccd}/list/ as object_ccd{ccd}.conf")
 
-    @time_keeper
-    def reduce_flat(self):
+    def reduce_flat(self, ccd):
         ## Reducing FLAT images 
-        for i in range(self.nccd):
-            flat_path = f"{self.flat_dir}/flat/flat_ccd{i}.fits"
-            #print(flat_path)
-            if not os.path.exists(flat_path):
-                print(f'>> Reducing FLAT images of CCD{i} ... (it may take tens of seconds)')
-                cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {i} > /dev/null"
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            else:
-                print(f"flat file already exisits under {self.flat_dir}/flat/ as flat_ccd{i}.fits")
-
-    @time_keeper
+        flat_path = f"{self.flat_dir}/flat/flat_ccd{ccd}.fits"
+        #print(flat_path)
+        if not os.path.exists(flat_path):
+            print(f'>> Reducing FLAT images of CCD{ccd} ... (it may take tens of seconds)')
+            cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {ccd} > /dev/null"
+            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        else:
+            print(f"flat file already exisits under {self.flat_dir}/flat/ as flat_ccd{ccd}.fits")
+    
     ## Reducing Object images 
-    def run_auto_mkdf(self):
-        for i in range(self.nccd):
-            df_directory = f'{self.target_dir}_{i}/df'
-            frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
-            first_frame = int(frame_range["FRAME#1"].iloc[0])
-            last_frame = int(frame_range["FRAME#2"].iloc[0])
-            print(f'CCD{i}: Reducing frames {first_frame}~{last_frame} ...')
-            missing_files = [f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits" for frame in range(first_frame, last_frame+1) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits"))]
+    def auto_mkdf(self,ccd):
+        df_directory = f'{self.target_dir}_{ccd}/df'
+        frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
+        first_frame = int(frame_range["FRAME#1"].iloc[0])
+        last_frame = int(frame_range["FRAME#2"].iloc[0])
+        print(f'CCD{ccd}: Reducing frames {first_frame}~{last_frame} ...')
+        missing_files = []
+        
+        for frame in range(first_frame, last_frame+1):
+            if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.df.fits")):
+                missing_files.append(f"MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.df.fits")
 
-            if missing_files:
-                cmd = f"perl scripts/auto_mkdf.pl {self.obsdate} {self.target} {i} > /dev/null"
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                print(f'Completed auto_mkdf.pl for CCD{i}')
-            else:
-                print(f"df file already exisits under /{self.target}_{i}/df/")
+        if missing_files:
+            cmd = f"perl scripts/auto_mkdf.pl {self.obsdate} {self.target} {ccd} > /dev/null"
+            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            print(f'Completed auto_mkdf.pl for CCD{ccd}')
+        else:
+            print(f"df file already exisits under /{self.target}_{ccd}/df/")
 
     def create_reference(self, ccd=0, refid_delta=0, threshold=10, rad=20):
         ## Creating a reference image
@@ -323,7 +346,6 @@ class MuSCAT_PHOTOMETRY:
         subprocess.run(cmd, shell=True, capture_output=True, text=True)
         self.find_tid(ccd, refid_delta, threshold, rad)
     
-
     def show_frame(self, frame, rad=10):
         """Plots a single FITS frame with reference markers."""
         x0, y0 = self.read_reference()
@@ -360,26 +382,7 @@ class MuSCAT_PHOTOMETRY:
                     for file in missing_files_per_ccd]  # rawdata is a symbolic link
         for frame in frames:
             self.show_frame(frame=frame)
-    '''
-    def show_reference(self, rad=10):
-        x0, y0 = self.read_reference()
 
-        ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
-        ax = self.show_frame(ref_fits)
-        for i, _ in enumerate(zip(x0,y0)):
-            if i == self.tid - 1:
-                color = "red"
-                text_color = "yellow"
-                text = f"{self.target}|{self.tid}"
-            else:
-                color = "chocolate"
-                text_color = "chocolate"
-                text = f"{i+1}"
-
-            circ = plt.Circle((x0[i],y0[i]), rad, color=color, fill=False)
-            ax.add_patch(circ)
-            plt.text(x0[i]+rad/2., y0[i]+rad/2., text, fontsize=20, color=text_color)
-    '''
     def read_reference(self):
         ref_path = Path(f"{self.target_dir}/list/ref.lst")
         if os.path.exists(ref_path):            
@@ -457,7 +460,7 @@ class MuSCAT_PHOTOMETRY:
         self.create_reference(ccd=ccd,refid_delta=refid_delta,rad=rad-1)
 
 
-    def process_object_per_ccd(self, ccd):
+    def process_object(self, ccd):
         objlist = f"list/object_ccd{ccd}.lst"
 
         if self.instrument == "muscat":
@@ -487,23 +490,6 @@ class MuSCAT_PHOTOMETRY:
         ## Starmatch
         print(f"starmatch.pl list/ref.lst {objlist}")
         result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=f"{self.target_dir}_{ccd}", shell=True, capture_output=True, text=True)
-
-    def process_object(self):        
-        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
-            futures = []
-            # Add index for tracking
-            for i in range(self.nccd):
-                #print(f"Submitting CCD {i} with {len(frames)} frames")
-                futures.append(
-                    executor.submit(self.process_object_per_ccd, i)
-                )
-        
-            for i, future in enumerate(futures):
-                try:
-                    future.result()
-                    #print(f"CCD {i} completed")
-                except Exception as e:
-                    print(f"Error in CCD {i}: {e}")
 
     ## Performing aperture photometry
     async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",
@@ -796,6 +782,64 @@ class MuSCAT_PHOTOMETRY:
         else:
             return None
 
+    def check_saturation_per_ccd(self, ccd, rad):
+        saturation_threshold = 60000
+        print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
+        df = self._process_single_ccd(ccd=ccd, rad=rad)
+        print(f'## >> Done loading photometry data.')
+        # Count the number of rows where peak > 60000 for this star ID
+        saturation_cids = []
+        stop_processing = False
+        for star_id in range(1,int(self.nstars)+1):
+            if stop_processing:
+                break  # Exit the loop completely
+            flux = df[ccd][df[ccd]["ID"] == star_id]["peak"]
+            frames = np.array(list(range(len(df[ccd][df[ccd]["ID"] == star_id]))))
+            median = np.array(lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50)))
+            typical_scatter = np.std(flux-median)
+            saturation_threshold_per_star = saturation_threshold - typical_scatter #flux + typical scatter が60000を超えていたらsaturation zone
+            saturation_zone = np.where(median > saturation_threshold_per_star)[0]
+            count_above_threshold = (flux > saturation_threshold_per_star).sum()
+            percentage_above_threshold = (count_above_threshold / len(frames)) * 100
+            # If more than 5% of the rows are in saturation zone , add this star ID to the list
+            if percentage_above_threshold > 5:
+                saturation_cids.append(star_id)
+            else:
+                stop_processing = True  # Stop processing this CCD if a star is not saturated
+        return saturation_cids, frames, flux, median, saturation_zone
+        
+    def check_saturation(self, rad):
+        """Runs check_saturation_per_ccd in parallel across CCDs."""
+        self.saturation_cids = []
+        fig, ax = plt.subplots(self.nccd, 1, figsize=(15, 10))
+        # Run in parallel
+        results = self.run_all_ccds(self.check_saturation_per_ccd, rad)
+
+        # Collect results and plot
+        for i in range(self.nccd):
+            if results and results[i] is not None:
+                saturation_cids_per_ccd, frames, flux, median, saturation_zone = results[i]
+                self.saturation_cids.append(saturation_cids_per_ccd)
+
+                ax[i].plot(frames, flux, label=f"CCD {i}", zorder=1)
+                ax[i].plot(frames, median, color="white", alpha=0.5, zorder=2)
+                ax[i].scatter(frames[saturation_zone], median[saturation_zone], color="red", alpha=0.5, marker=".", s=10, zorder=3)
+
+            ax[i].set_title(f"CCD {i}")
+            ax[i].set_ylim(0, 62000)
+            ax[i].set_xlabel("Frame")
+            ax[i].set_ylabel("Peak")
+
+        fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.02), frameon=False, ncol=self.nstars)
+
+        for i in range(self.nccd):
+            print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
+
+        plt.show()
+    
+    
+    '''
+
         
     def _read_photometry_parallel(self, rad, num_processes=4): #underscore suggests the function should not be called outside the class
         """
@@ -820,7 +864,6 @@ class MuSCAT_PHOTOMETRY:
         valid_results = [result for result in results if result is not None]
         
         return valid_results
-
     @time_keeper
     def check_saturation(self, rad):
         self.saturation_cids = []
@@ -869,6 +912,7 @@ class MuSCAT_PHOTOMETRY:
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
 
         plt.show()
+    '''
     '''
     def select_comparison(self, tid, nstars=5):
         self.tid = tid
@@ -935,17 +979,9 @@ class MuSCAT_PHOTOMETRY:
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
                     cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                    #cmd = f"perl {script_path} -date {self.obsdate} -obj {self.target} -ap_type {self.method} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid}"
                     result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
-                    #print(cmd)
-                    #print(result.stdout)
-
-                    #print(os.getcwd())
-                    #print(f"Created {outfile}")
-                    #print(outfile_path)
                     outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
                     if os.path.isfile(outfile_path): #if the photometry file now exists
-                        #outfile2 = f"{instdir}/{date}/{obj}/lcf_{inst}_{bands[i]}_{obj}_{date}_t{tid}_c{suffix}_r{rad1}-{rad2}.csv"
                         subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)
                         print(f"## >> Created photometry for cIDs:{cid}")
                     else:
