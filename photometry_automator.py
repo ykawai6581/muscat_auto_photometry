@@ -42,9 +42,6 @@ import math
 import matplotlib.patches as patches
 import matplotlib.colors as mcolors
 import re
-from ipywidgets import interact, IntSlider
-import ipympl  # Ensure interactive plotting support in Jupyter
-
 
 import itertools
 import warnings
@@ -336,7 +333,6 @@ class MuSCAT_PHOTOMETRY:
 
         norm = ImageNormalize(data, interval=ZScaleInterval())
         plt.imshow(data, origin='lower', norm=norm, cmap='gray')
-        plt.colorbar(label="Pixel Intensity")
         plt.title(f"{frame}")
 
         # Add reference points as circles
