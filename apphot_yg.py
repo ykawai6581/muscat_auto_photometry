@@ -497,7 +497,7 @@ class ApPhotometry:
         with ProcessPoolExecutor(max_workers=ncores) as executor:
             futures = []
             # Add index for tracking
-            for i, (frames, starlists) in enumerate(zip(flat_frames_list, flat_starlists_list)):
+            for i, (frames, starlists) in enumerate(zip(new_frames_list, new_starlists_list)):
 
                 #print(f"Submitting CCD {i} with {len(frames)} frames")
                 futures.append(
