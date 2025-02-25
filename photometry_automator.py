@@ -44,6 +44,11 @@ import matplotlib.colors as mcolors
 import re
 
 import itertools
+import warnings
+from astropy.io.fits.verify import FITSFixedWarning
+
+warnings.simplefilter('ignore', FITSFixedWarning)
+
 
 def get_combinations(x, y, exclude):
     # Generate the range of numbers from x to y
@@ -200,6 +205,7 @@ class MuSCAT_PHOTOMETRY:
                 "muscat3" :["r","i","g","z"],
                 "muscat4" :["g","r","i","z"],
             }
+
             self.bands = muscat_bands[self.instrument]
             os.chdir('/home/muscat/reduction_afphot/'+self.instrument)
 
@@ -226,7 +232,6 @@ class MuSCAT_PHOTOMETRY:
             self.target_dir = f"{self.obsdate}/{self.target}"
             self.flat_dir = f"{self.obsdate}/FLAT"
             #self.target_dir = f"{self.obsdate}/{self.target}
-
 
     @time_keeper
     def config_flat(self):
@@ -302,7 +307,6 @@ class MuSCAT_PHOTOMETRY:
             else:
                 print(f"df file already exisits under /{self.target}_{i}/df/")
 
-    @time_keeper
     def create_ref(self, ccd=0, refid_delta=0, threshold=10, rad=20):
         ## Creating a reference image
 
@@ -407,7 +411,7 @@ class MuSCAT_PHOTOMETRY:
                 tid = i + 1 #(index starts from 1 for starfind)
                 #print(f"Target ID: {tid}")
                 self.tid = tid
-                print("________________________________________________________")
+                print("___Match!_______________________________________________")
                 print(f"{self.target} | TID = {self.tid}")
                 print("________________________________________________________")
                 self.show_reference(rad=rad)
