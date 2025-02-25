@@ -368,11 +368,9 @@ class MuSCAT_PHOTOMETRY:
         return x, y 
     
     def wcs_calculation(self,ccd):
-        x0, y0 = self.read_reference()
         buffer = 0.02
         search_radius = 15 #in arcmin
         ref_file_path = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.fits"
-        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
 
         print(">> Running WCS Calculation of reference file...")
         cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {self.pixscale-buffer} --scale-high {self.pixscale+buffer} --scale-units arcsecperpix {ref_file_path}"
@@ -381,6 +379,11 @@ class MuSCAT_PHOTOMETRY:
         print(result.stdout)
         print("## >> Complete.")
 
+        self.read_wcs_calculation(ccd)
+
+    def read_wcs_calculation(self, ccd):
+        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
+        x0, y0 = self.read_reference()
         with fits.open(wcsfits) as hdul:
             header = hdul[0].header
 
@@ -390,12 +393,16 @@ class MuSCAT_PHOTOMETRY:
         wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
         wcs_pixscales *= 3600 #convert to arcsec
         if wcs_pixscales[0] - self.pixscale > 0.01:
-            print("## >> WCS calculation unsuccessful (Pixel scale mismatch)\nTry again or enter tID manually")
+            print("## >> WCS calculation unsuccessful (Pixel scale mismatch)")
             return
         return ra_list, dec_list
 
     def find_tid(self, ccd=0, refid_delta=0, threshold=10, rad=20):
-        ra_list, dec_list = self.wcs_calculation(ccd)
+        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
+        if os.path.exists(wcsfits):
+            ra_list, dec_list = self.read_wcs_calculation(ccd)
+        else:
+            ra_list, dec_list = self.wcs_calculation(ccd)
         threshold_pix = 2
         threshold_deg = threshold_pix*self.pixscale/3600
 
@@ -413,7 +420,7 @@ class MuSCAT_PHOTOMETRY:
             print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
             return 
         
-        self.create_ref(ccd=ccd,refid_delta=refid_delta,threshold=threshold-1)
+        self.create_ref(ccd=ccd,refid_delta=refid_delta,rad=rad-1)
 
 
     def process_object_per_ccd(self, ccd):
