@@ -310,21 +310,17 @@ class MuSCAT_PHOTOMETRY:
         ref_ccd=ccd
         refid= int(self.obslog[ref_ccd][self.obslog[ref_ccd]["OBJECT"] == self.target]["FRAME#1"])#if you are okay with setting the first frame as reference
         refid+=refid_delta
+        self.ref_file = f"MCT{self.instid}{ref_ccd}_{self.obsdate}{refid:04d}"
         #======
 
-        ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/list/ref.lst") for i in range(self.nccd)])
-        if not ref_exists:
-            cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid} --th={threshold} --rad={rad}"
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        else:
-            with open(Path(f"{self.obsdate}/{self.target}_0/list/ref.lst"), 'r') as f:
-                ref_file = f.read()
-                print(f'Ref file:\n {ref_file} exists.')
-        self.find_tid()
+        #ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/list/ref.lst") for i in range(self.nccd)])
+        #if not ref_exists:
+        cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid} --th={threshold} --rad={rad}"
+        subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        self.find_tid(ccd, refid_delta, threshold, rad)
 
     def show_reference(self, rad=10):
         ## Showing reference image
-
         ref_list_file = f'{self.target_dir}/list/ref.lst'
         with open(ref_list_file) as f:
             refframe = f.readline()
@@ -352,16 +348,21 @@ class MuSCAT_PHOTOMETRY:
             plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
 
     def read_reference(self):
-        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
-            ref_file = f.read()
-        ref_frame = ref_file.replace('\n','')
-        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
-        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
-        ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
+        ref_path = Path(f"{self.target_dir}/list/ref.lst")
+        if os.path.exists(ref_path):            
+            with open(ref_path, 'r') as f:
+                ref_file = f.read()
+            ref_frame = ref_file.replace('\n','')
+            ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
+            ref_file_dir = f"{self.target_dir}_{ref_ccd}"
+            ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
 
-        metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
-        x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
-        return x0, y0
+            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
+            x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
+            return x0, y0
+        else:
+            print("No reference file found.")
+            return
     
     def map_reference(self, geoparam_file_path):  #frameidにした方がいい  
         x0, y0 = self.read_reference()
@@ -371,68 +372,60 @@ class MuSCAT_PHOTOMETRY:
         y = geo.dy + geo.c * x0 + geo.d * y0
         return x, y 
 
-    def find_tid(self):
-        reflist = f"{self.target_dir}/list/ref.lst"
-        with open(Path(reflist), 'r') as f:
-            ref_file = f.read()
-
-        ref_frame = ref_file.replace('\n','')
-        ref_ccd = ref_frame[4] #the fifth character in the refframe is the ccd number
-        ref_file = f"{self.target_dir}_{ref_ccd}/df/{ref_frame}.df.fits"
+    def find_tid(self, ccd=0, refid_delta=0, threshold=10, rad=20):
+        x0, y0 = self.read_reference()
         pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
         buffer = 0.02
         search_radius = 15 #in arcmin
+        ref_file_path = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.fits"
+        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
 
         print(">> Running WCS Calculation of reference file...")
-        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file}"
+        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file_path}"
         print(cmd)
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         print(result.stdout)
         print("## >> Complete.")
 
-        if os.path.exists(reflist):            
-            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects") #objfiles contain star information after starfind
-            wcsfits = f"{self.target_dir}_{ref_ccd}/df/{ref_frame}.df.new"
-            with fits.open(wcsfits) as hdul:
-                header = hdul[0].header
-                w = wcs.WCS(header)
-                ra_list, dec_list = w.all_pix2world(data["x"], data["y"], 0)
-                cd_matrix = w.pixel_scale_matrix
-                wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
-                wcs_pixscales *= 3600 #convert to arcsec
-                if wcs_pixscales[0] - pixscale > 0.01:
-                    print("## >> WCS calculation unsuccessful (Pixel scale mismatch)\nTry again or enter tID manually")
-                    return
+        with fits.open(wcsfits) as hdul:
+            header = hdul[0].header
 
-            threshold = 2
-            threshold_deg = threshold*pixscale/3600
-
-            for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
-                match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
-                if match:
-                    tid = i + 1 #(index starts from 1 for starfind)
-                    #print(f"Target ID: {tid}")
-                    self.tid = tid
-                    print("________________________________________________________")
-                    print(f"{self.target} | TID = {self.tid}")
-                    print("________________________________________________________")
-                    return
-        else:
-            print("## >> Target search unsuccessful (Reference file not found)")
+        w = wcs.WCS(header)
+        ra_list, dec_list = w.all_pix2world(x0, y0, 0)
+        cd_matrix = w.pixel_scale_matrix
+        wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
+        wcs_pixscales *= 3600 #convert to arcsec
+        if wcs_pixscales[0] - pixscale > 0.01:
+            print("## >> WCS calculation unsuccessful (Pixel scale mismatch)\nTry again or enter tID manually")
             return
+
+        threshold_pix = 2
+        threshold_deg = threshold_pix*pixscale/3600
+
+        for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
+            match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
+            if match:
+                tid = i + 1 #(index starts from 1 for starfind)
+                #print(f"Target ID: {tid}")
+                self.tid = tid
+                print("________________________________________________________")
+                print(f"{self.target} | TID = {self.tid}")
+                print("________________________________________________________")
+                return
+        if threshold < 1:
+            print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
+            return 
+        self.create_ref(ccd=ccd,ccd=refid_delta,ccd=threshold-1)
 
 
     def process_object_per_ccd(self, ccd):
-        objdir = f"{self.target_dir}"
         objlist = f"list/object_ccd{ccd}.lst"
 
         if self.instrument == "muscat":
             objlist = f"list/object_ccd{ccd}_corr.lst"
 
         ## Starfind
-        #print("\n")
         print(f"starfind_centroid.pl {objlist}")
-        #subprocess.run(f"starfind_centroid.pl {objlist}")
         subprocess.run(["starfind_centroid.pl", objlist], cwd=f"{self.target_dir}_{ccd}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         ## Set reference
@@ -453,11 +446,8 @@ class MuSCAT_PHOTOMETRY:
         os.symlink(os.path.abspath(refdir), ref_symlink)
 
         ## Starmatch
-        #print("\n")
         print(f"starmatch.pl list/ref.lst {objlist}")
-        #subprocess.run(f" {reflist} {objlist}")
         result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=f"{self.target_dir}_{ccd}", shell=True, capture_output=True, text=True)
-        #print(result.stdout)
 
     def process_object(self):        
         with ProcessPoolExecutor(max_workers=self.nccd) as executor:
@@ -480,28 +470,24 @@ class MuSCAT_PHOTOMETRY:
     async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",
                          sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0, limit_frames=400):
 
-        # Assume the same available radius for all CCDs
-        apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
-        available_rad = sorted([float(p.name[3:]) for p in Path(apphot_base).glob("*/")]) if Path(apphot_base).exists() else []
-
         self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
 
         # Check for missing photometry files
         missing, missing_files, missing_rads,_ = self._check_missing_photometry(rads)
+        self.rad_to_use = missing_rads
+        available_rads = [rad for rad in rads if rad not in self.rad_to_use]
 
         if not missing:
-            print(f"## >> Photometry is already available for radius: {available_rad}")
+            print(f"## >> Photometry is already available for radius: {available_rads}")
             return
-        
-        self.rad_to_use = missing_rads
 
         for i, missing_files_per_ccd in missing_files.items():
             if not self.rad_to_use:
                 print(f"## >> CCD={i} | Photometry already available for rads = {rads}")
                 continue
             elif len(self.rad_to_use) != len(rads):
-                print(f"## >> CCD={i} | Photometry already available for rads = {[rad for rad in rads if rad not in self.rad_to_use]}")
+                print(f"## >> CCD={i} | Photometry already available for rads = {available_rads}")
 
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         starlists = []
@@ -527,7 +513,6 @@ class MuSCAT_PHOTOMETRY:
 
         await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
         await monitor
-
 
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""

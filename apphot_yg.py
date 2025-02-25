@@ -1,14 +1,11 @@
 import numpy as np
 from astropy.io import fits
-import argparse
 from typing import List, Tuple, Optional
 import matplotlib.pyplot as plt
 import os
 import asyncio
-import aiofiles
 from types import SimpleNamespace
 import re
-from tqdm import tqdm
 import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass
@@ -46,47 +43,8 @@ class PhotometryConfig:
     const_sky_flux: float=0.0#Constant sky flux value
     const_sky_sdev: float=0.0#Constant sky standard deviation
     method:         str="mapping"#apphot method either mapping or centroid
-    #max_concurrent: int=20
 
 
-'''
-  // Parameters for aperture and sky radii
-  // r1: minimum aperture radius
-  // r2: maximum aperture radius
-  // dr: step size of the aperture radius
-  // hbox: half box size for searching center
-  // dcen: step size for searching center
-  // sky_sep: separation of sky annulus from the center
-  // sky_wid: width of the sky annulus 
-  // sigma_cut: outlier cut threshold for calculating sky value
-
-    parser.add_argument('--sky_calc_mode', type=int, default=0, 
-                        help='Sky calculation mode (0=mean, 1=median, 2=mode)')
-    parser.add_argument('--global_sky_flag', type=int, default=0, 
-                        help='Use global sky calculation')
-    parser.add_argument('--const_sky_flag', type=int, default=0,
-                        help='Use constant sky value')
-    parser.add_argument('--const_sky_flux', type=float, default=0.0,
-                        help='Constant sky flux value')
-    parser.add_argument('--const_sky_sdev', type=float, default=0.0,
-                        help='Constant sky standard deviation')
-    parser.add_argument('--altitude', type=float, default=1013.0,
-                        help='Observatory altitude [m]')
-    parser.add_argument('--diameter', type=float, default=61.0,
-                        help='Telescope diameter [cm]')
-    parser.add_argument('--exptime', type=float, default=60.0,
-                        help='Exposure time [s]')
-    parser.add_argument('--sigma_0', type=float, default=0.064,
-                        help='Scintillation coefficient')
-    parser.add_argument('--airmass', type=float, default=1.0,
-                        help='Airmass')
-
-  this aperture photometry algorithm searches for the optimal center position of the star by looping over a 2*hbox x 2*hbox box
-    and calculates the flux by summing the pixel values within the aperture and subtracting the sky background
-
-  does that for all stars identified in the starlist file  
-  i shoudl add to this class a functionality that allows a loop over given stellar radii r1 & r2
-'''
 class ApPhotometry:
     def __init__(self,
                  frame, 
