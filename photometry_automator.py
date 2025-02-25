@@ -351,7 +351,7 @@ class MuSCAT_PHOTOMETRY:
                 text = f"{self.target}|{self.tid}"
             else:
                 color = "chocolate"
-                text_color = "chololate"
+                text_color = "chocolate"
                 text = f"{i+1}"
 
             circ = plt.Circle(xy, rad, color=color, fill=False)
