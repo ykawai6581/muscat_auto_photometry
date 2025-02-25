@@ -314,37 +314,23 @@ class MuSCAT_PHOTOMETRY:
         refid+=refid_delta
         self.ref_file = f"MCT{self.instid}{ref_ccd}_{self.obsdate}{refid:04d}"
         #======
-
-        #ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/list/ref.lst") for i in range(self.nccd)])
-        #if not ref_exists:
         cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid} --th={threshold} --rad={rad}"
         subprocess.run(cmd, shell=True, capture_output=True, text=True)
         self.find_tid(ccd, refid_delta, threshold, rad)
 
     def show_reference(self, rad=10):
-        ## Showing reference image
-        ref_list_file = f'{self.target_dir}/list/ref.lst'
-        with open(ref_list_file) as f:
-            refframe = f.readline()
+        x0, y0 = self.read_reference()
 
-        refframe = refframe.replace('\n','')
-        print('reference frame:', refframe)
-
-        ref_obj_file = f"{self.target_dir}/objects/{refframe}.objects"
-        refxy = np.genfromtxt(ref_obj_file, delimiter=13, usecols=(1,2))
-
-
-        ref_fits =f"{self.target_dir}/reference/ref-{refframe}.fits"
+        ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
         hdulist = fits.open(ref_fits)
         data = hdulist[0].data
-        #dataf = data.astype(np.float64)
 
         norm = ImageNormalize(data, interval=ZScaleInterval())
         plt.figure(figsize=(10,10))
         ax=plt.subplot(1,1,1)
         plt.imshow(data, origin='lower', norm=norm)
 
-        for i, xy in enumerate(refxy):
+        for i, _ in enumerate(zip(x0,y0)):
             if i == self.tid - 1:
                 color = "red"
                 text_color = "yellow"
@@ -354,9 +340,9 @@ class MuSCAT_PHOTOMETRY:
                 text_color = "chocolate"
                 text = f"{i+1}"
 
-            circ = plt.Circle(xy, rad, color=color, fill=False)
+            circ = plt.Circle((x0[i],y0[i]), rad, color=color, fill=False)
             ax.add_patch(circ)
-            plt.text(xy[0]+rad/2., xy[1]+rad/2., text, fontsize=20, color=text_color)
+            plt.text(x0[i]+rad/2., y0[i]+rad/2., text, fontsize=20, color=text_color)
 
     def read_reference(self):
         ref_path = Path(f"{self.target_dir}/list/ref.lst")
