@@ -235,7 +235,7 @@ class MuSCAT_PHOTOMETRY:
             self.tid = None
             self.target_dir = f"{self.obsdate}/{self.target}"
             self.flat_dir = f"{self.obsdate}/FLAT"
-            plt.ion()
+            #plt.ion()
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     @time_keeper
