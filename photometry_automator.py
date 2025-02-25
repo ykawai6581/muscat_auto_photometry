@@ -788,6 +788,10 @@ class MuSCAT_PHOTOMETRY:
         print(f'## >> Done loading photometry data.')
         # Count the number of rows where peak > 60000 for this star ID
         saturation_cids = []
+        saturation_zones = []
+        flux_list = []
+        frames_list = []
+        median_list = []
         stop_processing = False
         for star_id in range(1,int(self.nstars)+1):
             if stop_processing:
@@ -800,12 +804,17 @@ class MuSCAT_PHOTOMETRY:
             saturation_zone = np.where(median > saturation_threshold_per_star)[0]
             count_above_threshold = (flux > saturation_threshold_per_star).sum()
             percentage_above_threshold = (count_above_threshold / len(frames)) * 100
+
             # If more than 5% of the rows are in saturation zone , add this star ID to the list
             if percentage_above_threshold > 5:
                 saturation_cids.append(star_id)
+                saturation_zones.append(saturation_zone)
+                flux_list.append(flux)
+                frames_list.append(frames)
+                median_list.append(median)
             else:
                 stop_processing = True  # Stop processing this CCD if a star is not saturated
-        return saturation_cids, frames, flux, median, saturation_zone
+        return np.array(saturation_cids), np.array(frames_list), np.array(flux_list), np.array(median_list), np.array(saturation_zones)
         
     def check_saturation(self, rad):
         """Runs check_saturation_per_ccd in parallel across CCDs."""
@@ -820,9 +829,9 @@ class MuSCAT_PHOTOMETRY:
                 saturation_cids_per_ccd, frames, flux, median, saturation_zone = results[i]
                 self.saturation_cids.append(saturation_cids_per_ccd)
 
-                ax[i].plot(frames, flux, label=f"CCD {i}", zorder=1)
-                ax[i].plot(frames, median, color="white", alpha=0.5, zorder=2)
-                ax[i].scatter(frames[saturation_zone], median[saturation_zone], color="red", alpha=0.5, marker=".", s=10, zorder=3)
+                ax[i].plot(frames.T, flux.T, label=f"CCD {i}", zorder=1)
+                ax[i].plot(frames.T, median.T, color="white", alpha=0.5, zorder=2)
+                ax[i].scatter(np.where(saturation_zone, frames, np.nan).T, np.where(median, frames, np.nan).T, color="red", alpha=0.5, marker=".", s=10, zorder=3)
 
             ax[i].set_title(f"CCD {i}")
             ax[i].set_ylim(0, 62000)
