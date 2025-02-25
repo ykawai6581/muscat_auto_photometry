@@ -42,6 +42,9 @@ import math
 import matplotlib.patches as patches
 import matplotlib.colors as mcolors
 import re
+from ipywidgets import interact, IntSlider
+import ipympl  # Ensure interactive plotting support in Jupyter
+
 
 import itertools
 import warnings
@@ -231,6 +234,7 @@ class MuSCAT_PHOTOMETRY:
             self.tid = None
             self.target_dir = f"{self.obsdate}/{self.target}"
             self.flat_dir = f"{self.obsdate}/FLAT"
+            plt.ion() #turn on interactive plot mode
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     @time_keeper
@@ -322,18 +326,72 @@ class MuSCAT_PHOTOMETRY:
         subprocess.run(cmd, shell=True, capture_output=True, text=True)
         self.find_tid(ccd, refid_delta, threshold, rad)
 
-    def show_reference(self, rad=10):
-        x0, y0 = self.read_reference()
-
-        ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
-        hdulist = fits.open(ref_fits)
-        data = hdulist[0].data
+    def show_frame(self, frame):
+        with fits.open(frame) as hdul:
+            data = hdul[0].data
 
         norm = ImageNormalize(data, interval=ZScaleInterval())
         plt.figure(figsize=(10,10))
         ax=plt.subplot(1,1,1)
         plt.imshow(data, origin='lower', norm=norm)
+        return ax
+    
 
+    def plot_frame(self, frame, rad=10):
+        """Plots a single FITS frame with reference markers."""
+        x0, y0 = self.read_reference()
+
+        plt.figure(figsize=(10, 10))
+        with fits.open(frame) as hdul:
+            data = hdul[0].data
+
+        norm = ImageNormalize(data, interval=ZScaleInterval())
+        plt.imshow(data, origin='lower', norm=norm, cmap='gray')
+        plt.colorbar(label="Pixel Intensity")
+        plt.title(f"{frame}")
+
+        # Add reference points as circles
+        for i, _ in enumerate(zip(x0, y0)):
+            if i == self.tid - 1:
+                color = "red"
+                text_color = "yellow"
+                text = f"{self.target}|{self.tid}"
+            else:
+                color = "chocolate"
+                text_color = "chocolate"
+                text = f"{i+1}"
+
+            circ = plt.Circle((x0[i], y0[i]), rad, color=color, fill=False)
+            plt.gca().add_patch(circ)
+            plt.text(x0[i] + rad / 2, y0[i] + rad / 2, text, fontsize=12, color=text_color)
+
+        plt.show()
+
+    def show_missing_frames(self,rads=None):
+        if self.rad_to_use:
+            rads = self.rad_to_use
+        elif rads:
+            rads = rads
+            missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
+            frames = [f"{self.target_dir}_0/rawdata/{file[:4]}.fits" for file in missing_files] #rawdata is symbolic link
+            self.show_frame(frames=frames)
+        else:
+            print("No rads defined.")
+            return
+
+    def show_frame(self, frames, rad=10):
+        # Interactive slider if multiple frames exist
+        if len(frames) > 1:
+            interact(lambda index: self.plot_frame(frames[index], rad), 
+                     index=IntSlider(0, 0, len(frames) - 1, 1))
+        else:
+            self.plot_frame(frames[0], rad)  # Just plot a single frame
+    '''
+    def show_reference(self, rad=10):
+        x0, y0 = self.read_reference()
+
+        ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
+        ax = self.show_frame(ref_fits)
         for i, _ in enumerate(zip(x0,y0)):
             if i == self.tid - 1:
                 color = "red"
@@ -347,7 +405,7 @@ class MuSCAT_PHOTOMETRY:
             circ = plt.Circle((x0[i],y0[i]), rad, color=color, fill=False)
             ax.add_patch(circ)
             plt.text(x0[i]+rad/2., y0[i]+rad/2., text, fontsize=20, color=text_color)
-
+    '''
     def read_reference(self):
         ref_path = Path(f"{self.target_dir}/list/ref.lst")
         if os.path.exists(ref_path):            
@@ -414,7 +472,8 @@ class MuSCAT_PHOTOMETRY:
                 print("___Match!_______________________________________________")
                 print(f"{self.target} | TID = {self.tid}")
                 print("________________________________________________________")
-                self.show_reference(rad=rad)
+                ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
+                self.show_frame(frames=ref_fits,rad=rad)
                 return
         if rad < 1:
             print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
