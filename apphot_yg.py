@@ -15,9 +15,12 @@ from dataclasses import dataclass
 from typing import List, Any
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor
+import concurrent.futures
+
 from functools import partial
 from multiprocessing import Queue
 import time
+import functools
 
 
 @dataclass
@@ -89,7 +92,8 @@ class ApPhotometry:
                  frame, 
                  starlist,
                  config=PhotometryConfig,
-                 semaphore = asyncio.Semaphore(1000)
+                 semaphore = asyncio.Semaphore(1000),
+                 thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
                  ):
         
         self.frame = frame
@@ -119,6 +123,7 @@ class ApPhotometry:
 
         self.version = "3.0.0"
         self.semaphore = semaphore
+        self.thread_pool = thread_pool
 
     '''
     def set_frame(self, frame, starlist):
@@ -413,19 +418,26 @@ class ApPhotometry:
         with open(path, "w") as f:
             f.write(data)
 
+    async def _run_in_limited_thread(self, func, *args, **kwargs):
+        """Run a function in the controlled thread pool"""
+        loop = asyncio.get_running_loop()
+        func_with_args = functools.partial(func, *args, **kwargs)
+        return await loop.run_in_executor(self.thread_pool, func_with_args)
+
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
         try:
             async with self.semaphore:  # Use semaphore for control
-                outputs = await asyncio.to_thread(self.process_image)
+                outputs = await self._run_in_limited_thread(self.process_image)
+                #outputs = await asyncio.to_thread(self.process_image)
                 await self.write_results(outputs)
         except Exception as e:
             print(f"Error in photometry routine: {e}")
             raise
     
     @classmethod
-    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
-        instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
+    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore, threadpool):
+        instances = [cls(frame, starlist, config, semaphore, threadpool) for frame, starlist in zip(frames, starlists)]
         tasks = [instance.photometry_routine() for instance in instances]
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -435,10 +447,10 @@ class ApPhotometry:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         semaphore = asyncio.Semaphore(1000)
-
+        threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         try:
             result = loop.run_until_complete(
-                cls.process_multiple_images(frames, starlists, config, semaphore)
+                cls.process_multiple_images(frames, starlists, config, semaphore, threadpool)
             )
             return result
         finally:
