@@ -242,7 +242,6 @@ class MuSCAT_PHOTOMETRY:
                 try:
                     result = future.result()  # Capture return value if any
                     results[ccd] = result  # Store per-CCD results
-                    print(f"CCD {ccd} completed")
                 except Exception as e:
                     print(f"Error in CCD {ccd}: {e}")
                     results[ccd] = None
@@ -700,27 +699,27 @@ class MuSCAT_PHOTOMETRY:
         table_data = []
         
         with open(filepath, 'r') as file:
+            table_started = False
             for line in file:
-                if line.startswith('#'):
-                    if 'ID xcen ycen' in line:
+                line = line.strip()  # Strip whitespace once at the start
+
+                if line.startswith("#"):
+                    if "ID xcen ycen" in line:
                         table_started = True
                         continue
+                    
                     if add_metadata and not table_started:
-                        line = line.strip('# \n')
-                        if '=' in line:
-                            key, value = line.split('=')
-                            metadata[key.strip()] = value.strip()
-                        elif line.strip():
-                            parts = line.split()
-                            if len(parts) >= 2:
-                                key = parts[0]
-                                value = ' '.join(parts[1:])
-                                metadata[key.strip()] = value.strip()
+                        line = line.lstrip("# ")
+                        if "=" in line:
+                            key, value = map(str.strip, line.split("=", 1))
+                            metadata[key] = value
+                        else:
+                            parts = line.split(maxsplit=1)
+                            if len(parts) == 2:
+                                metadata[parts[0]] = parts[1].strip()
                 else:
-                    # Replace "-nan" with "nan" in the data
-                    cleaned_line = line.replace("-nan", "nan")
-                    table_data.append(cleaned_line.strip())
-        
+                    table_data.append(line.replace("-nan", "nan"))
+                
         # Convert to DataFrame
         df = pd.DataFrame([row.split() for row in table_data], 
                         columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
@@ -751,7 +750,7 @@ class MuSCAT_PHOTOMETRY:
         
         return df, metadata if add_metadata else df#[['ID', 'peak']]
 
-    def _process_single_ccd(self, ccd, rad):
+    def read_whole_ccd(self, ccd, rad):
         """
         Process photometry data for a single CCD with metadata.
         """
@@ -785,7 +784,7 @@ class MuSCAT_PHOTOMETRY:
     def check_saturation_per_ccd(self, ccd, rad):
         saturation_threshold = 60000
         print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
-        df = self._process_single_ccd(ccd=ccd, rad=rad)
+        df = self.read_whole_ccd(ccd=ccd, rad=rad)
         print(f'## >> Done loading photometry data.')
         # Count the number of rows where peak > 60000 for this star ID
         saturation_cids = []
@@ -793,8 +792,8 @@ class MuSCAT_PHOTOMETRY:
         for star_id in range(1,int(self.nstars)+1):
             if stop_processing:
                 break  # Exit the loop completely
-            flux = df[ccd][df[ccd]["ID"] == star_id]["peak"]
-            frames = np.array(list(range(len(df[ccd][df[ccd]["ID"] == star_id]))))
+            flux = df[df["ID"] == star_id]["peak"]
+            frames = np.array(list(range(len(df[df["ID"] == star_id]))))
             median = np.array(lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50)))
             typical_scatter = np.std(flux-median)
             saturation_threshold_per_star = saturation_threshold - typical_scatter #flux + typical scatter が60000を超えていたらsaturation zone
