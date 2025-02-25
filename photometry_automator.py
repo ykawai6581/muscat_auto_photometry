@@ -455,7 +455,7 @@ class MuSCAT_PHOTOMETRY:
                 print(f"{self.target} | TID = {self.tid}")
                 print("________________________________________________________")
                 ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
-                self.show_frame(frames=ref_fits,rad=rad)
+                self.show_frame(frame=ref_fits,rad=rad)
                 return
         if rad < 1:
             print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
