@@ -383,7 +383,8 @@ class MuSCAT_PHOTOMETRY:
         # Interactive slider if multiple frames exist
         if not isinstance(frames,list):
             frames = [frames]
-            
+        print(frames)
+
         if len(frames) > 1:
             interact(lambda index: self.plot_frame(frames[index], rad), 
                      index=IntSlider(0, 0, len(frames) - 1, 1))
