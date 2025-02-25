@@ -47,7 +47,11 @@ import itertools
 import warnings
 from astropy.wcs import FITSFixedWarning 
 
+
 warnings.simplefilter('ignore', FITSFixedWarning)
+from ipywidgets import interact, IntSlider
+import ipympl  # Enables interactive plots in Jupyter
+
 
 
 def get_combinations(x, y, exclude):
@@ -231,6 +235,7 @@ class MuSCAT_PHOTOMETRY:
             self.tid = None
             self.target_dir = f"{self.obsdate}/{self.target}"
             self.flat_dir = f"{self.obsdate}/FLAT"
+            plt.ion()
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     @time_keeper
@@ -348,9 +353,30 @@ class MuSCAT_PHOTOMETRY:
 
             circ = plt.Circle((x0[i], y0[i]), rad, color=color, fill=False)
             plt.gca().add_patch(circ)
-            plt.text(x0[i] + rad / 2, y0[i] + rad / 2, text, fontsize=12, color=text_color)
+            plt.text(x0[i] + rad / 2, y0[i] + rad / 2, text, fontsize=14, color=text_color)
 
         plt.show()
+
+    def show_frames(self, frames=None, rad=10):
+        # Interactive slider if multiple frames exist
+        if len(frames) > 1:
+            interact(lambda index: self.show_frame(frames[index], rad), 
+                     index=IntSlider(0, 0, len(frames) - 1, 1))
+        else:
+            self.show_frame(frames[0], rad)  # Just plot a single frame
+
+    def show_missing_frames_test(self,rads=None):
+        if self.rad_to_use:
+            rads = self.rad_to_use
+        elif rads:
+            rads = rads
+            missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
+            frames = [f"{self.target_dir}_0/rawdata/{file[:4]}.fits" for file in missing_files] #rawdata is symbolic link
+            for frame in frames:
+                self.show_frame(frame=frame) 
+        else:
+            print("No rads defined.")
+            return
 
     def show_missing_frames(self,rads=None):
         if self.rad_to_use:
@@ -359,11 +385,10 @@ class MuSCAT_PHOTOMETRY:
             rads = rads
             missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
             frames = [f"{self.target_dir}_0/rawdata/{file[:4]}.fits" for file in missing_files] #rawdata is symbolic link
-            [self.show_frame(frame=frame) for frame in frames]
+            self.show_frames(frames=frames)
         else:
             print("No rads defined.")
             return
-
     '''
     def show_reference(self, rad=10):
         x0, y0 = self.read_reference()
