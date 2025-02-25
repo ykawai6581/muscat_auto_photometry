@@ -234,7 +234,6 @@ class MuSCAT_PHOTOMETRY:
             self.tid = None
             self.target_dir = f"{self.obsdate}/{self.target}"
             self.flat_dir = f"{self.obsdate}/FLAT"
-            plt.ion() #turn on interactive plot mode
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     @time_keeper
@@ -325,19 +324,9 @@ class MuSCAT_PHOTOMETRY:
         cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid} --th={threshold} --rad={rad}"
         subprocess.run(cmd, shell=True, capture_output=True, text=True)
         self.find_tid(ccd, refid_delta, threshold, rad)
-
-    def show_frame(self, frame):
-        with fits.open(frame) as hdul:
-            data = hdul[0].data
-
-        norm = ImageNormalize(data, interval=ZScaleInterval())
-        plt.figure(figsize=(10,10))
-        ax=plt.subplot(1,1,1)
-        plt.imshow(data, origin='lower', norm=norm)
-        return ax
     
 
-    def plot_frame(self, frame, rad=10):
+    def show_frame(self, frame, rad=10):
         """Plots a single FITS frame with reference markers."""
         x0, y0 = self.read_reference()
 
@@ -374,22 +363,11 @@ class MuSCAT_PHOTOMETRY:
             rads = rads
             missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
             frames = [f"{self.target_dir}_0/rawdata/{file[:4]}.fits" for file in missing_files] #rawdata is symbolic link
-            self.show_frame(frames=frames)
+            [self.show_frame(frame=frame) for frame in frames]
         else:
             print("No rads defined.")
             return
 
-    def show_frame(self, frames, rad=10):
-        # Interactive slider if multiple frames exist
-        if not isinstance(frames,list):
-            frames = [frames]
-        print(frames)
-
-        if len(frames) > 1:
-            interact(lambda index: self.plot_frame(frames[index], rad), 
-                     index=IntSlider(0, 0, len(frames) - 1, 1))
-        else:
-            self.plot_frame(frames[0], rad)  # Just plot a single frame
     '''
     def show_reference(self, rad=10):
         x0, y0 = self.read_reference()
