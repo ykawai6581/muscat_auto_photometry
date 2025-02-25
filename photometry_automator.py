@@ -343,11 +343,20 @@ class MuSCAT_PHOTOMETRY:
         plt.figure(figsize=(10,10))
         ax=plt.subplot(1,1,1)
         plt.imshow(data, origin='lower', norm=norm)
-        rad=rad
-        for i in range(len(refxy)):
-            circ = plt.Circle(refxy[i], rad, color='red', fill=False)
+
+        for i, xy in enumerate(refxy):
+            if i == self.tid - 1:
+                color = "red"
+                text_color = "yellow"
+                text = f"{self.target}|{self.tid}"
+            else:
+                color = "chocolate"
+                text_color = "chololate"
+                text = f"{i+1}"
+
+            circ = plt.Circle(xy, rad, color=color, fill=False)
             ax.add_patch(circ)
-            plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
+            plt.text(xy[0]+rad/2., xy[1]+rad/2., text, fontsize=20, color=text_color)
 
     def read_reference(self):
         ref_path = Path(f"{self.target_dir}/list/ref.lst")
@@ -415,11 +424,13 @@ class MuSCAT_PHOTOMETRY:
                 print("________________________________________________________")
                 print(f"{self.target} | TID = {self.tid}")
                 print("________________________________________________________")
+                self.show_reference(rad=rad)
                 return
-        if threshold < 1:
+        if rad < 1:
             print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
             return 
         
+        print(f"Locating target with rad={rad-1}")
         self.create_ref(ccd=ccd,refid_delta=refid_delta,rad=rad-1)
 
 
