@@ -410,20 +410,15 @@ class ApPhotometry:
     async def _write_single_file(self, path, data):
         """Regular blocking file write"""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        async with self.semaphore:  # Use semaphore for control
-            with open(path, "w") as f:
-                f.write(data)
+        with open(path, "w") as f:
+            f.write(data)
 
     async def photometry_routine(self):
         """Runs processing in a thread and writes asynchronously."""
-        #routine_start = time.time()
         try:
-            #print("Starting photometry_routine")
-            outputs = await asyncio.to_thread(self.process_image)
-            #write_start = time.time()
-            await self.write_results(outputs)
-            #print(f"Full routine completed in {time.time() - routine_start:.2f}s "
-            #    f"(writing took {time.time() - write_start:.2f}s)")
+            async with self.semaphore:  # Use semaphore for control
+                outputs = await asyncio.to_thread(self.process_image)
+                await self.write_results(outputs)
         except Exception as e:
             print(f"Error in photometry routine: {e}")
             raise
@@ -431,42 +426,23 @@ class ApPhotometry:
     @classmethod
     async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore):
         instances = [cls(frame, starlist, config, semaphore) for frame, starlist in zip(frames, starlists)]
-        #limit to max 1000 frames per iteration
-        #for i in range(len(frames)//max_frames_per_iter+1):
-        #first_frame = i*max_frames_per_iter
-        #last_frame = first_frame + max_frames_per_iter
         tasks = [instance.photometry_routine() for instance in instances]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    '''
-    @classmethod
-    async def process_multiple_ccds(cls,list_of_frames,list_of_starlists,config: PhotometryConfig):
-        semaphore = asyncio.Semaphore(10)
-        tasks = [cls.process_multiple_images(frames,starlists,config,semaphore) for frames, starlists in zip(list_of_frames,list_of_starlists)]
-        await asyncio.gather(*tasks, return_exceptions=True)
-    '''
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
-        #import os
-        #process_id = os.getpid()
-        #print(f"Process {process_id} starting with {len(frames)} frames")
-        #print(f"First frame in this process: {frames[0]}")  # Identify which frames
-        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         semaphore = asyncio.Semaphore(1000)
 
         try:
-            #print(f"Process {process_id} starting async processing")
             result = loop.run_until_complete(
                 cls.process_multiple_images(frames, starlists, config, semaphore)
             )
-            #print(f"Process {process_id} completed")
             return result
         finally:
             loop.close()
-
 
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
@@ -513,9 +489,7 @@ class ApPhotometry:
         with ProcessPoolExecutor(max_workers=ncores) as executor:
             futures = []
             # Add index for tracking
-            for i, (frames, starlists) in enumerate(zip(new_frames_list, new_starlists_list)):
-
-                #print(f"Submitting CCD {i} with {len(frames)} frames")
+            for  frames, starlists in zip(new_frames_list, new_starlists_list):
                 futures.append(
                     executor.submit(process_ccd, frames, starlists, config)
                 )
@@ -523,7 +497,6 @@ class ApPhotometry:
             for i, future in enumerate(futures):
                 try:
                     future.result()
-                    #print(f"CCD {i} completed")
                 except Exception as e:
                     print(f"Error in CCD {i}: {e}")
     
