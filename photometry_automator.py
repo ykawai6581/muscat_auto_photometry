@@ -354,20 +354,12 @@ class MuSCAT_PHOTOMETRY:
         plt.show()
 
     def show_missing_frames(self,rads=None):
-        if self.rad_to_use:
-            rads = self.rad_to_use
-        elif rads:
-            rads = rads
-            missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
-            frames = [f"{self.target_dir}_0/rawdata/{file[:-4]}.fits" 
-                        for _, missing_files_per_ccd in missing_files.items() 
-                        for file in missing_files_per_ccd]  # rawdata is a symbolic link
-
-            for frame in frames:
-                self.show_frame(frame=frame)
-        else:
-            print("No rads defined.")
-            return
+        missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
+        frames = [f"{self.target_dir}_0/rawdata/{file[:-4]}.fits" 
+                    for _, missing_files_per_ccd in missing_files.items() 
+                    for file in missing_files_per_ccd]  # rawdata is a symbolic link
+        for frame in frames:
+            self.show_frame(frame=frame)
     '''
     def show_reference(self, rad=10):
         x0, y0 = self.read_reference()
@@ -418,7 +410,7 @@ class MuSCAT_PHOTOMETRY:
         print(result.stdout)
         print("## >> Complete.")
 
-        self.read_wcs_calculation(ccd)
+        return self.read_wcs_calculation(ccd)
 
     def read_wcs_calculation(self, ccd):
         wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
