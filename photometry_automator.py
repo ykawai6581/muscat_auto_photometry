@@ -45,7 +45,7 @@ import re
 
 import itertools
 import warnings
-from astropy.io.fits.verify import FITSFixedWarning
+from astropy.wcs import FITSFixedWarning 
 
 warnings.simplefilter('ignore', FITSFixedWarning)
 
@@ -307,7 +307,7 @@ class MuSCAT_PHOTOMETRY:
             else:
                 print(f"df file already exisits under /{self.target}_{i}/df/")
 
-    def create_ref(self, ccd=0, refid_delta=0, threshold=10, rad=20):
+    def create_reference(self, ccd=0, refid_delta=0, threshold=10, rad=20):
         ## Creating a reference image
 
         ## Change the folloiwng value if necessary
@@ -421,7 +421,7 @@ class MuSCAT_PHOTOMETRY:
             return 
         
         print(f"Locating target with rad={rad-1}")
-        self.create_ref(ccd=ccd,refid_delta=refid_delta,rad=rad-1)
+        self.create_reference(ccd=ccd,refid_delta=refid_delta,rad=rad-1)
 
 
     def process_object_per_ccd(self, ccd):
