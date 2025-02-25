@@ -484,14 +484,30 @@ class ApPhotometry:
 
         assert len(flat_frames_list) == len(flat_starlists_list), "Frames and starlists must match."
 
-        # Redistribute frames and starlists evenly
+        frames_per_ccd = [len(frames) for frames in frames_list]
+
         new_frames_list = [[] for _ in range(nccds)]
         new_starlists_list = [[] for _ in range(nccds)]
 
+        # Create a more balanced distribution plan
+        assignment_order = []
+        for frame_idx in range(max(frames_per_ccd)): #loop over max number of ccds
+            for ccd in range(nccds):
+                if frame_idx < frames_per_ccd[ccd]:
+                    assignment_order.append((ccd, frame_idx)) #reorders the frames from ccd1,ccd1, .... ccd4,ccd4s -> ccd1,ccd2,.....ccd3,ccd4
+
+        # Distribute according to the plan
+        for i, (ccd_idx, frame_idx) in enumerate(assignment_order):
+            flat_idx = sum(frames_per_ccd[:ccd_idx]) + frame_idx # the frame index counting from the very first frame (of all ccds)
+            target_ccd = i % nccds
+            new_frames_list[target_ccd].append(flat_frames_list[flat_idx])
+            new_starlists_list[target_ccd].append(flat_starlists_list[flat_idx])
+
+        '''
         for i, (frame, starlist) in enumerate(zip(flat_frames_list, flat_starlists_list)):
             new_frames_list[i % nccds].append(frame) #round robin redistribition (take the modular and that becomes a circular index with max(index) = nccds-1)
             new_starlists_list[i % nccds].append(starlist)
-        
+        '''
         process_ccd = partial(cls.process_ccd_wrapper)
         
         with ProcessPoolExecutor(max_workers=ncores) as executor:
