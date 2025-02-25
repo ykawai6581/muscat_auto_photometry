@@ -477,36 +477,26 @@ class MuSCAT_PHOTOMETRY:
                     print(f"Error in CCD {i}: {e}")
 
     ## Performing aperture photometry
-    async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0, limit_frames=400):
+    async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",
+                         sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0, limit_frames=400):
 
         # Assume the same available radius for all CCDs
         apphot_base = f"{self.obsdate}/{self.target}_0/apphot_{method}"
         available_rad = sorted([float(p.name[3:]) for p in Path(apphot_base).glob("*/")]) if Path(apphot_base).exists() else []
 
-        if available_rad and rad1==None and rad2==None and drad==None:
-            self.rad1, self.rad2, self.method = float(available_rad[0]), float(available_rad[-1]), method
-            random_frame = self.obslog[0][self.obslog[0]["OBJECT"] == self.target]
-            random_frame = int(random_frame["FRAME#1"].iloc[0])
-            df, meta = self.read_photometry(ccd=0, rad=self.rad1, frame=random_frame, add_metadata=True)
-            self.nstars = meta['nstars'] 
-            print(f"Previously attempted photometry with {available_rad}, nstars={self.nstars}")
-            return
-        else:
-            self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
-
+        self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
 
         # Check for missing photometry files
-        missing, missing_files, _ = self._check_missing_photometry(rads)
+        missing, missing_files, missing_rads,_ = self._check_missing_photometry(rads)
 
         if not missing:
             print(f"## >> Photometry is already available for radius: {available_rad}")
             return
         
-        for i, missing_files_per_ccd in missing_files.items():
-            #self.rad_to_use = [rad for rad in rads if any(f"rad{rad}" in file for file in missing_files_per_ccd)]
-            self.rad_to_use = list(rads)
+        self.rad_to_use = missing_rads
 
+        for i, missing_files_per_ccd in missing_files.items():
             if not self.rad_to_use:
                 print(f"## >> CCD={i} | Photometry already available for rads = {rads}")
                 continue
@@ -532,17 +522,9 @@ class MuSCAT_PHOTOMETRY:
 
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         print(header)
-        #apphot = ApPhotometry(missing_images[1][0],starlists[1][0],config, semaphore = asyncio.Semaphore(10))
-        #task = apphot.photometry_routine()
-        #await task
-        #task = ApPhotometry.process_multiple_images(missing_images[1][:200],starlists[1][:200],config, semaphore = asyncio.Semaphore(10))
-        #await task
-        monitor = asyncio.create_task(self.monitor_photometry_progress(header))
-        #missing_imagestest = [a[i][:100] for a in missing_images]
-        #starliststest = [b[i][:100] for b in starlists]
-        #print(starliststest)
 
-        #await (ApPhotometry.process_all_ccds,missing_images,starlists,config)
+        monitor = asyncio.create_task(self.monitor_photometry_progress(header))
+
         await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
         await monitor
 
@@ -552,6 +534,7 @@ class MuSCAT_PHOTOMETRY:
         missing = False
         missing_files_per_ccd = {}
         nframes = []
+        missing_rads = []
 
         for i in range(self.nccd):
             #appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
@@ -560,36 +543,26 @@ class MuSCAT_PHOTOMETRY:
             first_frame = int(frame_range["FRAME#1"].iloc[0])
             last_frame = int(frame_range["FRAME#2"].iloc[0])
             nframes.append(last_frame-first_frame+1)
-            '''
-            #photometry may not have been performed for the first rad (or the last rad) because of the iteration algorithm so the second rad is the safest.
-            existing_rads = [
-                rad for rad in rads
-                if os.path.exists(f"{apphot_directory}/rad{rad}") and 
-                any(filename.endswith('.dat') for filename in os.listdir(f"{apphot_directory}/rad{rad}"))
-            ]
-            
-            if existing_rads:
-                existing_files = [filename[:-4][-4:] for filename in os.listdir(f"{apphot_directory}/rad{existing_rads[0]}")
-                                if filename.endswith('.dat')]
-                df, meta = self.read_photometry(dir=apphot_directory, ccd=i, rad=existing_rads[0], frame=int(existing_files[0]), add_metadata=True) #it takes too long to scan through all ccds, rad and frames
-            '''
+
             def file_exists(rad, frame): #nested helper function to help judge if photometry exists
                 file_path = f"{apphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
                 if os.path.exists(file_path):
                     return True
 
-            missing_files = [
-                f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                for rad in rads
-                for frame in range(first_frame, last_frame+1)
-                if not file_exists(rad, frame)
-            ]
+            missing_files = []
+
+            for rad in rads:
+                for frame in range(first_frame, last_frame+1):
+                        if not file_exists(rad, frame):
+                            missing_files.append(f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
+                            missing_rads.append(rad)
 
             if missing_files:
                 missing = True
 
             missing_files_per_ccd[i] = list(set(missing_files))
-        return missing, missing_files_per_ccd, nframes
+
+        return missing, missing_files_per_ccd, list(set(missing_rads)) ,nframes
 
     def _config_photoemtry(self, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):
         telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
@@ -636,12 +609,12 @@ class MuSCAT_PHOTOMETRY:
 
         while True:
             initial_time = time.time()
-            _, missing_files1, nframes = self._check_missing_photometry(self.rad_to_use)
+            _, missing_files1, _ ,nframes = self._check_missing_photometry(self.rad_to_use)
             total_frames_per_ccd = np.array(nframes)
 
             await asyncio.sleep(interval)
             
-            _, missing_files2, _ = self._check_missing_photometry(self.rad_to_use)
+            _, missing_files2, _, _ = self._check_missing_photometry(self.rad_to_use)
             current_time = time.time()
             complete = [True for _ in range(self.nccd)]  # Track if all CCDs are complete
 
