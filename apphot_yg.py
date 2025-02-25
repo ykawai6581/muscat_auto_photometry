@@ -471,18 +471,34 @@ class ApPhotometry:
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""
-        ncores = min(len(frames_list),os.cpu_count())
-        #print(f"Starting photometry with {num_ccds} cores...")
+        nccds = len(frames_list)
+        ncores = min(nccds,os.cpu_count())
         
-        #print(f"Starting processing with {len(frames_list)} CCDs")
-        #print(f"Each CCD has: {[len(frames) for frames in frames_list]} frames")
+        # Flatten frames_list while tracking original CCD index
+        flat_frames_list = []
+        flat_starlists_list = []
+
+        for ccd_frames, ccd_starlists in zip(frames_list, starlists_list):
+            flat_frames_list.extend(ccd_frames)
+            flat_starlists_list.extend(ccd_starlists)  # Preserves frame-starlist pairs
+
+        assert len(flat_frames_list) == len(flat_starlists_list), "Frames and starlists must match."
+
+        # Redistribute frames and starlists evenly
+        new_frames_list = [[] for _ in range(nccds)]
+        new_starlists_list = [[] for _ in range(nccds)]
+
+        for i, (frame, starlist) in enumerate(zip(flat_frames_list, flat_starlists_list)):
+            new_frames_list[i % nccds].append(frame) #round robin redistribition (take the modular and that becomes a circular index with max(index) = nccds-1)
+            new_starlists_list[i % nccds].append(starlist)
         
         process_ccd = partial(cls.process_ccd_wrapper)
         
         with ProcessPoolExecutor(max_workers=ncores) as executor:
             futures = []
             # Add index for tracking
-            for i, (frames, starlists) in enumerate(zip(frames_list, starlists_list)):
+            for i, (frames, starlists) in enumerate(zip(flat_frames_list, flat_starlists_list)):
+
                 #print(f"Submitting CCD {i} with {len(frames)} frames")
                 futures.append(
                     executor.submit(process_ccd, frames, starlists, config)
