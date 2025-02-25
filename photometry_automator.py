@@ -352,15 +352,8 @@ class MuSCAT_PHOTOMETRY:
     def read_reference(self):
         ref_path = Path(f"{self.target_dir}/list/ref.lst")
         if os.path.exists(ref_path):            
-            with open(ref_path, 'r') as f:
-                ref_file = f.read()
-            ref_frame = ref_file.replace('\n','')
-            ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
-            ref_file_dir = f"{self.target_dir}_{ref_ccd}"
-            ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
-
-            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
-            x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
+            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{self.ref_file}.objects")
+            x0, y0 = np.array(data["x"]),np.array(data["y"]) #array of pixel coordinates for stars in the reference frame
             return x0, y0
         else:
             print("No reference file found.")
