@@ -419,7 +419,7 @@ class ApPhotometry:
             f.write(data)
 
     async def _run_in_limited_thread(self, func, *args, **kwargs):
-        """Run a function in the controlled thread pool"""
+        """Run a function in the controlled thread pool/to_thread does not have the feature to control threadpool"""
         loop = asyncio.get_running_loop()
         func_with_args = functools.partial(func, *args, **kwargs)
         return await loop.run_in_executor(self.thread_pool, func_with_args)
@@ -436,21 +436,23 @@ class ApPhotometry:
             raise
     
     @classmethod
-    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig, semaphore, threadpool):
+    async def process_multiple_images(cls, frames, starlists, config: PhotometryConfig):
+        ncores = min(10,os.cpu_count())
+
+        semaphore = asyncio.Semaphore(1000)
+        threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=ncores)
+
         instances = [cls(frame, starlist, config, semaphore, threadpool) for frame, starlist in zip(frames, starlists)]
         tasks = [instance.photometry_routine() for instance in instances]
         await asyncio.gather(*tasks, return_exceptions=True)
-
 
     @classmethod
     def process_ccd_wrapper(cls, frames, starlists, config):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        semaphore = asyncio.Semaphore(1000)
-        threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         try:
             result = loop.run_until_complete(
-                cls.process_multiple_images(frames, starlists, config, semaphore, threadpool)
+                cls.process_multiple_images(frames, starlists, config)
             )
             return result
         finally:
