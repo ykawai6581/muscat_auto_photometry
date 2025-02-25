@@ -831,7 +831,7 @@ class MuSCAT_PHOTOMETRY:
 
                 ax[i].plot(frames.T, flux.T, label=f"CCD {i}", zorder=1)
                 ax[i].plot(frames.T, median.T, color="white", alpha=0.5, zorder=2)
-                ax[i].scatter(np.where(saturation_zone, frames, np.nan).T, np.where(median, frames, np.nan).T, color="red", alpha=0.5, marker=".", s=10, zorder=3)
+                ax[i].scatter(np.where(saturation_zone, frames, np.nan).T, np.where(saturation_zone, median, np.nan).T, color="red", alpha=0.5, marker=".", s=10, zorder=3)
 
             ax[i].set_title(f"CCD {i}")
             ax[i].set_ylim(0, 62000)
