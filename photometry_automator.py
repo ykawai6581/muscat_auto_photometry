@@ -192,6 +192,8 @@ class MuSCAT_PHOTOMETRY:
             self.obsdate = obsdate
             self.obslog = []
             self.instid = instrument_id[self.instrument]
+            self.pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
+
             muscat_bands = {
                 "muscat" : ["g","r","z"],
                 "muscat2" :["g","r","i","z"],
@@ -371,17 +373,16 @@ class MuSCAT_PHOTOMETRY:
         x = geo.dx + geo.a * x0 + geo.b * y0
         y = geo.dy + geo.c * x0 + geo.d * y0
         return x, y 
-
-    def find_tid(self, ccd=0, refid_delta=0, threshold=10, rad=20):
+    
+    def wcs_calculation(self,ccd):
         x0, y0 = self.read_reference()
-        pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
         buffer = 0.02
         search_radius = 15 #in arcmin
         ref_file_path = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.fits"
         wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
 
         print(">> Running WCS Calculation of reference file...")
-        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file_path}"
+        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {self.pixscale-buffer} --scale-high {self.pixscale+buffer} --scale-units arcsecperpix {ref_file_path}"
         print(cmd)
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         print(result.stdout)
@@ -395,12 +396,15 @@ class MuSCAT_PHOTOMETRY:
         cd_matrix = w.pixel_scale_matrix
         wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
         wcs_pixscales *= 3600 #convert to arcsec
-        if wcs_pixscales[0] - pixscale > 0.01:
+        if wcs_pixscales[0] - self.pixscale > 0.01:
             print("## >> WCS calculation unsuccessful (Pixel scale mismatch)\nTry again or enter tID manually")
             return
+        return ra_list, dec_list
 
+    def find_tid(self, ccd=0, refid_delta=0, threshold=10, rad=20):
+        ra_list, dec_list = self.wcs_calculation(ccd)
         threshold_pix = 2
-        threshold_deg = threshold_pix*pixscale/3600
+        threshold_deg = threshold_pix*self.pixscale/3600
 
         for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
             match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
@@ -415,7 +419,8 @@ class MuSCAT_PHOTOMETRY:
         if threshold < 1:
             print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
             return 
-        self.create_ref(ccd=ccd,ccd=refid_delta,ccd=threshold-1)
+        
+        self.create_ref(ccd=ccd,refid_delta=refid_delta,threshold=threshold-1)
 
 
     def process_object_per_ccd(self, ccd):
