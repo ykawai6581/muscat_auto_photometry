@@ -285,7 +285,7 @@ class MuSCAT_PHOTOMETRY:
             print(result.stdout)
             print('\n')
         else:
-            print(f"config file already exisits under {self.flat_dir}/list/flat_ccd{i}.conf")
+            print(f"config file already exisits under {self.flat_dir}/list/flat_ccd{ccd}.conf")
 
     def config_object(self,ccd):
         ## Setting configure files for object
