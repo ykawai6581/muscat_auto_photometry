@@ -481,7 +481,7 @@ class MuSCAT_PHOTOMETRY:
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
 
         frames_to_map = [{"frames": missing_files[i]} for i in range(self.nccd)]
-        results = self.run_all_ccds(self.map_all_frames, None, frames_to_map)
+        results = self.run_all_ccds(self.map_all_frames, frames_to_map)
         
         starlists = [result for _, result in results.items()]
 
