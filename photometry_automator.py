@@ -824,49 +824,70 @@ class MuSCAT_PHOTOMETRY:
         
         return valid_results
 
-    @time_keeper
-    def check_saturation(self, rad):
-        self.saturation_cids = []
+    def check_saturation_per_ccd(self, ccd, rad):
         saturation_threshold = 60000
-        fig, ax = plt.subplots(self.nccd,1, figsize=(15, 10))
-        print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
-        df = self._read_photometry_parallel(rad=rad)
-        print(f'## >> Done loading photometry data.')
+        df = self.read_photometry(ccd=ccd, rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
+        saturation_cids = []
+        saturation_zones = []
+        flux_list = []
+        frames_list = []
+        median_list = []
+        stop_processing = False
+        for star_id in range(1,int(self.nstars)+1):
+            if stop_processing:
+                break  # Exit the loop completely
+            flux = df[df["ID"] == star_id]["peak"]
+            frames = np.array(list(range(len(df[df["ID"] == star_id]))))
+            median = np.array(lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50)))
+            typical_scatter = np.std(flux-median)
+            saturation_threshold_per_star = saturation_threshold - typical_scatter #flux + typical scatter が60000を超えていたらsaturation zone
+            saturation_zone = np.where(median > saturation_threshold_per_star)[0]
+            count_above_threshold = (flux > saturation_threshold_per_star).sum()
+            percentage_above_threshold = (count_above_threshold / len(frames)) * 100
+
+            # If more than 5% of the rows are in saturation zone , add this star ID to the list
+            if percentage_above_threshold > 5:
+                saturation_cids.append(star_id)
+                saturation_zones.append(saturation_zone)
+                flux_list.append(flux)
+                frames_list.append(frames)
+                median_list.append(median)
+            else:
+                stop_processing = True  # Stop processing this CCD if a star is not saturated
+        return saturation_cids, frames_list, flux_list, median_list, saturation_zones
+        
+    def check_saturation(self, rad):
+        """Runs check_saturation_per_ccd in parallel across CCDs."""
+        fig, ax = plt.subplots(self.nccd, 1, figsize=(15, 10))
+        # Run in parallel
+        print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
+        results = self.run_all_ccds(self.check_saturation_per_ccd, None, rad)
+        print(f'## >> Done loading photometry data.')
+
+        self.saturation_cids = [result[0] for _, result in results.items()]
+        most_saturated_ccd = np.argmax([len(ids) for ids in self.saturation_cids])
+
+        # Collect results and plot
         for i in range(self.nccd):
-            saturation_cids_per_ccd = []
-            stop_processing = False
-            for star_id in range(1,int(self.nstars)+1):
-                if stop_processing:
-                    break  # Exit the loop completely
-                flux = df[i][df[i]["ID"] == star_id]["peak"]
-                frames = np.array(list(range(len(df[i][df[i]["ID"] == star_id]))))
-                median = np.array(lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50)))
-                typical_scatter = np.std(flux-median)
-                saturation_threshold_per_star = saturation_threshold - typical_scatter #flux + typical scatter が60000を超えていたらsaturation zone
-                saturation_zone = np.where(median > saturation_threshold_per_star)[0]
-                count_above_threshold = (flux > saturation_threshold_per_star).sum()
-                percentage_above_threshold = (count_above_threshold / len(frames)) * 100
-                # If more than 5% of the rows are in saturation zone , add this star ID to the list
-                if percentage_above_threshold > 5:
-                    saturation_cids_per_ccd.append(star_id)
-                else:
-                    stop_processing = True  # Stop processing this CCD if a star is not saturated
-                if i == 0:
-                    label = f"Star {star_id}"
-                else:
-                    label = None
-                ax[i].plot(frames,flux,label=label,zorder=1)
-                ax[i].plot(frames,median,color="white",alpha=0.5,zorder=2)
-                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker=".",s=10,zorder=3)
-            print(f'## >> CCD {i}: Done.')
-            #ax[i].set_ylim(0,100)
+            if results and results[i] is not None:
+                _, frames, flux, median, saturation_zone = results[i]
+                #self.saturation_cids.append(saturation_cids_per_ccd)
+
+            for j, _ in enumerate(flux):
+                label = f"ID = {j+1}" if i == most_saturated_ccd else None
+                ax[i].plot(frames[j],flux[j], label=label,zorder=1)
+                ax[i].plot(frames[j], median[j], color="white", alpha=0.5, zorder=2)
+                ax[i].scatter(saturation_zone[j], 
+                             median[j][saturation_zone[j]],
+                                color="red", alpha=0.5, marker=".", s=10, zorder=3)
+                
             ax[i].set_title(f"CCD {i}")
-            ax[i].set_ylim(0,saturation_threshold+2000)
-            ax[i].set_xlabel("Frame")
+            ax[i].set_ylim(0, 62000)
+            #ax[i].set_xlabel("Frame")
             ax[i].set_ylabel("Peak")
-            fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.02), frameon=False, ncol=self.nstars)
-            self.saturation_cids.append(saturation_cids_per_ccd)
+
+        fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0), frameon=False, ncol=self.nstars)
 
         for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
