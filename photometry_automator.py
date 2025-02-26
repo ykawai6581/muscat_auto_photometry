@@ -701,12 +701,11 @@ class MuSCAT_PHOTOMETRY:
         
         for frame in range(first_frame, last_frame+1):
             filepath = f"{apphot_directory}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
-            result = parse_dat_file(filepath)
+            df = parse_dat_file(filepath)
             #print(frame)
             #print(result)
             #print(type(result))
-            if result is not None:
-                df = result[0]
+            if df is not None:
                 df['frame'] = frame
                 all_frames.append(df)
 
