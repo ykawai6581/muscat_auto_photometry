@@ -151,6 +151,33 @@ def parse_obj_file(input_file): #helper function to parse objectfile
     data = pd.DataFrame(data_rows,columns=col_names)
     return metadata, data
 
+def parse_dat_file(input_file):
+    table_data = []
+        
+    with open(input_file, 'r') as file:
+        for line in file:
+            line = line.strip()  # Strip whitespace once at the start
+
+            if not line:  # Skip empty lines
+                continue
+
+            if line.startswith("#"):
+                if "ID xcen ycen" in line:
+                    continue
+            else:
+                table_data.append(line.replace("-nan", "nan"))
+    
+    # Convert to DataFrame
+    df = pd.DataFrame([row.split() for row in table_data], 
+                      columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
+                               'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
+
+    # Convert numerical columns to float
+    df = df.astype({'ID': int, 'xcen': float, 'ycen': float, 'nflux': float, 
+                    'flux': float, 'err': float, 'sky': float, 'sky_sdev': float, 
+                    'SNR': float, 'nbadpix': int, 'fwhm': float, 'peak': float})
+    
+    return df
 
 from muscat_photometry import target_from_filename, obsdates_from_filename, query_radec
 
@@ -758,65 +785,36 @@ class MuSCAT_PHOTOMETRY:
     starlistは各行に各frameのxyが入っている
     starlistを作る段階でnstarsの情報を上げなければいけない
     '''
+    def read_photometry(self, ccd, rad):
+        """
+        Process photometry data for a single CCD.
+        """
+        frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
+        first_frame = int(frame_range["FRAME#1"].iloc[0])
+        last_frame = int(frame_range["FRAME#2"].iloc[0])
+        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}_test"
 
-    def read_photometry(self, dir, ccd, rad, frame, add_metadata=False):
-        #filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
-        filepath = f"{dir}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
-        metadata = {}
-        table_started = False
-        table_data = []
+        all_frames = []
         
-        with open(filepath, 'r') as file:
-            for line in file:
-                if line.startswith('#'):
-                    if 'ID xcen ycen' in line:
-                        table_started = True
-                        continue
-                    if add_metadata and not table_started:
-                        line = line.strip('# \n')
-                        if '=' in line:
-                            key, value = line.split('=')
-                            metadata[key.strip()] = value.strip()
-                        elif line.strip():
-                            parts = line.split()
-                            if len(parts) >= 2:
-                                key = parts[0]
-                                value = ' '.join(parts[1:])
-                                metadata[key.strip()] = value.strip()
-                else:
-                    # Replace "-nan" with "nan" in the data
-                    cleaned_line = line.replace("-nan", "nan")
-                    table_data.append(cleaned_line.strip())
-        
-        # Convert to DataFrame
-        df = pd.DataFrame([row.split() for row in table_data], 
-                        columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
-                                'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
-        
-        # Convert numeric columns with proper NaN handling
-        numeric_cols = df.columns.difference(['filename', 'ccd'])
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce')  # 'coerce' will convert invalid parsing to NaN
-        
-        # Add file information
-        df['filename'] = Path(filepath).name
-        df['ccd'] = ccd
-        
-        # Convert numeric metadata values
-        if add_metadata:
-            for key, value in metadata.items():
-                try:
-                    # Handle -nan in metadata as well
-                    if value.strip().lower() == "-nan":
-                        metadata[key] = np.nan
-                    else:
-                        metadata[key] = float(value)
-                except (ValueError, AttributeError):
-                    # Keep as string if conversion fails
-                    pass
-                df[key] = metadata[key]
-        
-        return df, metadata if add_metadata else df#[['ID', 'peak']]
+        for frame in range(first_frame, last_frame+1):
+            filepath = f"{apphot_directory}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
+            df = parse_dat_file(filepath)
+            #print(frame)
+            #print(result)
+            #print(type(result))
+            if df is not None:
+                df['frame'] = frame
+                all_frames.append(df)
+
+        if all_frames:
+            combined_df = pd.concat(all_frames, ignore_index=True)
+            
+            # Add CCD identifier
+            combined_df['ccd'] = ccd
+            
+            return combined_df  
+        else:
+            return None
 
     def _process_single_ccd(self, ccd, rad):
         """
