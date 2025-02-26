@@ -306,9 +306,9 @@ class MuSCAT_PHOTOMETRY:
         if referece:
             x0, y0 = self.read_reference()
         else:
-            fits_file = frame.split("/")[-1]
-            ccd = fits_file[4]
-            x0, y0 = self.map_reference(ccd,frame)
+            dat_file = f"{frame.split("/")[-1][:-5]}.dat"
+            ccd = dat_file[4]
+            x0, y0 = self.map_reference(ccd,dat_file)
         plt.figure(figsize=(10, 10))
         with fits.open(frame) as hdul:
             data = hdul[0].data
