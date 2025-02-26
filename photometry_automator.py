@@ -188,7 +188,7 @@ class MuSCAT_PHOTOMETRY:
                 futures[executor.submit(
                     method,
                     ccd,
-                    *ccd_args,          # Pass CCD-specific arguments
+                    ccd_args,          # Pass CCD-specific arguments
                     *shared_args,     # Pass shared positional arguments
                     **shared_kwargs   # Pass shared keyword arguments
                 )] = ccd
