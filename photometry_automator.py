@@ -225,7 +225,7 @@ class MuSCAT_PHOTOMETRY:
             self.flat_dir = f"{self.obsdate}/FLAT"
             #self.target_dir = f"{self.obsdate}/{self.target}
 
-
+    #@time_keeper
     def run_all_ccds(self, method, ccd_specific_args=None, *shared_args, **shared_kwargs):
         """
         Wrapper function to run a method in parallel for all CCDs.
@@ -265,9 +265,19 @@ class MuSCAT_PHOTOMETRY:
 
         return results if any(v is not None for v in results.values()) else None
 
+    def load_obslog(self):
+        for i in range(self.nccd):
+            print(f'\n=== CCD{i} ===')
+            cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {self.instrument} {self.obsdate} {i}'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-    @time_keeper
-    def config_flat(self):
+            obslog_perccd = result.stdout
+            print(obslog_perccd)  # Optional: Print to verify
+            obslog_perccd = obslog_perccd.lstrip("# ")
+            obslog_perccd_df = pd.read_csv(StringIO(obslog_perccd), delim_whitespace=True)
+            self.obslog.append(obslog_perccd_df)
+
+    def config_flat(self, ccd):
         ## Setting configure files for flat
 
         ## Change the following values
@@ -276,71 +286,67 @@ class MuSCAT_PHOTOMETRY:
         #flat_first_frameIDs = [1306, 1857, 2414] 
         #======
 
-        for i in range(self.nccd):
-            flat_conf_path = f"{self.flat_dir}/list/flat_ccd{i}.conf"
-            #print(flat_conf_path)
-            if not os.path.exists(flat_conf_path):
-                cmd = f'perl scripts/config_flat.pl {self.obsdate} {i} -set_dir_only'
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        flat_conf_path = f"{self.flat_dir}/list/flat_ccd{ccd}.conf"
+        #print(flat_conf_path)
+        if not os.path.exists(flat_conf_path):
+            cmd = f'perl scripts/config_flat.pl {self.obsdate} {ccd} -set_dir_only'
+            subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-                flat_conf = f'{self.flat_dir}/list/flat_ccd{i}.conf'
-                print(flat_conf)
-                text = f'flat {self.flat_first_frameIDs[i]} {self.flat_first_frameIDs[i]+49}\nflat_dark {self.flat_first_frameIDs[i]+50} {self.flat_first_frameIDs[i]+54}'
-                with open(flat_conf, mode='w') as f:
-                    f.write(text)
-                result = subprocess.run(['cat', flat_conf], capture_output=True, text=True)
-                print(result.stdout)
-                print('\n')
-            else:
-                print(f"config file already exisits under {self.flat_dir}/list/flat_ccd{i}.conf")
+            flat_conf = f'{self.flat_dir}/list/flat_ccd{ccd}.conf'
+            print(flat_conf)
+            text = f'flat {self.flat_first_frameIDs[ccd]} {self.flat_first_frameIDs[ccd]+49}\nflat_dark {self.flat_first_frameIDs[ccd]+50} {self.flat_first_frameIDs[ccd]+54}'
+            with open(flat_conf, mode='w') as f:
+                f.write(text)
+            result = subprocess.run(['cat', flat_conf], capture_output=True, text=True)
+            print(result.stdout)
+            print('\n')
+        else:
+            print(f"config file already exisits under {self.flat_dir}/list/flat_ccd{ccd}.conf")
 
-    @time_keeper
-    def config_object(self):
+    def config_object(self,ccd):
         ## Setting configure files for object
-        exposure = [float(ccd["EXPTIME(s)"][ccd["OBJECT"] == self.target]) for ccd in self.obslog]  # exposure times (sec) for object
-        for i in range(self.nccd):
-            obj_conf_path = f"{self.target_dir}_{i}/list/object_ccd{i}.conf"
-            #print(obj_conf_path)
-            if not os.path.exists(obj_conf_path):
-                exp=exposure[i]
-                cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {i} -auto_obj -auto_dark {exp}'
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                print(result.stdout)
-            else:
-                print(f"config file already exisits under {self.target_dir}_{i}/list/ as object_ccd{i}.conf")
+        obslog = self.obslog[ccd]
+        exposure = float(obslog["EXPTIME(s)"][obslog["OBJECT"] == self.target])  # exposure times (sec) for object
+        obj_conf_path = f"{self.target_dir}_{ccd}/list/object_ccd{ccd}.conf"
+        #print(obj_conf_path)
+        if not os.path.exists(obj_conf_path):
+            cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {ccd} -auto_obj -auto_dark {exposure}'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            print(result.stdout)
+        else:
+            print(f"config file already exisits under {self.target_dir}_{ccd}/list/ as object_ccd{ccd}.conf")
 
-    @time_keeper
-    def reduce_flat(self):
+    def reduce_flat(self, ccd):
         ## Reducing FLAT images 
-        for i in range(self.nccd):
-            flat_path = f"{self.flat_dir}/flat/flat_ccd{i}.fits"
-            #print(flat_path)
-            if not os.path.exists(flat_path):
-                print(f'>> Reducing FLAT images of CCD{i} ... (it may take tens of seconds)')
-                cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {i} > /dev/null"
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            else:
-                print(f"flat file already exisits under {self.flat_dir}/flat/ as flat_ccd{i}.fits")
-
-    @time_keeper
+        flat_path = f"{self.flat_dir}/flat/flat_ccd{ccd}.fits"
+        #print(flat_path)
+        if not os.path.exists(flat_path):
+            print(f'>> Reducing FLAT images of CCD{ccd} ... (it may take tens of seconds)')
+            cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {ccd} > /dev/null"
+            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        else:
+            print(f"flat file already exisits under {self.flat_dir}/flat/ as flat_ccd{ccd}.fits")
+    
     ## Reducing Object images 
-    def run_auto_mkdf(self):
-        for i in range(self.nccd):
-            df_directory = f'{self.target_dir}_{i}/df'
-            frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
-            first_frame = int(frame_range["FRAME#1"].iloc[0])
-            last_frame = int(frame_range["FRAME#2"].iloc[0])
-            print(f'CCD{i}: Reducing frames {first_frame}~{last_frame} ...')
-            missing_files = [f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits" for frame in range(first_frame, last_frame+1) if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.df.fits"))]
+    def auto_mkdf(self,ccd):
+        df_directory = f'{self.target_dir}_{ccd}/df'
+        frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
+        first_frame = int(frame_range["FRAME#1"].iloc[0])
+        last_frame = int(frame_range["FRAME#2"].iloc[0])
+        print(f'CCD{ccd}: Reducing frames {first_frame}~{last_frame} ...')
+        missing_files = []
+        
+        for frame in range(first_frame, last_frame+1):
+            if not os.path.exists(os.path.join(df_directory, f"MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.df.fits")):
+                missing_files.append(f"MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.df.fits")
 
-            if missing_files:
-                cmd = f"perl scripts/auto_mkdf.pl {self.obsdate} {self.target} {i} > /dev/null"
-                subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                print(f'Completed auto_mkdf.pl for CCD{i}')
-            else:
-                print(f"df file already exisits under /{self.target}_{i}/df/")
+        if missing_files:
+            cmd = f"perl scripts/auto_mkdf.pl {self.obsdate} {self.target} {ccd} > /dev/null"
+            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            print(f'Completed auto_mkdf.pl for CCD{ccd}')
+        else:
+            print(f"df file already exisits under /{self.target}_{ccd}/df/")
 
-    @time_keeper
     def create_reference(self, ccd=0, refid_delta=0, threshold=10, rad=20):
         ## Creating a reference image
 
@@ -350,58 +356,62 @@ class MuSCAT_PHOTOMETRY:
         ref_ccd=ccd
         refid= int(self.obslog[ref_ccd][self.obslog[ref_ccd]["OBJECT"] == self.target]["FRAME#1"])#if you are okay with setting the first frame as reference
         refid+=refid_delta
+        self.ref_file = f"MCT{self.instid}{ref_ccd}_{self.obsdate}{refid:04d}"
         #======
-
-        ref_exists = all([os.path.exists(f"{self.obsdate}/{self.target}_{i}/list/ref.lst") for i in range(self.nccd)])
-        if not ref_exists:
-            cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid} --th={threshold} --rad={rad}"
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid} --th={threshold} --rad={rad}"
+        subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        self.find_tid(ccd, refid_delta, threshold, rad)
+    
+    def show_frame(self, frame, rad=10, reference=False):
+        """Plots a single FITS frame with reference markers."""
+        if reference:
+            x0, y0 = self.read_reference()
         else:
-            with open(Path(f"{self.obsdate}/{self.target}_0/list/ref.lst"), 'r') as f:
-                ref_file = f.read()
-                print(f'Ref file:\n {ref_file} exists.')
-        self.find_tid()
-
-    def show_reference(self, rad=10):
-        ## Showing reference image
-
-        ref_list_file = f'{self.target_dir}/list/ref.lst'
-        with open(ref_list_file) as f:
-            refframe = f.readline()
-
-        refframe = refframe.replace('\n','')
-        print('reference frame:', refframe)
-
-        ref_obj_file = f"{self.target_dir}/objects/{refframe}.objects"
-        refxy = np.genfromtxt(ref_obj_file, delimiter=13, usecols=(1,2))
-
-
-        ref_fits =f"{self.target_dir}/reference/ref-{refframe}.fits"
-        hdulist = fits.open(ref_fits)
-        data = hdulist[0].data
-        #dataf = data.astype(np.float64)
+            dat_file = f"{frame.split('/')[-1][0:-8]}.dat"
+            ccd = dat_file[4]
+            x0, y0 = self.map_reference(ccd,dat_file)
+        plt.figure(figsize=(10, 10))
+        with fits.open(frame) as hdul:
+            data = hdul[0].data
 
         norm = ImageNormalize(data, interval=ZScaleInterval())
-        plt.figure(figsize=(10,10))
-        ax=plt.subplot(1,1,1)
-        plt.imshow(data, origin='lower', norm=norm)
-        rad=rad
-        for i in range(len(refxy)):
-            circ = plt.Circle(refxy[i], rad, color='red', fill=False)
-            ax.add_patch(circ)
-            plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
+        plt.imshow(data, origin='lower', norm=norm, cmap='gray')
+        plt.title(f"{frame}")
+
+        # Add reference points as circles
+        for i, _ in enumerate(zip(x0, y0)):
+            if i == self.tid - 1:
+                color = "red"
+                text_color = "yellow"
+                text = f"{self.target}|{self.tid}"
+            else:
+                color = "chocolate"
+                text_color = "chocolate"
+                text = f"{i+1}"
+
+            circ = plt.Circle((x0[i], y0[i]), rad, color=color, fill=False)
+            plt.gca().add_patch(circ)
+            plt.text(x0[i] + rad / 2, y0[i] + rad / 2, text, fontsize=14, color=text_color)
+
+        plt.show()
+
+    def show_missing_frames(self,rads=None):
+        missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
+        frames = [f"{self.target_dir}_0/rawdata/{file[:-4]}.fits" 
+                    for _, missing_files_per_ccd in missing_files.items()
+                    for file in missing_files_per_ccd]  # rawdata is a symbolic link
+        for frame in frames:
+            self.show_frame(frame=frame)
 
     def read_reference(self):
-        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
-            ref_file = f.read()
-        ref_frame = ref_file.replace('\n','')
-        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
-        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
-        ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
-
-        metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
-        x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
-        return x0, y0
+        ref_path = Path(f"{self.target_dir}/list/ref.lst")
+        if os.path.exists(ref_path):            
+            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{self.ref_file}.objects")
+            x0, y0 = np.array(data["x"]),np.array(data["y"]) #array of pixel coordinates for stars in the reference frame
+            return x0, y0
+        else:
+            print("No reference file found.")
+            return
     
     def map_reference(self, geoparam_file_path):  #frameidにした方がいい  
         x0, y0 = self.read_reference()
