@@ -165,7 +165,7 @@ class MuSCAT_PHOTOMETRY:
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     @time_keeper
-    def run_all_ccds(self, method, ccd_specific_args, shared_args, shared_kwargs):
+    def run_all_ccds(self, method, ccd_specific_args=None, *shared_args, **shared_kwargs):
         """
         Wrapper function to run a method in parallel for all CCDs.
         - Collects return values if any.
@@ -177,17 +177,22 @@ class MuSCAT_PHOTOMETRY:
             ("ccd2_arg1", "ccd2_arg2")   # Arguments for CCD 2
         ]
         """
+        results = {}
         with ProcessPoolExecutor(max_workers=self.nccd) as executor:
-            results = {}
-            futures = {
-                executor.submit(method, 
-                                ccd,
-                                *ccd_specific_args[ccd],  # Unpack CCD-specific arguments
-                                *shared_args,             # Pass shared positional arguments
-                                **shared_kwargs           # Pass shared keyword arguments
-                                ): ccd
-                for ccd in range(self.nccd)
-            }
+            futures = {}
+            for ccd in range(self.nccd):
+                # Extract CCD-specific arguments if provided
+                ccd_args = ccd_specific_args[ccd] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
+
+                # Submit the task with dynamic arguments
+                futures[executor.submit(
+                    method,
+                    ccd,
+                    *shared_args,     # Pass shared positional arguments
+                    **ccd_args,       # Unpack CCD-specific arguments
+                    **shared_kwargs   # Pass shared keyword arguments
+                )] = ccd
+
             for future in futures:
                 ccd = futures[future]
                 try:
@@ -475,7 +480,7 @@ class MuSCAT_PHOTOMETRY:
 
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
 
-        results = self.run_all_ccds(self.map_all_frames, args=missing_files)
+        results = self.run_all_ccds(self.map_all_frames, None, missing_files)
         starlists = [result for _, result in results.items()]
 
         missing_images = []
@@ -559,7 +564,7 @@ class MuSCAT_PHOTOMETRY:
         return missing, list(missing_files), list(missing_rads) ,nframes
 
     def _check_missing_photometry(self,rads):
-        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, *rads)
+        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, *(rads)) #positional arguments must be passed as tuples
         missing_frames = [[] for _ in range(self.nccd)]
         nframes = [[] for _ in range(self.nccd)]
         missing_rads = set()
