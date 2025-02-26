@@ -30,6 +30,7 @@ import time
 
 import LC_funcs as lc
 from apphot_yg import ApPhotometry, PhotometryConfig
+from file_utilities import parse_dat_file, parse_obj_file, load_par_file, load_geo_file
 from astropy.table import Table
 from astropy.coordinates import Angle
 import astropy.units as u
@@ -95,90 +96,6 @@ def dec_to_dms(dec_deg):
     dec_seconds = dec_sec_part * 60
     sign = "+" if dec_deg >= 0 else "-"
     return f"{sign}{int(dec_deg_part):02d}:{int(dec_min_part):02d}:{dec_seconds:05.2f}"
-
-def load_par_file(filename):
-    """Load a .par file into a dictionary."""
-    params = {}
-    with open(filename, "r") as file:
-        for line in file:
-            line = line.strip()
-            if line and not line.startswith("#"):  # Ignore empty lines and comments
-                key, value = line.split(None, 1)  # Split on first whitespace
-                try:
-                    params[key] = float(value)  # Convert numerical values to float
-                except ValueError:
-                    params[key] = value  # Keep as string if conversion fails
-    return params
-
-def load_geo_file(filename):
-    """Returns the relevant coefficients needed for transformation of pixels in ref file to object file"""
-    with open(filename, "r") as file:
-        lines = file.readlines()
-
-    # Get the last non-empty line
-    last_line = lines[-1].strip()
-    
-    # Convert it into a list of floats
-    values = list(map(float, last_line.split()))
-    
-    # Assign to relevant variable names
-    geoparam = {
-        "dx": values[0],
-        "dy": values[1],
-        "a": values[2],
-        "b": values[3],
-        "c": values[4],
-        "d": values[5],
-        "rms": values[6],
-        "nmatch": int(values[7])  # Convert last value to int
-    }
-
-    return geoparam
-
-def parse_obj_file(input_file): #helper function to parse objectfile
-    """Parses the .df file to extract metadata and tabular data."""
-    metadata = {}
-    data_rows = []
-
-    with open(input_file, 'r') as file:
-        for line in file:
-            line = line.strip()
-            if line.startswith("#"):  # Metadata lines
-                key_value = re.match(r"#\s*(.+?)\s*=\s*(.+)", line)
-                if key_value:
-                    key, value = key_value.groups()
-                    metadata[key.strip()] = value.strip()
-            elif line and not line.startswith("#"):  # Data rows
-                parts = line.split()
-                if len(parts) >= 7:  # Ensure it matches expected column structure
-                    data_rows.append(list(map(float, parts)))
-
-    col_names = ['ID', 'x', 'y', 'x_int', 'y_int', 'Flux', 'Peak']
-    data = pd.DataFrame(data_rows,columns=col_names)
-    return metadata, data
-
-def parse_dat_file(input_file):
-    table_data = []
-        
-    with open(input_file, 'r') as file:
-        table_started = False
-        for line in file:
-            line = line.strip()  # Strip whitespace once at the start
-            
-            if not line:  # Skip empty lines
-                continue
-
-            if line.startswith("#"):
-                if "ID xcen ycen" in line:
-                    continue
-            else:
-                table_data.append(line.replace("-nan", "nan"))
-            
-    # Convert to DataFrame
-    df = pd.DataFrame([row.split() for row in table_data], 
-                    columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
-                            'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
-    return df        
 
 from muscat_photometry import target_from_filename, obsdates_from_filename, query_radec
 
@@ -248,17 +165,25 @@ class MuSCAT_PHOTOMETRY:
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     @time_keeper
-    def run_all_ccds(self, method, *args, **kwargs):
+    def run_all_ccds(self, method, ccd_args=None, other_args=None, kwargs=None):
         """
         Wrapper function to run a method in parallel for all CCDs.
         - Collects return values if any.
         - Runs the method in parallel for all CCDs.
         """
         results = {}
+        if ccd_args is None:
+            ccd_args = []
+        if other_args is None:
+            other_args = []
+        if kwargs is None:
+            kwargs = {}
 
         with ProcessPoolExecutor(max_workers=self.nccd) as executor:
-            futures = {executor.submit(method, ccd, *args, **kwargs): ccd for ccd in range(self.nccd)}
-
+            futures = {
+                executor.submit(method, ccd, *( [ccd_args[ccd]] if ccd_args else [] ), *other_args, **kwargs): ccd
+                for ccd in range(self.nccd)
+            }
             for future in futures:
                 ccd = futures[future]
                 try:
@@ -399,7 +324,7 @@ class MuSCAT_PHOTOMETRY:
     def show_missing_frames(self,rads=None):
         missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
         frames = [f"{self.target_dir}_0/rawdata/{file[:-4]}.fits" 
-                    for _, missing_files_per_ccd in missing_files.items() 
+                    for missing_files_per_ccd in missing_files 
                     for file in missing_files_per_ccd]  # rawdata is a symbolic link
         for frame in frames:
             self.show_frame(frame=frame)
@@ -414,8 +339,9 @@ class MuSCAT_PHOTOMETRY:
             print("No reference file found.")
             return
     
-    def map_reference(self, geoparam_file_path):  #frameidにした方がいい  
+    def map_reference(self, ccd, frame):  #frameidにした方がいい  
         x0, y0 = self.read_reference()
+        geoparam_file_path = f"{self.target_dir}_{ccd}/geoparam/{frame[:-4]}.geo" #extract the frame name and modify to geoparam path 
         geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
         geo = SimpleNamespace(**geoparams)
         x = geo.dx + geo.a * x0 + geo.b * y0
@@ -512,15 +438,23 @@ class MuSCAT_PHOTOMETRY:
         print(f"starmatch.pl list/ref.lst {objlist}")
         result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=f"{self.target_dir}_{ccd}", shell=True, capture_output=True, text=True)
 
+    def map_all_frames(self, ccd, frames):
+        starlist = []
+        for frame in frames:
+            x, y = self.map_reference(ccd, frame) 
+            starlist.append([x,y])
+        return starlist
+        
     ## Performing aperture photometry
     async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",
-                         sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0, limit_frames=400):
+                         sky_calc_mode=1, const_sky_flag=0, const_sky_flux=0, const_sky_sdev=0):
 
         self.rad1, self.rad2, self.drad, self.method, self.nstars = float(rad1), float(rad2), float(drad), method, int(nstars)
         rads = np.arange(self.rad1, self.rad2 + 1, self.drad)
 
         # Check for missing photometry files
-        missing, missing_files, missing_rads,_ = self._check_missing_photometry(rads)
+        missing, missing_files, missing_rads ,nframes = self._check_missing_photometry(rads=rads)
+
         self.rad_to_use = missing_rads
         available_rads = [rad for rad in rads if rad not in self.rad_to_use]
 
@@ -528,7 +462,7 @@ class MuSCAT_PHOTOMETRY:
             print(f"## >> Photometry is already available for radius: {available_rads}")
             return
 
-        for i, missing_files_per_ccd in missing_files.items():
+        for i in range(self.nccd):
             if not self.rad_to_use:
                 print(f"## >> CCD={i} | Photometry already available for rads = {rads}")
                 continue
@@ -536,21 +470,17 @@ class MuSCAT_PHOTOMETRY:
                 print(f"## >> CCD={i} | Photometry already available for rads = {available_rads}")
 
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
-        starlists = []
-        missing_images = []
-        for i, missing_files_per_ccd in missing_files.items():
-            starlist_per_ccd = []
-            missing_images_per_ccd = []
-            for j, file in enumerate(missing_files_per_ccd):
-                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
-                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4]}.geo" #extract the frame name and modify to geoparam path 
-                x, y = self.map_reference(geoparam_file_path) 
-                starlist_per_ccd.append([x,y])
-                if j == limit_frames:
-                    break
 
+        results = self.run_all_ccds(self.map_all_frames, args=missing_files)
+        starlists = [result for _, result in results.items()]
+
+        missing_images = []
+
+        for missing_frames_per_ccd in missing_files:
+            missing_images_per_ccd = []
+            for file in missing_frames_per_ccd:
+                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
             missing_images.append(missing_images_per_ccd)
-            starlists.append(starlist_per_ccd)
 
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         print(header)
@@ -559,7 +489,7 @@ class MuSCAT_PHOTOMETRY:
 
         await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
         await monitor
-
+    '''
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
         missing = False
@@ -594,6 +524,47 @@ class MuSCAT_PHOTOMETRY:
             missing_files_per_ccd[i] = list(set(missing_files))
 
         return missing, missing_files_per_ccd, list(set(missing_rads)) ,nframes
+    '''
+    def _check_missing_photometry_per_ccd(self, ccd, rads):
+        """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
+        missing = False
+        missing_files = set()
+        missing_rads = set()
+
+        #appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
+        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}_test"
+        frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
+        first_frame = int(frame_range["FRAME#1"].iloc[0])
+        last_frame = int(frame_range["FRAME#2"].iloc[0])
+        nframes = last_frame-first_frame+1
+
+        def file_exists(rad, frame): #nested helper function to help judge if photometry exists
+            file_path = f"{apphot_directory}/rad{rad}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
+            if os.path.exists(file_path):
+                return True
+
+        for rad in rads:
+            for frame in range(first_frame, last_frame+1):
+                    if not file_exists(rad, frame):
+                        missing_files.add(f"MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat")
+                        missing_rads.add(rad)
+
+        if missing_files:
+            missing = True
+
+        return missing, list(missing_files), list(missing_rads) ,nframes
+
+    def _check_missing_photometry(self,rads):
+        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, other_args=rads)
+        missing_frames = [[] for _ in range(self.nccd)]
+        nframes = [[] for _ in range(self.nccd)]
+        missing_rads = set()
+        for i, result in results.items():
+            missing = result[0] if result[0] else False
+            missing_frames[i].append(result[1])
+            nframes[i].append(result[3])
+            [missing_rads.add(item) for item in result[2]]
+        return missing, missing_frames, missing_rads, nframes
 
     def _config_photoemtry(self, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):
         telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
@@ -656,7 +627,7 @@ class MuSCAT_PHOTOMETRY:
             print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
             print("-" * 80)            
             
-            for (ccd_id, missing_files_per_ccd1), (_, missing_files_per_ccd2) in zip(missing_files1.items(), missing_files2.items()):
+            for (ccd_id, missing_files_per_ccd1), (_, missing_files_per_ccd2) in enumerate(zip(missing_files1, missing_files2)):
                 # Current progress
                 remaining_files = len(missing_files_per_ccd2)
                 completed_files = total_frames_per_ccd[ccd_id] - remaining_files
