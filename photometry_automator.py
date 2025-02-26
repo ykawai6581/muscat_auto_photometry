@@ -468,20 +468,22 @@ class MuSCAT_PHOTOMETRY:
         available_rads = [rad for rad in rads if rad not in self.rad_to_use]
 
         if not missing:
-            print(f"## >> Photometry is already available for radius: {available_rads}")
+            print(f">> Photometry is already available for radius: {available_rads}")
             return
 
         for i in range(self.nccd):
             if not self.rad_to_use:
-                print(f"## >> CCD={i} | Photometry already available for rads = {rads}")
+                print(f">> CCD={i} | Photometry already available for rads = {rads}")
                 continue
             elif len(self.rad_to_use) != len(rads):
-                print(f"## >> CCD={i} | Photometry already available for rads = {available_rads}")
+                print(f">> CCD={i} | Photometry already available for rads = {available_rads}")
 
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
 
         frames_to_map = [{"frames": missing_files[i]} for i in range(self.nccd)]
+        print(">> Mapping all frames to reference frames...")
         results = self.run_all_ccds(self.map_all_frames, frames_to_map)
+        print("## >> Complete...")
         
         starlists = [result for _, result in results.items()]
 
