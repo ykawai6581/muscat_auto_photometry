@@ -829,18 +829,22 @@ class MuSCAT_PHOTOMETRY:
                 saturation_cids_per_ccd, frames, flux, median, saturation_zone = results[i]
                 self.saturation_cids.append(saturation_cids_per_ccd)
 
-                ax[i].plot(frames.T, flux.T, label=f"CCD {i}", zorder=1)
+                for j in range(flux.shape[1]):  # Iterate over columns
+                    label = f"ID = {j+1}" if i == 0 else None
+                    ax[i].plot(frames[:, j], flux[:, j], label=label, zorder=1)
+
                 ax[i].plot(frames.T, median.T, color="white", alpha=0.5, zorder=2)
-                '''
-                ax[i].scatter(np.take_along_axis(frames, saturation_zone, axis=1).T, 
-                              np.take_along_axis(median, saturation_zone, axis=1).T, color="red", alpha=0.5, marker=".", s=10, zorder=3)
-                '''
+                
+                ax[i].scatter(np.array([row[indices] for row, indices in zip(frames, saturation_zone)], dtype=object).T, 
+                              np.array([row[indices] for row, indices in zip(median, saturation_zone)], dtype=object).T, 
+                              color="red", alpha=0.5, marker=".", s=10, zorder=3)
+                
             ax[i].set_title(f"CCD {i}")
             ax[i].set_ylim(0, 62000)
-            ax[i].set_xlabel("Frame")
+            #ax[i].set_xlabel("Frame")
             ax[i].set_ylabel("Peak")
 
-        fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.02), frameon=False, ncol=self.nstars)
+        fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.01), frameon=False, ncol=self.nstars)
 
         for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
