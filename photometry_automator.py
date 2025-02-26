@@ -306,7 +306,7 @@ class MuSCAT_PHOTOMETRY:
         if reference:
             x0, y0 = self.read_reference()
         else:
-            dat_file = f"{frame.split('/')[-1][0:-5]}.dat"
+            dat_file = f"{frame.split('/')[-1][0:-8]}.dat"
             ccd = dat_file[4]
             x0, y0 = self.map_reference(ccd,dat_file)
         plt.figure(figsize=(10, 10))
