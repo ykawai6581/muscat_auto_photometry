@@ -183,7 +183,7 @@ class MuSCAT_PHOTOMETRY:
             futures = {}
             for ccd in range(self.nccd):
                 # Extract CCD-specific arguments if provided
-                ccd_args = ccd_specific_args[ccd] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
+                ccd_args = {"frames": ccd_specific_args[ccd]} if ccd_specific_args and ccd < len(ccd_specific_args) else {}
                 print(len(ccd_args))
                 print(type(ccd_args))
                 #must pass it as a list (of dictionaries) for unpacking
@@ -191,8 +191,8 @@ class MuSCAT_PHOTOMETRY:
                 futures[executor.submit(
                     method,
                     ccd,
-                    *ccd_args,          # Pass CCD-specific arguments
                     *shared_args,     # Pass shared positional arguments
+                    **ccd_args,          # Pass CCD-specific arguments
                     **shared_kwargs   # Pass shared keyword arguments
                 )] = ccd
 
