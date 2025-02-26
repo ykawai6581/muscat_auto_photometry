@@ -483,7 +483,8 @@ class MuSCAT_PHOTOMETRY:
                 print(f">> CCD={i} | Photometry already available for rads = {available_rads}")
 
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
-
+        
+        '''
         frames_to_map = [{"frames": sorted(missing_files[i])} for i in range(self.nccd)]
         print(">> Mapping all frames to reference frames...")
         results = self.run_all_ccds(self.map_all_frames, frames_to_map)
@@ -493,6 +494,17 @@ class MuSCAT_PHOTOMETRY:
 
         missing_images = [sorted(missing_files[i]) for i in range(self.nccd)]
         missing_images = [f"{self.target_dir}_{ccd}/df/{file[:-4]}.df.fits" for ccd, missing_images_per_ccd in enumerate(missing_images) for file in missing_images_per_ccd]
+        '''
+        starlists = []
+        missing_images = []
+        for i, missing_files_per_ccd in missing_files.items():
+            starlist_per_ccd = []
+            missing_images_per_ccd = []
+            for j, file in enumerate(missing_files_per_ccd):
+                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
+                geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4]}.geo" #extract the frame name and modify to geoparam path 
+                x, y = self.map_reference(geoparam_file_path) 
+                starlist_per_ccd.append([x,y])
 
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         print(header)
