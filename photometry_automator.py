@@ -485,7 +485,7 @@ class MuSCAT_PHOTOMETRY:
 
         missing_images = []
 
-        for missing_frames_per_ccd in missing_files:
+        for _, missing_frames_per_ccd in missing_files.items():
             missing_images_per_ccd = []
             for file in missing_frames_per_ccd:
                 missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
@@ -564,13 +564,13 @@ class MuSCAT_PHOTOMETRY:
         return missing, list(missing_files), list(missing_rads) ,nframes
 
     def _check_missing_photometry(self,rads):
-        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, None, rads) #positional arguments must be passed as tuples
-        missing_frames = [[] for _ in range(self.nccd)]
+        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, None, rads) 
+        missing_frames = {}
         nframes = [[] for _ in range(self.nccd)]
         missing_rads = set()
         for i, result in results.items():
             missing = result[0] if result[0] else False
-            missing_frames[i].append(result[1])
+            missing_frames[i] = result[1]
             nframes[i].append(result[3])
             [missing_rads.add(item) for item in result[2]]
         return missing, missing_frames, missing_rads, nframes
@@ -636,7 +636,7 @@ class MuSCAT_PHOTOMETRY:
             print(f"{'CCD':<4} {'Progress':<22} {'Completed':<15} {'Rate':<15} {'Remaining (min)':<15}")
             print("-" * 80)            
             
-            for (ccd_id, missing_files_per_ccd1), (_, missing_files_per_ccd2) in enumerate(zip(missing_files1, missing_files2)):
+            for (ccd_id, missing_files_per_ccd1), (_, missing_files_per_ccd2) in zip(missing_files1.items(), missing_files2.items()):
                 # Current progress
                 remaining_files = len(missing_files_per_ccd2)
                 completed_files = total_frames_per_ccd[ccd_id] - remaining_files
