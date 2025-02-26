@@ -177,13 +177,14 @@ class MuSCAT_PHOTOMETRY:
             ("ccd2_arg1", "ccd2_arg2")   # Arguments for CCD 2
         ]
         """
+
         results = {}
         with ProcessPoolExecutor(max_workers=self.nccd) as executor:
             futures = {}
             for ccd in range(self.nccd):
                 # Extract CCD-specific arguments if provided
-                ccd_args = ccd_specific_args[ccd] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
-                
+                ccd_args = [ccd_specific_args[ccd]] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
+                #must pass it as a list (of dictionaries) for unpacking
                 # Submit the task with dynamic arguments
                 futures[executor.submit(
                     method,
@@ -480,7 +481,7 @@ class MuSCAT_PHOTOMETRY:
 
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
 
-        results = self.run_all_ccds(self.map_all_frames, None, [missing_files]) #must pass is as a list (of dictionaries) for unpacking
+        results = self.run_all_ccds(self.map_all_frames, None, missing_files)
         starlists = [result for _, result in results.items()]
 
         missing_images = []
