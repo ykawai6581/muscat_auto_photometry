@@ -832,12 +832,10 @@ class MuSCAT_PHOTOMETRY:
                 for j in range(flux.shape[1]):  # Iterate over columns
                     label = f"ID = {j+1}" if i == 0 else None
                     ax[i].plot(frames[:, j], flux[:, j], label=label, zorder=1)
-
-                ax[i].plot(frames.T, median.T, color="white", alpha=0.5, zorder=2)
-                
-                ax[i].scatter(np.array([row[indices] for row, indices in zip(frames, saturation_zone)], dtype=object).T, 
-                              np.array([row[indices] for row, indices in zip(median, saturation_zone)], dtype=object).T, 
-                              color="red", alpha=0.5, marker=".", s=10, zorder=3)
+                    ax[i].plot(frames[:, j], median[:, j], color="white", alpha=0.5, zorder=2)
+                    ax[i].scatter(saturation_zone[:, j], 
+                                    np.take_along_axis(median[:, j],saturation_zone[:, j],axis=1),
+                                    color="red", alpha=0.5, marker=".", s=10, zorder=3)
                 
             ax[i].set_title(f"CCD {i}")
             ax[i].set_ylim(0, 62000)
