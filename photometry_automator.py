@@ -451,7 +451,7 @@ class MuSCAT_PHOTOMETRY:
         starlist = []
         for frame in frames:
             x, y = self.map_reference(ccd, frame) 
-            starlist.append([x,y])
+            starlist.append([x,y,frame])
         return starlist
         
     ## Performing aperture photometry
