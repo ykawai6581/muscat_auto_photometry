@@ -178,6 +178,11 @@ def parse_dat_file(input_file):
     df = pd.DataFrame([row.split() for row in table_data], 
                     columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
                             'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
+    # Convert numerical columns to float
+    df = df.astype({'ID': int, 'xcen': float, 'ycen': float, 'nflux': float, 
+                    'flux': float, 'err': float, 'sky': float, 'sky_sdev': float, 
+                    'SNR': float, 'nbadpix': int, 'fwhm': float, 'peak': float})
+    
     return df        
 
 from muscat_photometry import target_from_filename, obsdates_from_filename, query_radec
