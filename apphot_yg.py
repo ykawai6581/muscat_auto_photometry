@@ -135,7 +135,29 @@ class ApPhotometry:
         return float(mode), 0.0
 
     def process_image(self):
-        """Main processing function for aperture photometry."""
+        """Main processing function for aperture photometry.
+ 
+        #information that needs to be supplied externally
+        fits file
+        gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
+        telsecope diameter and altitude from param-tel.par
+
+        geoparamから
+        $dx,$dy,$a,$b,$c,$d,$rms
+        の順で呼び出して、
+
+        $x = $dx + $a*$x0[$i] + $b*$y0[$i];
+        $y = $dy + $c*$x0[$i] + $d*$y0[$i];
+
+        を計算する
+        x0 y0はなんだ
+        x0 y0 is the coordinates of the stars -in the ref frame- in pixels
+        x y is the coordinates for the corresponding star in the object frame
+        
+        starlistは各行に各frameのxyが入っている
+        starlistを作る段階でnstarsの情報を上げなければいけない
+
+        """
         #print(f"## apphot version {self.version} ##")
         dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
         outfile =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat

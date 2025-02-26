@@ -157,6 +157,25 @@ def parse_obj_file(input_file): #helper function to parse objectfile
     data = pd.DataFrame(data_rows,columns=col_names)
     return metadata, data
 
+def parse_dat_file(input_file):
+    table_data = []
+        
+    with open(input_file, 'r') as file:
+        table_started = False
+        for line in file:
+            line = line.strip()  # Strip whitespace once at the start
+
+            if line.startswith("#"):
+                if "ID xcen ycen" in line:
+                    continue
+            else:
+                table_data.append(line.replace("-nan", "nan"))
+            
+    # Convert to DataFrame
+    df = pd.DataFrame([row.split() for row in table_data], 
+                    columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
+                            'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
+    return df        
 
 from muscat_photometry import target_from_filename, obsdates_from_filename, query_radec
 
@@ -669,90 +688,9 @@ class MuSCAT_PHOTOMETRY:
             if all(complete):
                 break            
 
-    '''
-    #information that needs to be supplied externally
-    fits file
-    gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
-    telsecope diameter and altitude from param-tel.par
-
-    geoparamから
-    $dx,$dy,$a,$b,$c,$d,$rms
-    の順で呼び出して、
-
-    $x = $dx + $a*$x0[$i] + $b*$y0[$i];
-    $y = $dy + $c*$x0[$i] + $d*$y0[$i];
-
-    を計算する
-    x0 y0はなんだ
-    x0 y0 is the coordinates of the stars -in the ref frame- in pixels
-    x y is the coordinates for the corresponding star in the object frame
-    
-    starlistは各行に各frameのxyが入っている
-    starlistを作る段階でnstarsの情報を上げなければいけない
-    '''
-
-    def read_photometry(self, dir, ccd, rad, frame, add_metadata=False):
-        #filepath = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
-        filepath = f"{dir}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
-        metadata = {}
-        table_started = False
-        table_data = []
-        
-        with open(filepath, 'r') as file:
-            table_started = False
-            for line in file:
-                line = line.strip()  # Strip whitespace once at the start
-
-                if line.startswith("#"):
-                    if "ID xcen ycen" in line:
-                        table_started = True
-                        continue
-                    
-                    if add_metadata and not table_started:
-                        line = line.lstrip("# ")
-                        if "=" in line:
-                            key, value = map(str.strip, line.split("=", 1))
-                            metadata[key] = value
-                        else:
-                            parts = line.split(maxsplit=1)
-                            if len(parts) == 2:
-                                metadata[parts[0]] = parts[1].strip()
-                else:
-                    table_data.append(line.replace("-nan", "nan"))
-                
-        # Convert to DataFrame
-        df = pd.DataFrame([row.split() for row in table_data], 
-                        columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
-                                'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
-        
-        # Convert numeric columns with proper NaN handling
-        numeric_cols = df.columns.difference(['filename', 'ccd'])
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce')  # 'coerce' will convert invalid parsing to NaN
-        
-        # Add file information
-        df['filename'] = Path(filepath).name
-        df['ccd'] = ccd
-        
-        # Convert numeric metadata values
-        if add_metadata:
-            for key, value in metadata.items():
-                try:
-                    # Handle -nan in metadata as well
-                    if value.strip().lower() == "-nan":
-                        metadata[key] = np.nan
-                    else:
-                        metadata[key] = float(value)
-                except (ValueError, AttributeError):
-                    # Keep as string if conversion fails
-                    pass
-                df[key] = metadata[key]
-        
-        return df, metadata if add_metadata else df#[['ID', 'peak']]
-
-    def read_whole_ccd(self, ccd, rad):
+    def read_photometry(self, ccd, rad):
         """
-        Process photometry data for a single CCD with metadata.
+        Process photometry data for a single CCD.
         """
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
@@ -762,7 +700,8 @@ class MuSCAT_PHOTOMETRY:
         all_frames = []
         
         for frame in range(first_frame, last_frame+1):
-            result = self.read_photometry(dir=apphot_directory, ccd=ccd, rad=rad, frame=frame, add_metadata=False)
+            filepath = f"{apphot_directory}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
+            result = parse_dat_file(filepath)
             #print(frame)
             #print(result)
             #print(type(result))
@@ -783,7 +722,7 @@ class MuSCAT_PHOTOMETRY:
 
     def check_saturation_per_ccd(self, ccd, rad):
         saturation_threshold = 60000
-        df = self.read_whole_ccd(ccd=ccd, rad=rad)
+        df = self.read_photometry(ccd=ccd, rad=rad)
         # Count the number of rows where peak > 60000 for this star ID
         saturation_cids = []
         saturation_zones = []
@@ -850,83 +789,7 @@ class MuSCAT_PHOTOMETRY:
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
 
         plt.show()
-    
-    
-    '''
 
-        
-    def _read_photometry_parallel(self, rad, num_processes=4): #underscore suggests the function should not be called outside the class
-        """
-        Read photometry data for multiple CCDs in parallel.
-        
-        Parameters:
-        rad (int/float): Radius value
-        num_processes (int): Number of parallel processes to use (default=None, uses CPU count)
-        
-        Returns:
-        tuple: (combined_data_df, combined_metadata_df)
-        """
-        
-        # Create partial function with fixed parameters
-        process_func = partial(self._process_single_ccd, rad=rad)
-        
-        # Process CCDs in parallel
-        with Pool(processes=num_processes) as pool:
-            results = pool.map(process_func, list(range(self.nccd)))
-        
-        # Filter out None results and separate data and metadata
-        valid_results = [result for result in results if result is not None]
-        
-        return valid_results
-    @time_keeper
-    def check_saturation(self, rad):
-        self.saturation_cids = []
-        saturation_threshold = 60000
-        fig, ax = plt.subplots(self.nccd,1, figsize=(15, 10))
-        print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
-        df = self._read_photometry_parallel(rad=rad)
-        print(f'## >> Done loading photometry data.')
-        # Count the number of rows where peak > 60000 for this star ID
-        for i in range(self.nccd):
-            saturation_cids_per_ccd = []
-            stop_processing = False
-            for star_id in range(1,int(self.nstars)+1):
-                if stop_processing:
-                    break  # Exit the loop completely
-                flux = df[i][df[i]["ID"] == star_id]["peak"]
-                frames = np.array(list(range(len(df[i][df[i]["ID"] == star_id]))))
-                median = np.array(lc.moving_median(x=frames,y=flux,nsample=int(len(frames)/50)))
-                typical_scatter = np.std(flux-median)
-                saturation_threshold_per_star = saturation_threshold - typical_scatter #flux + typical scatter が60000を超えていたらsaturation zone
-                saturation_zone = np.where(median > saturation_threshold_per_star)[0]
-                count_above_threshold = (flux > saturation_threshold_per_star).sum()
-                percentage_above_threshold = (count_above_threshold / len(frames)) * 100
-                # If more than 5% of the rows are in saturation zone , add this star ID to the list
-                if percentage_above_threshold > 5:
-                    saturation_cids_per_ccd.append(star_id)
-                else:
-                    stop_processing = True  # Stop processing this CCD if a star is not saturated
-                if i == 0:
-                    label = f"Star {star_id}"
-                else:
-                    label = None
-                ax[i].plot(frames,flux,label=label,zorder=1)
-                ax[i].plot(frames,median,color="white",alpha=0.5,zorder=2)
-                ax[i].scatter(frames[saturation_zone],median[saturation_zone],color="red",alpha=0.5,marker=".",s=10,zorder=3)
-            print(f'## >> CCD {i}: Done.')
-            #ax[i].set_ylim(0,100)
-            ax[i].set_title(f"CCD {i}")
-            ax[i].set_ylim(0,saturation_threshold+2000)
-            ax[i].set_xlabel("Frame")
-            ax[i].set_ylabel("Peak")
-            fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.02), frameon=False, ncol=self.nstars)
-            self.saturation_cids.append(saturation_cids_per_ccd)
-
-        for i in range(self.nccd):
-            print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
-
-        plt.show()
-    '''
     '''
     def select_comparison(self, tid, nstars=5):
         self.tid = tid
