@@ -301,12 +301,12 @@ class MuSCAT_PHOTOMETRY:
         subprocess.run(cmd, shell=True, capture_output=True, text=True)
         self.find_tid(ccd, refid_delta, threshold, rad)
     
-    def show_frame(self, frame, rad=10, referece=False):
+    def show_frame(self, frame, rad=10, reference=False):
         """Plots a single FITS frame with reference markers."""
-        if referece:
+        if reference:
             x0, y0 = self.read_reference()
         else:
-            dat_file = f"{frame.split('/')[-1][4:-5]}.dat"
+            dat_file = f"{frame.split('/')[-1][0:-5]}.dat"
             ccd = dat_file[4]
             x0, y0 = self.map_reference(ccd,dat_file)
         plt.figure(figsize=(10, 10))
@@ -364,7 +364,7 @@ class MuSCAT_PHOTOMETRY:
     def map_all_frames(self, ccd, frames):
         starlist = []
         for frame in frames:
-            print(frame)
+            #print(frame)
             x, y = self.map_reference(ccd, frame) 
             starlist.append([x,y])
         return starlist
@@ -418,7 +418,7 @@ class MuSCAT_PHOTOMETRY:
                 print(f"{self.target} | TID = {self.tid}")
                 print("________________________________________________________")
                 ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
-                self.show_frame(frame=ref_fits,rad=rad)
+                self.show_frame(frame=ref_fits,rad=rad,reference=True)
                 return
         if rad < 1:
             print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
