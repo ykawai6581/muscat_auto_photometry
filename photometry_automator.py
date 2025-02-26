@@ -164,7 +164,7 @@ class MuSCAT_PHOTOMETRY:
             self.flat_dir = f"{self.obsdate}/FLAT"
             #self.target_dir = f"{self.obsdate}/{self.target}
 
-    @time_keeper
+    #@time_keeper
     def run_all_ccds(self, method, ccd_specific_args=None, *shared_args, **shared_kwargs):
         """
         Wrapper function to run a method in parallel for all CCDs.
@@ -612,7 +612,7 @@ class MuSCAT_PHOTOMETRY:
                                 )
         return config
 
-    async def monitor_photometry_progress(self, header, interval=3):
+    async def monitor_photometry_progress(self, header, interval=5):
         """
         Monitor photometry progress, calculating processing rate and remaining time.
         Updates progress in place using ANSI escape codes.
@@ -743,7 +743,7 @@ class MuSCAT_PHOTOMETRY:
         fig, ax = plt.subplots(self.nccd, 1, figsize=(15, 10))
         # Run in parallel
         print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
-        results = self.run_all_ccds(self.check_saturation_per_ccd, rad)
+        results = self.run_all_ccds(self.check_saturation_per_ccd, None, rad)
         print(f'## >> Done loading photometry data.')
 
         self.saturation_cids = [result[0] for _, result in results.items()]
