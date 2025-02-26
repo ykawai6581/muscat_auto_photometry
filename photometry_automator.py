@@ -812,25 +812,27 @@ class MuSCAT_PHOTOMETRY:
                 median_list.append(median)
             else:
                 stop_processing = True  # Stop processing this CCD if a star is not saturated
-        return np.array(saturation_cids), np.array(frames_list), np.array(flux_list), np.array(median_list), np.array(saturation_zones)
+        return saturation_cids, frames_list, flux_list, median_list, saturation_zones
         
     def check_saturation(self, rad):
         """Runs check_saturation_per_ccd in parallel across CCDs."""
-        self.saturation_cids = []
         fig, ax = plt.subplots(self.nccd, 1, figsize=(15, 10))
         # Run in parallel
         print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
         results = self.run_all_ccds(self.check_saturation_per_ccd, rad)
         print(f'## >> Done loading photometry data.')
 
+        self.saturation_cids = [result[0] for result in results]
+        most_saturated_ccd = np.argmax([len(ids) for ids in self.saturation_cids])
+
         # Collect results and plot
         for i in range(self.nccd):
             if results and results[i] is not None:
-                saturation_cids_per_ccd, frames, flux, median, saturation_zone = results[i]
-                self.saturation_cids.append(saturation_cids_per_ccd)
+                _, frames, flux, median, saturation_zone = results[i]
+                #self.saturation_cids.append(saturation_cids_per_ccd)
 
             for j, _ in enumerate(flux):
-                label = f"ID = {j+1}" if i == 0 else None
+                label = f"ID = {j+1}" if i == most_saturated_ccd else None
                 ax[i].plot(frames[j],flux[j], label=label,zorder=1)
                 ax[i].plot(frames[j], median[j], color="white", alpha=0.5, zorder=2)
                 ax[i].scatter(saturation_zone[j], 
@@ -842,7 +844,7 @@ class MuSCAT_PHOTOMETRY:
             #ax[i].set_xlabel("Frame")
             ax[i].set_ylabel("Peak")
 
-        fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.01), frameon=False, ncol=self.nstars)
+        fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0), frameon=False, ncol=self.nstars)
 
         for i in range(self.nccd):
             print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
