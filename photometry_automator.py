@@ -341,7 +341,7 @@ class MuSCAT_PHOTOMETRY:
                 print(f"df file already exisits under /{self.target}_{i}/df/")
 
     @time_keeper
-    def create_ref(self, ccd=0, refid_delta=0, threshold=10, rad=20):
+    def create_reference(self, ccd=0, refid_delta=0, threshold=10, rad=20):
         ## Creating a reference image
 
         ## Change the folloiwng value if necessary
