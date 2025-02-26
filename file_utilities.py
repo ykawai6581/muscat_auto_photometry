@@ -62,6 +62,8 @@ def parse_obj_file(input_file): #helper function to parse objectfile
     data = pd.DataFrame(data_rows,columns=col_names)
     return metadata, data
 
+import pandas as pd
+
 def parse_dat_file(input_file):
     table_data = []
         
@@ -77,9 +79,15 @@ def parse_dat_file(input_file):
                     continue
             else:
                 table_data.append(line.replace("-nan", "nan"))
-            
+    
     # Convert to DataFrame
     df = pd.DataFrame([row.split() for row in table_data], 
-                    columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
-                            'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
-    return df        
+                      columns=['ID', 'xcen', 'ycen', 'nflux', 'flux', 'err', 
+                               'sky', 'sky_sdev', 'SNR', 'nbadpix', 'fwhm', 'peak'])
+
+    # Convert numerical columns to float
+    df = df.astype({'ID': int, 'xcen': float, 'ycen': float, 'nflux': float, 
+                    'flux': float, 'err': float, 'sky': float, 'sky_sdev': float, 
+                    'SNR': float, 'nbadpix': int, 'fwhm': float, 'peak': float})
+    
+    return df
