@@ -364,6 +364,7 @@ class MuSCAT_PHOTOMETRY:
     def map_all_frames(self, ccd, frames):
         starlist = []
         for frame in frames:
+            print(frame)
             x, y = self.map_reference(ccd, frame) 
             starlist.append([x,y])
         return starlist
