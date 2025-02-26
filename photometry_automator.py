@@ -301,10 +301,14 @@ class MuSCAT_PHOTOMETRY:
         subprocess.run(cmd, shell=True, capture_output=True, text=True)
         self.find_tid(ccd, refid_delta, threshold, rad)
     
-    def show_frame(self, frame, rad=10):
+    def show_frame(self, frame, rad=10, referece=False):
         """Plots a single FITS frame with reference markers."""
-        x0, y0 = self.read_reference()
-
+        if referece:
+            x0, y0 = self.read_reference()
+        else:
+            fits_file = frame.split("/")[-1]
+            ccd = fits_file[4]
+            x0, y0 = self.map_reference(ccd,frame)
         plt.figure(figsize=(10, 10))
         with fits.open(frame) as hdul:
             data = hdul[0].data
@@ -333,7 +337,7 @@ class MuSCAT_PHOTOMETRY:
     def show_missing_frames(self,rads=None):
         missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
         frames = [f"{self.target_dir}_0/rawdata/{file[:-4]}.fits" 
-                    for missing_files_per_ccd in missing_files 
+                    for _, missing_files_per_ccd in missing_files.items()
                     for file in missing_files_per_ccd]  # rawdata is a symbolic link
         for frame in frames:
             self.show_frame(frame=frame)
