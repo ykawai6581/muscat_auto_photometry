@@ -357,6 +357,13 @@ class MuSCAT_PHOTOMETRY:
         y = geo.dy + geo.c * x0 + geo.d * y0
         return x, y 
     
+    def map_all_frames(self, ccd, frames):
+        starlist = []
+        for frame in frames:
+            x, y = self.map_reference(ccd, frame) 
+            starlist.append([x,y])
+        return starlist
+    
     def wcs_calculation(self,ccd):
         buffer = 0.02
         search_radius = 15 #in arcmin
@@ -415,7 +422,6 @@ class MuSCAT_PHOTOMETRY:
         print(f"Locating target with rad={rad-1}")
         self.create_reference(ccd=ccd,refid_delta=refid_delta,rad=rad-1)
 
-
     def process_object(self, ccd):
         objlist = f"list/object_ccd{ccd}.lst"
 
@@ -446,13 +452,6 @@ class MuSCAT_PHOTOMETRY:
         ## Starmatch
         print(f"starmatch.pl list/ref.lst {objlist}")
         result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=f"{self.target_dir}_{ccd}", shell=True, capture_output=True, text=True)
-
-    def map_all_frames(self, ccd, frames):
-        starlist = []
-        for frame in frames:
-            x, y = self.map_reference(ccd, frame) 
-            starlist.append([x,y])
-        return starlist
         
     ## Performing aperture photometry
     async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",
@@ -570,7 +569,7 @@ class MuSCAT_PHOTOMETRY:
     def _check_missing_photometry(self,rads):
         results = self.run_all_ccds(self._check_missing_photometry_per_ccd, None, rads) 
         missing_frames = {}
-        nframes = [[] for _ in range(self.nccd)]
+        nframes = []
         missing_rads = set()
         for i, result in results.items():
             missing = result[0] if result[0] else False
