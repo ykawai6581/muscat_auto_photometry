@@ -184,7 +184,8 @@ class MuSCAT_PHOTOMETRY:
             for ccd in range(self.nccd):
                 # Extract CCD-specific arguments if provided
                 ccd_args = ccd_specific_args[ccd] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
-                print(ccd_args)
+                print(len(ccd_args))
+                print(type(ccd_args))
                 #must pass it as a list (of dictionaries) for unpacking
                 # Submit the task with dynamic arguments
                 futures[executor.submit(
