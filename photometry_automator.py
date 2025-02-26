@@ -448,56 +448,63 @@ class MuSCAT_PHOTOMETRY:
         y = geo.dy + geo.c * x0 + geo.d * y0
         return x, y 
 
-    def find_tid(self):
-        reflist = f"{self.target_dir}/list/ref.lst"
-        with open(Path(reflist), 'r') as f:
-            ref_file = f.read()
-
-        ref_frame = ref_file.replace('\n','')
-        ref_ccd = ref_frame[4] #the fifth character in the refframe is the ccd number
-        ref_file = f"{self.target_dir}_{ref_ccd}/df/{ref_frame}.df.fits"
-        pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
+    def wcs_calculation(self,ccd):
         buffer = 0.02
         search_radius = 15 #in arcmin
+        ref_file_path = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.fits"
 
         print(">> Running WCS Calculation of reference file...")
-        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {pixscale-buffer} --scale-high {pixscale+buffer} --scale-units arcsecperpix {ref_file}"
+        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {self.pixscale-buffer} --scale-high {self.pixscale+buffer} --scale-units arcsecperpix {ref_file_path}"
         print(cmd)
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         print(result.stdout)
         print("## >> Complete.")
 
-        if os.path.exists(reflist):            
-            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects") #objfiles contain star information after starfind
-            wcsfits = f"{self.target_dir}_{ref_ccd}/df/{ref_frame}.df.new"
-            with fits.open(wcsfits) as hdul:
-                header = hdul[0].header
-                w = wcs.WCS(header)
-                ra_list, dec_list = w.all_pix2world(data["x"], data["y"], 0)
-                cd_matrix = w.pixel_scale_matrix
-                wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
-                wcs_pixscales *= 3600 #convert to arcsec
-                if wcs_pixscales[0] - pixscale > 0.01:
-                    print("## >> WCS calculation unsuccessful (Pixel scale mismatch)\nTry again or enter tID manually")
-                    return
+        return self.read_wcs_calculation(ccd)
 
-            threshold = 2
-            threshold_deg = threshold*pixscale/3600
+    def read_wcs_calculation(self, ccd):
+        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
+        x0, y0 = self.read_reference()
+        with fits.open(wcsfits) as hdul:
+            header = hdul[0].header
 
-            for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
-                match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
-                if match:
-                    tid = i + 1 #(index starts from 1 for starfind)
-                    #print(f"Target ID: {tid}")
-                    self.tid = tid
-                    print("________________________________________________________")
-                    print(f"{self.target} | TID = {self.tid}")
-                    print("________________________________________________________")
-                    return
-        else:
-            print("## >> Target search unsuccessful (Reference file not found)")
+        w = wcs.WCS(header)
+        ra_list, dec_list = w.all_pix2world(x0, y0, 0)
+        cd_matrix = w.pixel_scale_matrix
+        wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
+        wcs_pixscales *= 3600 #convert to arcsec
+        if wcs_pixscales[0] - self.pixscale > 0.01:
+            print("## >> WCS calculation unsuccessful (Pixel scale mismatch)")
             return
+        return ra_list, dec_list
 
+    def find_tid(self, ccd=0, refid_delta=0, threshold=10, rad=20):
+        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
+        if os.path.exists(wcsfits):
+            ra_list, dec_list = self.read_wcs_calculation(ccd)
+        else:
+            ra_list, dec_list = self.wcs_calculation(ccd)
+        threshold_pix = 2
+        threshold_deg = threshold_pix*self.pixscale/3600
+
+        for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
+            match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
+            if match:
+                tid = i + 1 #(index starts from 1 for starfind)
+                #print(f"Target ID: {tid}")
+                self.tid = tid
+                print("___Match!_______________________________________________")
+                print(f"{self.target} | TID = {self.tid}")
+                print("________________________________________________________")
+                ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
+                self.show_frame(frame=ref_fits,rad=rad,reference=True)
+                return
+        if rad < 1:
+            print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
+            return 
+        
+        print(f"Locating target with rad={rad-1}")
+        self.create_reference(ccd=ccd,refid_delta=refid_delta,rad=rad-1)
 
     def process_object_per_ccd(self, ccd):
         objdir = f"{self.target_dir}"
