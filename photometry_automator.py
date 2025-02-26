@@ -482,9 +482,8 @@ class MuSCAT_PHOTOMETRY:
             elif len(self.rad_to_use) != len(rads):
                 print(f">> CCD={i} | Photometry already available for rads = {available_rads}")
 
-        config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
+        config = self._config_photometry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         
-        '''
         frames_to_map = [{"frames": sorted(missing_files[i])} for i in range(self.nccd)]
         print(">> Mapping all frames to reference frames...")
         results = self.run_all_ccds(self.map_all_frames, frames_to_map)
@@ -507,7 +506,7 @@ class MuSCAT_PHOTOMETRY:
                 starlist_per_ccd.append([x,y])
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
-
+        '''
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         print(header)
 
@@ -515,7 +514,7 @@ class MuSCAT_PHOTOMETRY:
 
         await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
         await monitor
-    '''
+    
     def _check_missing_photometry(self, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
         missing = False
@@ -591,8 +590,8 @@ class MuSCAT_PHOTOMETRY:
             nframes.append(result[3])
             [missing_rads.add(item) for item in result[2]]
         return missing, missing_frames, missing_rads, nframes
-
-    def _config_photoemtry(self, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):
+    '''
+    def _config_photometry(self, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):
         telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
         tel = SimpleNamespace(**telescope_param)
 
