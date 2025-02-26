@@ -226,6 +226,46 @@ class MuSCAT_PHOTOMETRY:
             #self.target_dir = f"{self.obsdate}/{self.target}
 
 
+    def run_all_ccds(self, method, ccd_specific_args=None, *shared_args, **shared_kwargs):
+        """
+        Wrapper function to run a method in parallel for all CCDs.
+        - Collects return values if any.
+        - Runs the method in parallel for all CCDs.
+        ex:
+        ccd_specific_args = [
+            ("ccd0_arg1", "ccd0_arg2"),  # Arguments for CCD 0
+            ("ccd1_arg1", "ccd1_arg2"),  # Arguments for CCD 1
+            ("ccd2_arg1", "ccd2_arg2")   # Arguments for CCD 2
+        ]
+        """
+
+        results = {}
+        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
+            futures = {}
+            for ccd in range(self.nccd):
+                # Extract CCD-specific arguments if provided
+                ccd_args = ccd_specific_args[ccd] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
+                # Submit the task with dynamic arguments
+                futures[executor.submit(
+                    method,
+                    ccd,
+                    *shared_args,     # Pass shared positional arguments
+                    **ccd_args,          # Pass CCD-specific arguments
+                    **shared_kwargs   # Pass shared keyword arguments
+                )] = ccd
+
+            for future in futures:
+                ccd = futures[future]
+                try:
+                    result = future.result()  # Capture return value if any
+                    results[ccd] = result  # Store per-CCD results
+                except Exception as e:
+                    print(f"Error in CCD {ccd}: {e}")
+                    results[ccd] = None
+
+        return results if any(v is not None for v in results.values()) else None
+
+
     @time_keeper
     def config_flat(self):
         ## Setting configure files for flat
