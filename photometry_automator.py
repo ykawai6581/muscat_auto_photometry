@@ -505,6 +505,8 @@ class MuSCAT_PHOTOMETRY:
                 #geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4]}.geo" #extract the frame name and modify to geoparam path 
                 x, y = self.map_reference(i, f"{file[:-4]}.geo") 
                 starlist_per_ccd.append([x,y])
+            missing_images.append(missing_images_per_ccd)
+            starlists.append(starlist_per_ccd)
 
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         print(header)
