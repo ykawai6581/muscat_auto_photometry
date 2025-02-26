@@ -822,7 +822,7 @@ class MuSCAT_PHOTOMETRY:
         results = self.run_all_ccds(self.check_saturation_per_ccd, rad)
         print(f'## >> Done loading photometry data.')
 
-        self.saturation_cids = [result[0] for result in results]
+        self.saturation_cids = [result[0] for _, result in results.items()]
         most_saturated_ccd = np.argmax([len(ids) for ids in self.saturation_cids])
 
         # Collect results and plot
