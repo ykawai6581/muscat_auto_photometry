@@ -164,6 +164,9 @@ def parse_dat_file(input_file):
         table_started = False
         for line in file:
             line = line.strip()  # Strip whitespace once at the start
+            
+            if not line:  # Skip empty lines
+                continue
 
             if line.startswith("#"):
                 if "ID xcen ycen" in line:
