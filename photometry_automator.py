@@ -165,23 +165,27 @@ class MuSCAT_PHOTOMETRY:
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     @time_keeper
-    def run_all_ccds(self, method, ccd_args=None, other_args=None, kwargs=None):
+    def run_all_ccds(self, method, ccd_specific_args, shared_args, shared_kwargs):
         """
         Wrapper function to run a method in parallel for all CCDs.
         - Collects return values if any.
         - Runs the method in parallel for all CCDs.
+        ex:
+        ccd_specific_args = [
+            ("ccd0_arg1", "ccd0_arg2"),  # Arguments for CCD 0
+            ("ccd1_arg1", "ccd1_arg2"),  # Arguments for CCD 1
+            ("ccd2_arg1", "ccd2_arg2")   # Arguments for CCD 2
+        ]
         """
-        results = {}
-        if ccd_args is None:
-            ccd_args = []
-        if other_args is None:
-            other_args = []
-        if kwargs is None:
-            kwargs = {}
-
         with ProcessPoolExecutor(max_workers=self.nccd) as executor:
+            results = {}
             futures = {
-                executor.submit(method, ccd, *( [ccd_args[ccd]] if ccd_args else [] ), *other_args, **kwargs): ccd
+                executor.submit(method, 
+                                ccd,
+                                *ccd_specific_args[ccd],  # Unpack CCD-specific arguments
+                                *shared_args,             # Pass shared positional arguments
+                                **shared_kwargs           # Pass shared keyword arguments
+                                ): ccd
                 for ccd in range(self.nccd)
             }
             for future in futures:
@@ -555,7 +559,7 @@ class MuSCAT_PHOTOMETRY:
         return missing, list(missing_files), list(missing_rads) ,nframes
 
     def _check_missing_photometry(self,rads):
-        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, other_args=rads)
+        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, *rads)
         missing_frames = [[] for _ in range(self.nccd)]
         nframes = [[] for _ in range(self.nccd)]
         missing_rads = set()
