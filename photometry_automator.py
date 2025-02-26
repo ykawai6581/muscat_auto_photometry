@@ -219,6 +219,8 @@ class MuSCAT_PHOTOMETRY:
             self.obsdate = obsdate
             self.obslog = []
             self.instid = instrument_id[self.instrument]
+            self.pixscale = [0.358, 0.435, 0.27,0.27][self.instid-1] #pixelscales of muscats
+
             muscat_bands = {
                 "muscat" : ["g","r","z"],
                 "muscat2" :["g","r","i","z"],
