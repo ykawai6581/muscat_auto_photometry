@@ -783,9 +783,7 @@ class MuSCAT_PHOTOMETRY:
 
     def check_saturation_per_ccd(self, ccd, rad):
         saturation_threshold = 60000
-        print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
         df = self.read_whole_ccd(ccd=ccd, rad=rad)
-        print(f'## >> Done loading photometry data.')
         # Count the number of rows where peak > 60000 for this star ID
         saturation_cids = []
         saturation_zones = []
@@ -821,7 +819,9 @@ class MuSCAT_PHOTOMETRY:
         self.saturation_cids = []
         fig, ax = plt.subplots(self.nccd, 1, figsize=(15, 10))
         # Run in parallel
+        print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
         results = self.run_all_ccds(self.check_saturation_per_ccd, rad)
+        print(f'## >> Done loading photometry data.')
 
         # Collect results and plot
         for i in range(self.nccd):
@@ -831,9 +831,10 @@ class MuSCAT_PHOTOMETRY:
 
                 ax[i].plot(frames.T, flux.T, label=f"CCD {i}", zorder=1)
                 ax[i].plot(frames.T, median.T, color="white", alpha=0.5, zorder=2)
+                '''
                 ax[i].scatter(np.take_along_axis(frames, saturation_zone, axis=1).T, 
                               np.take_along_axis(median, saturation_zone, axis=1).T, color="red", alpha=0.5, marker=".", s=10, zorder=3)
-
+                '''
             ax[i].set_title(f"CCD {i}")
             ax[i].set_ylim(0, 62000)
             ax[i].set_xlabel("Frame")
