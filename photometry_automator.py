@@ -829,13 +829,13 @@ class MuSCAT_PHOTOMETRY:
                 saturation_cids_per_ccd, frames, flux, median, saturation_zone = results[i]
                 self.saturation_cids.append(saturation_cids_per_ccd)
 
-                for j in range(flux.shape[1]):  # Iterate over columns
-                    label = f"ID = {j+1}" if i == 0 else None
-                    ax[i].plot(frames[:, j], flux[:, j], label=label, zorder=1)
-                    ax[i].plot(frames[:, j], median[:, j], color="white", alpha=0.5, zorder=2)
-                    ax[i].scatter(saturation_zone[:, j], 
-                                    np.take_along_axis(median[:, j],saturation_zone[:, j],axis=1),
-                                    color="red", alpha=0.5, marker=".", s=10, zorder=3)
+            for j, _ in enumerate(flux):
+                label = f"ID = {j+1}" if i == 0 else None
+                ax[i].plot(frames[j],flux[j], label=label,zorder=1)
+                ax[i].plot(frames[j], median[j], color="white", alpha=0.5, zorder=2)
+                ax[i].scatter(saturation_zone[j], 
+                             median[j][saturation_zone[j]],
+                                color="red", alpha=0.5, marker=".", s=10, zorder=3)
                 
             ax[i].set_title(f"CCD {i}")
             ax[i].set_ylim(0, 62000)
