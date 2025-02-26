@@ -183,10 +183,7 @@ class MuSCAT_PHOTOMETRY:
             futures = {}
             for ccd in range(self.nccd):
                 # Extract CCD-specific arguments if provided
-                ccd_args = {"frames": ccd_specific_args[ccd]} if ccd_specific_args and ccd < len(ccd_specific_args) else {}
-                print(len(ccd_args))
-                print(type(ccd_args))
-                #must pass it as a list (of dictionaries) for unpacking
+                ccd_args = ccd_specific_args[ccd] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
                 # Submit the task with dynamic arguments
                 futures[executor.submit(
                     method,
@@ -483,7 +480,9 @@ class MuSCAT_PHOTOMETRY:
 
         config = self._config_photoemtry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
 
-        results = self.run_all_ccds(self.map_all_frames, None, missing_files)
+        frames_to_map = [{"frames": missing_files[i]} for i in range(self.nccd)]
+        results = self.run_all_ccds(self.map_all_frames, None, frames_to_map)
+        
         starlists = [result for _, result in results.items()]
 
         missing_images = []
