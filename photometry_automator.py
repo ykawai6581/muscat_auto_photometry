@@ -487,10 +487,10 @@ class MuSCAT_PHOTOMETRY:
 
         missing_images = []
 
-        for _, missing_frames_per_ccd in missing_files.items():
+        for ccd, missing_frames_per_ccd in missing_files.items():
             missing_images_per_ccd = []
             for file in missing_frames_per_ccd:
-                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
+                missing_images_per_ccd.append(f"{self.target_dir}_{ccd}/df/{file[:-4]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
             missing_images.append(missing_images_per_ccd)
 
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
