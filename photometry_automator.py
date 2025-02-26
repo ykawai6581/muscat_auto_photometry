@@ -483,7 +483,7 @@ class MuSCAT_PHOTOMETRY:
                 print(f">> CCD={i} | Photometry already available for rads = {available_rads}")
 
         config = self._config_photometry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
-        
+        '''
         frames_to_map = [{"frames": sorted(missing_files[i])} for i in range(self.nccd)]
         print(">> Mapping all frames to reference frames...")
         results = self.run_all_ccds(self.map_all_frames, frames_to_map)
@@ -506,7 +506,7 @@ class MuSCAT_PHOTOMETRY:
                 starlist_per_ccd.append([x,y])
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
-        '''
+        
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         print(header)
 
