@@ -564,7 +564,7 @@ class MuSCAT_PHOTOMETRY:
         return missing, list(missing_files), list(missing_rads) ,nframes
 
     def _check_missing_photometry(self,rads):
-        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, *(rads)) #positional arguments must be passed as tuples
+        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, None, rads) #positional arguments must be passed as tuples
         missing_frames = [[] for _ in range(self.nccd)]
         nframes = [[] for _ in range(self.nccd)]
         missing_rads = set()
