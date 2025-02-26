@@ -574,7 +574,7 @@ class MuSCAT_PHOTOMETRY:
         for i, result in results.items():
             missing = result[0] if result[0] else False
             missing_frames[i] = result[1]
-            nframes[i].append(result[3])
+            nframes.append(result[3])
             [missing_rads.add(item) for item in result[2]]
         return missing, missing_frames, missing_rads, nframes
 
