@@ -494,7 +494,14 @@ class MuSCAT_PHOTOMETRY:
         starlists = [result for _, result in results.items()]
 
         missing_images = [sorted(missing_files[i]) for i in range(self.nccd)]
-        missing_images = [f"{self.target_dir}_{ccd}/df/{file[:-4]}.df.fits" for ccd, missing_images_per_ccd in enumerate(missing_images) for file in missing_images_per_ccd]
+        missing_images = [
+            [
+                f"{self.target_dir}_{ccd}/df/{file[:-4]}.df.fits" 
+                for file in missing_images_per_ccd
+            ] 
+            for ccd, missing_images_per_ccd in enumerate(missing_images)
+        ]
+
         '''
         starlists = []
         missing_images = []
