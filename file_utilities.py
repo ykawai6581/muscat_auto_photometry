@@ -66,6 +66,7 @@ import pandas as pd
 
 def parse_dat_file(input_file):
     table_data = []
+    meta_data = {}
         
     with open(input_file, 'r') as file:
         for line in file:
@@ -75,6 +76,9 @@ def parse_dat_file(input_file):
                 continue
 
             if line.startswith("#"):
+                for key in  ["gjd - 2400","exptime","airmass"]:
+                    if key in line:
+                        meta_data[key] = float(line.split()[-1])
                 if "ID xcen ycen" in line:
                     continue
             else:
@@ -90,4 +94,7 @@ def parse_dat_file(input_file):
                     'flux': float, 'err': float, 'sky': float, 'sky_sdev': float, 
                     'SNR': float, 'nbadpix': int, 'fwhm': float, 'peak': float})
     
+    for key, value in meta_data.items():
+        df[key] = value
+        
     return df

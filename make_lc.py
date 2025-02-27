@@ -18,144 +18,89 @@ from functools import partial
 from multiprocessing import Queue
 import time
 import functools
+from file_utilities import parse_dat_file, parse_obj_file, load_par_file, load_geo_file
 
 
-@dataclass
-class PhotometryConfig:
-    tid:            int #target star id
-    rads:           np.ndarray                 #list of aperture radius
-    gain:           float #ccd gain (e/ADU) 
-    read_noise:     float 
-    dark_noise:     float 
-    sky_sep:        int  =50
-    sky_wid:        int  =40
-    hbox:           int  =0 #number of pixels around a given point to search for max flux aperture
-    dcen:           float=0.1 #step in pixels to move within hbox
-    sigma_cut:      int  =3#sigma clipping used for sky calculation
-    adu_lo:         int  =1000
-    adu_hi:         int  =65000#16bit adu limit 2^16-1=65,535,
-    sigma_0:        float=0.064#scintillation coefficient
-    altitude:       int  =1013#observatory altitude in meters (used for scintillation noise calculation)
-    diameter:       int  =61#telescope diameter in cm (also used for scintillation noise calculation)
-    sky_calc_mode:  int  =0 #Sky calculation mode (0=mean, 1=median, 2=mode)
-    global_sky_flag:int  =0 #Use global sky calculation meaning calculate sky dont assume as constant
-    const_sky_flag: int  =0 #Use constant sky value
-    const_sky_flux: float=0.0#Constant sky flux value
-    const_sky_sdev: float=0.0#Constant sky standard deviation
-    method:         str="mapping"#apphot method either mapping or centroid
+class ProcessEachFrame:
+    def __init__(self, frame):
+        self.df = parse_dat_file(frame)
 
 
-class ApPhotometry:
+class CreateLightCurve(ProcessEachFrame):
     def __init__(self,
-                 frame, 
-                 starlist,
-                 config=PhotometryConfig,
+                frame, 
+                tid,
+                cid,
+                ):
+
+        '''
+        dataframeからtidとcidのrowを抜き出す
+        -> tidのseriesとcidのdfに分けて抜き出す
+
+        comparison_flux = sum(comparison_flux)
+        flux = target_flux/comparison_flux
+        flux_err = sqrt( (1/comparison_flux)**2 + (target_flux/comparison_flux**2)**2 )
+
+        GJD-2450000,
+        exptime,
+        airmass,
+        sky(ADU),
+        sky_target(ADU),
+        sky_comp(ADU),
+        dx(pix) from geoparam,
+        dy(pix),
+        fwhm(pix),
+        peak(ADU),
+        frame (name of the frame: eg MCT20_2410300XXX),
+        flux(r=7.0),
+        err(r=7.0),,
+        '''
+
+class CreateLightCurve:
+    def __init__(self,
+                 frame,
+                 tid,
+                 cid,
                  semaphore = asyncio.Semaphore(1000),
                  thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
                  ):
         
         self.frame = frame
-        self.x, self.y = starlist
-
-        self.tid = config.tid
-        self.rads = config.rads
-        self.gain = config.gain
-        self.read_noise = config.read_noise
-        self.dark_noise = config.dark_noise
-        self.sky_sep = config.sky_sep
-        self.sky_wid = config.sky_wid
-        self.hbox = config.hbox
-        self.dcen = config.dcen
-        self.sigma_cut = config.sigma_cut
-        self.adu_lo = config.adu_lo
-        self.adu_hi = config.adu_hi
-        self.sigma_0 = config.sigma_0
-        self.altitude = config.altitude
-        self.diameter = config.diameter
-        self.sky_calc_mode = config.sky_calc_mode
-        self.global_sky_flag = config.global_sky_flag
-        self.const_sky_flag = config.const_sky_flag
-        self.const_sky_flux = config.const_sky_flux
-        self.const_sky_sdev = config.const_sky_sdev
-        self.method = config.method
-
+        self.tid = tid
+        self.cid = cid
         self.version = "3.0.0"
         self.semaphore = semaphore
         self.thread_pool = thread_pool
 
-    def pixel_fraction(self, x: int, y: int, xcen: float, ycen: float, r: float) -> float:
-        """Calculate the fraction of a pixel that falls within the aperture."""
-        nsubpix = 100
-        subpix = 1.0/nsubpix
-        sumsubpix = 0
-        
-        for ix in range(nsubpix):
-            for iy in range(nsubpix):
-                x1 = x - 0.5 + ix*subpix
-                y1 = y - 0.5 + iy*subpix
-                sep = np.sqrt((x1 - xcen)**2 + (y1 - ycen)**2)
-                if sep <= r:
-                    sumsubpix += 1
-                    
-        return float(sumsubpix) / (nsubpix * nsubpix) #this function is not called
+    def process_data(self):
+        """Main processing function for light curve generation.
 
-    def calc_sky(self, sky: np.ndarray, sigma_cut: float) -> Tuple[float, float]:
-        """Calculate sky background using sigma clipping."""
-        sky = np.array(sky)
-        while True:
-            mean = np.mean(sky)
-            std = np.std(sky)
-            mask = np.abs(sky - mean) <= sigma_cut * std
-            if np.all(mask):
-                break
-            sky = sky[mask]
-        return mean, std
+                
+        dataframeからtidとcidのrowを抜き出す
+        -> tidのseriesとcidのdfに分けて抜き出す
 
-    def calc_median_sky(self, sky: np.ndarray, sigma_cut: float) -> Tuple[float, float]:
-        """Calculate sky background using median and sigma clipping."""
-        sky = np.array(sky)
-        while True:
-            median = np.median(sky)
-            std = np.std(sky)
-            mask = np.abs(sky - median) <= sigma_cut * std
-            if np.all(mask):
-                break
-            sky = sky[mask]
-        return median, std
+        comparison_flux = sum(comparison_flux)
+        flux = target_flux/comparison_flux
+        flux_err = sqrt( (1/comparison_flux)**2 + (target_flux/comparison_flux**2)**2 )
 
-    def calc_mode_sky(self, sky: np.ndarray) -> Tuple[float, float]:
-        """Calculate mode of sky background."""
-        from scipy import stats
-        mode = stats.mode(sky.astype(int))[0][0]
-        return float(mode), 0.0
-
-    def process_image(self):
-        """Main processing function for aperture photometry.
- 
-        #information that needs to be supplied externally
-        fits file
-        gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
-        telsecope diameter and altitude from param-tel.par
-
-        geoparamから
-        $dx,$dy,$a,$b,$c,$d,$rms
-        の順で呼び出して、
-
-        $x = $dx + $a*$x0[$i] + $b*$y0[$i];
-        $y = $dy + $c*$x0[$i] + $d*$y0[$i];
-
-        を計算する
-        x0 y0はなんだ
-        x0 y0 is the coordinates of the stars -in the ref frame- in pixels
-        x y is the coordinates for the corresponding star in the object frame
-        
-        starlistは各行に各frameのxyが入っている
-        starlistを作る段階でnstarsの情報を上げなければいけない
-
+        GJD-2450000,
+        exptime,
+        airmass,
+        sky(ADU),
+        sky_target(ADU),
+        sky_comp(ADU),
+        dx(pix) from geoparam,
+        dy(pix),
+        fwhm(pix),
+        peak(ADU),
+        frame (name of the frame: eg MCT20_2410300XXX),
+        flux(r=7.0),
+        err(r=7.0),,
+    
         """
         #print(f"## apphot version {self.version} ##")
-        dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
-        outfile =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
+        dirs = self.frame.split("/") #-> obsdate/target_ccd/apphot_mapping/radxx/frame.dat
+        outfile =f".csv"  #-> target_ccd/apphot_method/rad/frame.dat
         outpath=f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
 
         os.makedirs(outpath, exist_ok=True)
@@ -490,4 +435,3 @@ class ApPhotometry:
                     future.result()
                 except Exception as e:
                     print(f"Error in CCD {i}: {e}")
-        

@@ -345,6 +345,11 @@ class MuSCAT_PHOTOMETRY:
             self.show_frame(frame=frame)
 
     def read_reference(self,nstars=10):
+        '''
+        Reads the reference and returns the star positions.
+        First called in self.read_wcs_calculation() using nstars=100
+        In other instance, coordinates are returned for the larger of self.tid and 10
+        '''
         if self.tid is not None:
             nstars = max(self.tid,nstars)
         ref_path = Path(f"{self.target_dir}/list/ref.lst")
