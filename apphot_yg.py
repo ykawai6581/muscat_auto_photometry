@@ -271,7 +271,7 @@ class ApPhotometry:
                     #takes the same shape as cameo, with each element representing the distance from the center of the star
                     sky_mask = (r >= self.sky_sep) & (r <= self.sky_sep + self.sky_wid) #pixels within the sky annulus
                         
-                        # Calculate sky
+                    # Calculate sky
                     if not self.global_sky_flag and not self.const_sky_flag:
                         sky_pixels = cameo[sky_mask]
                         if self.sky_calc_mode == 1:
@@ -357,7 +357,7 @@ class ApPhotometry:
                     f"# global_sky_flag = {self.global_sky_flag}\n"
                     f"# const_sky_flag = {self.const_sky_flag}\n"
                     f"# sky_calc_mode = {self.sky_calc_mode}\n"
-                    f"# sky_sep = {self.sky_wid}\n"
+                    f"# sky_sep = {self.sky_sep}\n"
                     f"# sky_wid = {self.sky_wid}\n"
                     f"# ID xcen ycen nflux flux err sky sky_sdev SNR nbadpix fwhm peak\n"
                 )
@@ -366,8 +366,9 @@ class ApPhotometry:
                     'id': starid+1,
                     'xcen': pos[0],
                     'ycen': pos[1],
+                    'nflux': n_pix,
                     'flux': flux,
-                    'noise': noise,
+                    'err': noise,
                     'sky': sky,
                     'sky_std': sky_std,
                     'snr': snr,
@@ -379,7 +380,7 @@ class ApPhotometry:
                 for result in results[rad_index]:
                     output += (
                         f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
-                        f"{result['flux']:.2f} {result['noise']:.2f} "
+                        f"{result['nflux']:.2f} {result['flux']:.2f} {result['err']:.2f} "
                         f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
                         f"{result['nbadpix']} {result['fwhm']:.2f} {result['peak']:.1f}\n"
                     )
