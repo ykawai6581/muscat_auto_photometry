@@ -486,7 +486,8 @@ class MuSCAT_PHOTOMETRY:
         ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
 
         metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
-        x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
+        #x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
+        x0, y0 = np.array(data["x"]),np.array(data["y"]) #array of pixel coordinates for stars in the reference frame
         return x0, y0
     
     def map_reference(self, geoparam_file_path):  #frameidにした方がいい  
