@@ -342,11 +342,13 @@ class MuSCAT_PHOTOMETRY:
         for frame in frames:
             self.show_frame(frame=frame)
 
-    def read_reference(self):
+    def read_reference(self,nstars=10):
+        if self.tid is not None:
+            nstars = max(self.tid,nstars)
         ref_path = Path(f"{self.target_dir}/list/ref.lst")
         if os.path.exists(ref_path):            
             metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{self.ref_file}.objects")
-            x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
+            x0, y0 = np.array(data["x"][:nstars]),np.array(data["y"][:nstars]) #array of pixel coordinates for stars in the reference frame
             return x0, y0
         else:
             print("No reference file found.")
@@ -385,7 +387,7 @@ class MuSCAT_PHOTOMETRY:
 
     def read_wcs_calculation(self, ccd):
         wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
-        x0, y0 = self.read_reference()
+        x0, y0 = self.read_reference(nstars=100)
         with fits.open(wcsfits) as hdul:
             header = hdul[0].header
 
