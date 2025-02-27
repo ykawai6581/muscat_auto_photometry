@@ -371,7 +371,7 @@ class ApPhotometry:
                     'sky': sky,
                     'sky_std': sky_std,
                     'snr': snr,
-                    'nbadpix': np.sum(bad_mask),
+                    'nbadpix': 0,#np.sum(bad_mask),
                     'fwhm': fwhm,
                     'peak': peak_flux + sky
                 })
@@ -379,9 +379,9 @@ class ApPhotometry:
                 for result in results[rad_index]:
                     output += (
                         f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
-                        f"{result['flux']:.2f}{result['noise']:.2f} "
+                        f"{result['flux']:.2f} {result['noise']:.2f} "
                         f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
-                        f"{result['nbadpix']}" f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n"
+                        f"{result['nbadpix']} {result['fwhm']:.2f} {result['peak']:.1f}\n"
                     )
 
                 outputs.append({"data": output, "path": f"{outpath}/rad{rad}/{outfile}"})
@@ -438,34 +438,7 @@ class ApPhotometry:
             return result
         finally:
             loop.close()
-    '''
-    @classmethod
-    def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
-        """Main entry point for multiprocessing."""
-        ncores = min(len(frames_list),os.cpu_count())
-        #print(f"Starting photometry with {num_ccds} cores...")
-        
-        #print(f"Starting processing with {len(frames_list)} CCDs")
-        #print(f"Each CCD has: {[len(frames) for frames in frames_list]} frames")
-        
-        process_ccd = partial(cls.process_ccd_wrapper)
-        
-        with ProcessPoolExecutor(max_workers=ncores) as executor:
-            futures = []
-            # Add index for tracking
-            for i, (frames, starlists) in enumerate(zip(frames_list, starlists_list)):
-                #print(f"Submitting CCD {i} with {len(frames)} frames")
-                futures.append(
-                    executor.submit(process_ccd, frames, starlists, config)
-                )
-        
-            for i, future in enumerate(futures):
-                try:
-                    future.result()
-                    #print(f"CCD {i} completed")
-                except Exception as e:
-                    print(f"Error in CCD {i}: {e}")
-    '''
+
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""

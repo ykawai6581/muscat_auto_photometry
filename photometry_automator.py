@@ -504,20 +504,6 @@ class MuSCAT_PHOTOMETRY:
             for ccd, missing_images_per_ccd in enumerate(missing_images)
         ]
 
-        '''
-        starlists = []
-        missing_images = []
-        for i, missing_files_per_ccd in missing_files.items():
-            starlist_per_ccd = []
-            missing_images_per_ccd = []
-            for j, file in enumerate(missing_files_per_ccd):
-                missing_images_per_ccd.append(f"{self.target_dir}_{i}/df/{file[:-4]}.df.fits") #extract the frame name and modify to dark flat reduced fits path 
-                #geoparam_file_path = f"{self.target_dir}_{i}/geoparam/{file[:-4]}.geo" #extract the frame name and modify to geoparam path 
-                x, y = self.map_reference(i, f"{file[:-4]}.geo") 
-                starlist_per_ccd.append([x,y])
-            missing_images.append(missing_images_per_ccd)
-            starlists.append(starlist_per_ccd)
-        '''
         header = f">> Performing photometry for radius: {self.rad_to_use} | nstars = {nstars} | method = {method}"
         print(header)
 
@@ -525,42 +511,7 @@ class MuSCAT_PHOTOMETRY:
 
         await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
         await monitor
-    '''
-    def _check_missing_photometry(self, rads):
-        """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
-        missing = False
-        missing_files_per_ccd = {}
-        nframes = []
-        missing_rads = []
 
-        for i in range(self.nccd):
-            #appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
-            apphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}_test"
-            frame_range = self.obslog[i][self.obslog[i]["OBJECT"] == self.target]
-            first_frame = int(frame_range["FRAME#1"].iloc[0])
-            last_frame = int(frame_range["FRAME#2"].iloc[0])
-            nframes.append(last_frame-first_frame+1)
-
-            def file_exists(rad, frame): #nested helper function to help judge if photometry exists
-                file_path = f"{apphot_directory}/rad{rad}/MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat"
-                if os.path.exists(file_path):
-                    return True
-
-            missing_files = []
-
-            for rad in rads:
-                for frame in range(first_frame, last_frame+1):
-                        if not file_exists(rad, frame):
-                            missing_files.append(f"MCT{self.instid}{i}_{self.obsdate}{frame:04d}.dat")
-                            missing_rads.append(rad)
-
-            if missing_files:
-                missing = True
-
-            missing_files_per_ccd[i] = list(set(missing_files))
-
-        return missing, missing_files_per_ccd, list(set(missing_rads)) ,nframes
-    '''
     def _check_missing_photometry_per_ccd(self, ccd, rads):
         """Checks for missing photometry files and returns a dictionary of missing files per CCD."""
         missing = False
