@@ -466,7 +466,64 @@ class ApPhotometry:
             return result
         finally:
             loop.close()
+    
+    @classmethod
+    def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
+        """Main entry point for multiprocessing."""
+        nccds = len(frames_list)
+        ncores = min(nccds,os.cpu_count())
+        
+        # Flatten frames_list while tracking original CCD index
+        flat_frames_list = []
+        flat_starlists_list = []
 
+        for ccd_frames, ccd_starlists in zip(frames_list, starlists_list):
+            flat_frames_list.extend(ccd_frames)
+            flat_starlists_list.extend(ccd_starlists)  # Preserves frame-starlist pairs
+
+        assert len(flat_frames_list) == len(flat_starlists_list), "Frames and starlists must match."
+
+        frames_per_ccd = [len(frames) for frames in frames_list]
+
+        new_frames_list = [[] for _ in range(nccds)]
+        new_starlists_list = [[] for _ in range(nccds)]
+
+        # Create a more balanced distribution plan
+        assignment_order = []
+        for frame_idx in range(max(frames_per_ccd)): #loop over max number of ccds
+            for ccd in range(nccds):
+                if frame_idx < frames_per_ccd[ccd]:
+                    assignment_order.append((ccd, frame_idx)) #reorders the frames from ccd1,ccd1, .... ccd4,ccd4s -> ccd1,ccd2,.....ccd3,ccd4
+
+        # Distribute according to the plan
+        for i, (ccd_idx, frame_idx) in enumerate(assignment_order):
+            flat_idx = sum(frames_per_ccd[:ccd_idx]) + frame_idx # the frame index counting from the very first frame (of all ccds)
+            target_ccd = i % nccds
+            new_frames_list[target_ccd].append(flat_frames_list[flat_idx])
+            new_starlists_list[target_ccd].append(flat_starlists_list[flat_idx])
+
+        
+        #for i, (frame, starlist) in enumerate(zip(flat_frames_list, flat_starlists_list)):
+        #    new_frames_list[i % nccds].append(frame) #round robin redistribition (take the modular and that becomes a circular index with max(index) = nccds-1)
+        #    new_starlists_list[i % nccds].append(starlist)
+        
+        process_ccd = partial(cls.process_ccd_wrapper)
+        
+        with ProcessPoolExecutor(max_workers=ncores) as executor:
+            futures = []
+            # Add index for tracking
+            for  frames, starlists in zip(new_frames_list, new_starlists_list):
+                futures.append(
+                    executor.submit(process_ccd, frames, starlists, config)
+                )
+        
+            for i, future in enumerate(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Error in CCD {i}: {e}")
+
+    '''
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""
@@ -493,4 +550,4 @@ class ApPhotometry:
                     #print(f"CCD {i} completed")
                 except Exception as e:
                     print(f"Error in CCD {i}: {e}")
-    
+    '''
