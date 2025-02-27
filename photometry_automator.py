@@ -346,7 +346,7 @@ class MuSCAT_PHOTOMETRY:
         ref_path = Path(f"{self.target_dir}/list/ref.lst")
         if os.path.exists(ref_path):            
             metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{self.ref_file}.objects")
-            x0, y0 = np.array(data["x"]),np.array(data["y"]) #array of pixel coordinates for stars in the reference frame
+            x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][self.nstars]) #array of pixel coordinates for stars in the reference frame
             return x0, y0
         else:
             print("No reference file found.")
