@@ -300,7 +300,7 @@ class MuSCAT_PHOTOMETRY:
                 print(f'Completed auto_mkdf.pl for CCD{i}')
             else:
                 print(f"df file already exisits under /{self.target}_{i}/df/")
-
+    '''
     @time_keeper
     def create_ref(self, ccd=0, refid_delta=0, threshold=10, rad=20):
         ## Creating a reference image
@@ -322,55 +322,6 @@ class MuSCAT_PHOTOMETRY:
                 ref_file = f.read()
                 print(f'Ref file:\n {ref_file} exists.')
         self.find_tid()
-
-    def show_reference(self, rad=10):
-        ## Showing reference image
-
-        ref_list_file = f'{self.target_dir}/list/ref.lst'
-        with open(ref_list_file) as f:
-            refframe = f.readline()
-
-        refframe = refframe.replace('\n','')
-        print('reference frame:', refframe)
-
-        ref_obj_file = f"{self.target_dir}/objects/{refframe}.objects"
-        refxy = np.genfromtxt(ref_obj_file, delimiter=13, usecols=(1,2))
-
-
-        ref_fits =f"{self.target_dir}/reference/ref-{refframe}.fits"
-        hdulist = fits.open(ref_fits)
-        data = hdulist[0].data
-        #dataf = data.astype(np.float64)
-
-        norm = ImageNormalize(data, interval=ZScaleInterval())
-        plt.figure(figsize=(10,10))
-        ax=plt.subplot(1,1,1)
-        plt.imshow(data, origin='lower', norm=norm)
-        rad=rad
-        for i in range(len(refxy)):
-            circ = plt.Circle(refxy[i], rad, color='red', fill=False)
-            ax.add_patch(circ)
-            plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
-
-    def read_reference(self):
-        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
-            ref_file = f.read()
-        ref_frame = ref_file.replace('\n','')
-        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
-        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
-        ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
-
-        metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
-        x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
-        return x0, y0
-    
-    def map_reference(self, geoparam_file_path):  #frameidにした方がいい  
-        x0, y0 = self.read_reference()
-        geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
-        geo = SimpleNamespace(**geoparams)
-        x = geo.dx + geo.a * x0 + geo.b * y0
-        y = geo.dy + geo.c * x0 + geo.d * y0
-        return x, y 
 
     def find_tid(self):
         reflist = f"{self.target_dir}/list/ref.lst"
@@ -421,6 +372,131 @@ class MuSCAT_PHOTOMETRY:
         else:
             print("## >> Target search unsuccessful (Reference file not found)")
             return
+
+    '''
+    def create_reference(self, ccd=0, refid_delta=0, threshold=10, rad=20):
+        ## Creating a reference image
+
+        ## Change the folloiwng value if necessary
+        #======
+        #ref_ccd=1      # CCD number for the reference image
+        ref_ccd=ccd
+        refid= int(self.obslog[ref_ccd][self.obslog[ref_ccd]["OBJECT"] == self.target]["FRAME#1"])#if you are okay with setting the first frame as reference
+        refid+=refid_delta
+        self.ref_file = f"MCT{self.instid}{ref_ccd}_{self.obsdate}{refid:04d}"
+        #======
+        cmd = f"perl scripts/make_reference.pl {self.obsdate} {self.target} --ccd={ref_ccd} --refid={refid} --th={threshold} --rad={rad}"
+        subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        self.find_tid(ccd, refid_delta, threshold, rad)
+
+    def wcs_calculation(self,ccd):
+        buffer = 0.02
+        search_radius = 15 #in arcmin
+        ref_file_path = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.fits"
+
+        print(">> Running WCS Calculation of reference file...")
+        cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {self.pixscale-buffer} --scale-high {self.pixscale+buffer} --scale-units arcsecperpix {ref_file_path}"
+        print(cmd)
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        print(result.stdout)
+        print("## >> Complete.")
+
+        return self.read_wcs_calculation(ccd)
+
+    def read_wcs_calculation(self, ccd):
+        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
+        x0, y0 = self.read_reference()
+        with fits.open(wcsfits) as hdul:
+            header = hdul[0].header
+
+        w = wcs.WCS(header)
+        ra_list, dec_list = w.all_pix2world(x0, y0, 0)
+        cd_matrix = w.pixel_scale_matrix
+        wcs_pixscales = np.sqrt(np.sum(cd_matrix**2, axis=0))  
+        wcs_pixscales *= 3600 #convert to arcsec
+        if wcs_pixscales[0] - self.pixscale > 0.01:
+            print("## >> WCS calculation unsuccessful (Pixel scale mismatch)")
+            return
+        return ra_list, dec_list
+
+    def find_tid(self, ccd=0, refid_delta=0, threshold=10, rad=20):
+        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
+        if os.path.exists(wcsfits):
+            ra_list, dec_list = self.read_wcs_calculation(ccd)
+        else:
+            ra_list, dec_list = self.wcs_calculation(ccd)
+        threshold_pix = 2
+        threshold_deg = threshold_pix*self.pixscale/3600
+
+        for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
+            match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
+            if match:
+                tid = i + 1 #(index starts from 1 for starfind)
+                #print(f"Target ID: {tid}")
+                self.tid = tid
+                print("___Match!_______________________________________________")
+                print(f"{self.target} | TID = {self.tid}")
+                print("________________________________________________________")
+                ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
+                #self.show_frame(frame=ref_fits,rad=rad,reference=True)
+                return
+        if rad < 1:
+            print("## >> WCS calculation unsuccessful (Star not detected in object file)\nTry again or enter tID manually")
+            return 
+        
+        print(f"Locating target with rad={rad-1}")
+        self.create_reference(ccd=ccd,refid_delta=refid_delta,rad=rad-1)
+
+
+    def show_reference(self, rad=10):
+        ## Showing reference image
+
+        ref_list_file = f'{self.target_dir}/list/ref.lst'
+        with open(ref_list_file) as f:
+            refframe = f.readline()
+
+        refframe = refframe.replace('\n','')
+        print('reference frame:', refframe)
+
+        ref_obj_file = f"{self.target_dir}/objects/{refframe}.objects"
+        refxy = np.genfromtxt(ref_obj_file, delimiter=13, usecols=(1,2))
+
+
+        ref_fits =f"{self.target_dir}/reference/ref-{refframe}.fits"
+        hdulist = fits.open(ref_fits)
+        data = hdulist[0].data
+        #dataf = data.astype(np.float64)
+
+        norm = ImageNormalize(data, interval=ZScaleInterval())
+        plt.figure(figsize=(10,10))
+        ax=plt.subplot(1,1,1)
+        plt.imshow(data, origin='lower', norm=norm)
+        rad=rad
+        for i in range(len(refxy)):
+            circ = plt.Circle(refxy[i], rad, color='red', fill=False)
+            ax.add_patch(circ)
+            plt.text(refxy[i][0]+rad/2., refxy[i][1]+rad/2., str(i+1), fontsize=20, color='yellow')
+
+    def read_reference(self):
+        with open(Path(f"{self.target_dir}/list/ref.lst"), 'r') as f:
+            ref_file = f.read()
+        ref_frame = ref_file.replace('\n','')
+        ref_ccd = ref_frame[4] #the fourth character in the refframe is the ccd number
+        ref_file_dir = f"{self.target_dir}_{ref_ccd}"
+        ref_file = f"/df/{ref_file_dir}/{ref_frame}.df.fits" #improve this double loading of refframe
+
+        metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{ref_frame}.objects")
+        x0, y0 = np.array(data["x"][:self.nstars]),np.array(data["y"][:self.nstars]) #array of pixel coordinates for stars in the reference frame
+        return x0, y0
+    
+    def map_reference(self, geoparam_file_path):  #frameidにした方がいい  
+        x0, y0 = self.read_reference()
+        geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
+        geo = SimpleNamespace(**geoparams)
+        x = geo.dx + geo.a * x0 + geo.b * y0
+        y = geo.dy + geo.c * x0 + geo.d * y0
+        return x, y 
+
 
 
     def process_object_per_ccd(self, ccd):
