@@ -301,10 +301,12 @@ class MuSCAT_PHOTOMETRY:
         subprocess.run(cmd, shell=True, capture_output=True, text=True)
         self.find_tid(ccd, refid_delta, threshold, rad)
     
-    def show_frame(self, frame, rad=10, reference=False):
+    def show_frame(self, frame, xy= None ,rad=10, reference=False):
         """Plots a single FITS frame with reference markers."""
         if reference:
             x0, y0 = self.read_reference()
+        elif xy:
+            x0, y0 = xy
         else:
             dat_file = f"{frame.split('/')[-1][0:-8]}.dat"
             ccd = dat_file[4]
