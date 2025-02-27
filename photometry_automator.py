@@ -201,17 +201,7 @@ class MuSCAT_PHOTOMETRY:
             self.bands = muscat_bands[self.instrument]
             os.chdir('/home/muscat/reduction_afphot/'+self.instrument)
 
-            for i in range(self.nccd):
-                print(f'\n=== CCD{i} ===')
-                cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {self.instrument} {obsdate} {i}'
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-                obslog_perccd = result.stdout
-                print(obslog_perccd)  # Optional: Print to verify
-                obslog_perccd = obslog_perccd.lstrip("# ")
-                obslog_perccd_df = pd.read_csv(StringIO(obslog_perccd), delim_whitespace=True)
-
-                self.obslog.append(obslog_perccd_df)
+            self.load_obslog()
             self.obj_names = list(self.obslog[0]['OBJECT'][(self.obslog[0]['OBJECT'] != 'FLAT') & (self.obslog[0]['OBJECT'] != 'DARK')])
             if target in self.obj_names: #implement checks for variability in target name
                 self.target = target
@@ -225,6 +215,17 @@ class MuSCAT_PHOTOMETRY:
             self.flat_dir = f"{self.obsdate}/FLAT"
             #self.target_dir = f"{self.obsdate}/{self.target}
 
+    def load_obslog(self):
+        for i in range(self.nccd):
+            print(f'\n=== CCD{i} ===')
+            cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {self.instrument} {self.obsdate} {i}'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+            obslog_perccd = result.stdout
+            print(obslog_perccd)  # Optional: Print to verify
+            obslog_perccd = obslog_perccd.lstrip("# ")
+            obslog_perccd_df = pd.read_csv(StringIO(obslog_perccd), delim_whitespace=True)
+            self.obslog.append(obslog_perccd_df)
 
     @time_keeper
     def config_flat(self):
