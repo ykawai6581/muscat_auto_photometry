@@ -631,8 +631,8 @@ class MuSCAT_PHOTOMETRY:
                 starlist_per_ccd.append([x,y])
                 if j == limit_frames:
                     break
-                #self.show_frame(missing_images_per_ccd[-1],xy=starlist_per_ccd[-1])
-                #self.show_frame(missing_images_per_ccd[-1])
+                self.show_frame(missing_images_per_ccd[-1],xy=starlist_per_ccd[-1])
+                self.show_frame(missing_images_per_ccd[-1])
 
             missing_images.append(missing_images_per_ccd)
             starlists.append(starlist_per_ccd)
@@ -645,14 +645,14 @@ class MuSCAT_PHOTOMETRY:
         #await task
         #task = ApPhotometry.process_multiple_images(missing_images[1][:200],starlists[1][:200],config, semaphore = asyncio.Semaphore(10))
         #await task
-        monitor = asyncio.create_task(self.monitor_photometry_progress(header))
+        #monitor = asyncio.create_task(self.monitor_photometry_progress(header))
         #missing_imagestest = [a[i][:100] for a in missing_images]
         #starliststest = [b[i][:100] for b in starlists]
         #print(starliststest)
 
         #await (ApPhotometry.process_all_ccds,missing_images,starlists,config)
         await asyncio.to_thread(ApPhotometry.process_all_ccds,missing_images,starlists,config)
-        await monitor
+        #await monitor
 
 
     def _check_missing_photometry(self, rads):
