@@ -443,7 +443,7 @@ class MuSCAT_PHOTOMETRY:
         else:
             print("No reference file found.")
             return
-    
+    '''
     def map_reference(self, geoparam_file_path):  #frameidにした方がいい  
         x0, y0 = self.read_reference()
         geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
@@ -451,6 +451,23 @@ class MuSCAT_PHOTOMETRY:
         x = geo.dx + geo.a * x0 + geo.b * y0
         y = geo.dy + geo.c * x0 + geo.d * y0
         return x, y 
+    '''
+    def map_reference(self, ccd, frame):  #frameidにした方がいい  
+        x0, y0 = self.read_reference()
+        geoparam_file_path = f"{self.target_dir}_{ccd}/geoparam/{frame[:-4]}.geo" #extract the frame name and modify to geoparam path 
+        geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
+        geo = SimpleNamespace(**geoparams)
+        x = geo.dx + geo.a * x0 + geo.b * y0
+        y = geo.dy + geo.c * x0 + geo.d * y0
+        return x, y 
+    
+    def map_all_frames(self, ccd, frames):
+        starlist = []
+        for frame in frames:
+            #print(frame)
+            x, y = self.map_reference(ccd, frame) 
+            starlist.append([x,y])
+        return starlist
 
     def wcs_calculation(self,ccd):
         buffer = 0.02
