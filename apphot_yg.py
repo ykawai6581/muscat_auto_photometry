@@ -367,10 +367,11 @@ class ApPhotometry:
                     'xcen': pos[0],
                     'ycen': pos[1],
                     'flux': flux,
+                    'noise': noise,
                     'sky': sky,
                     'sky_std': sky_std,
-                    'noise': noise,
                     'snr': snr,
+                    'nbadpix': np.sum(bad_mask),
                     'fwhm': fwhm,
                     'peak': peak_flux + sky
                 })
@@ -378,9 +379,9 @@ class ApPhotometry:
                 for result in results[rad_index]:
                     output += (
                         f"{result['id']:.0f} {result['xcen']:.3f} {result['ycen']:.3f} "
-                        f"{result['flux']:.2f} {result['flux']:.2f} {result['noise']:.2f} "
+                        f"{result['flux']:.2f}{result['noise']:.2f} "
                         f"{result['sky']:.2f} {result['sky_std']:.2f} {result['snr']:.2f} "
-                        f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n"
+                        f"{result['nbadpix']}" f"0 {result['fwhm']:.2f} {result['peak']:.1f}\n"
                     )
 
                 outputs.append({"data": output, "path": f"{outpath}/rad{rad}/{outfile}"})
@@ -437,7 +438,7 @@ class ApPhotometry:
             return result
         finally:
             loop.close()
-
+    '''
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""
@@ -464,8 +465,6 @@ class ApPhotometry:
                     #print(f"CCD {i} completed")
                 except Exception as e:
                     print(f"Error in CCD {i}: {e}")
-
-    
     '''
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
@@ -522,4 +521,4 @@ class ApPhotometry:
                     future.result()
                 except Exception as e:
                     print(f"Error in CCD {i}: {e}")
-        '''
+        
