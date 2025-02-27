@@ -467,7 +467,6 @@ class ApPhotometry:
         finally:
             loop.close()
 
-
     @classmethod
     def process_all_ccds(cls, frames_list, starlists_list, config: PhotometryConfig):
         """Main entry point for multiprocessing."""
