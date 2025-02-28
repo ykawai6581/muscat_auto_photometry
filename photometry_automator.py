@@ -826,7 +826,7 @@ class MuSCAT_PHOTOMETRY:
     def create_photometry(self, given_cids=None):
         if given_cids:
             self.cids_list = given_cids
-        ccd_specific_arg = [{"frames": cid} for cid in self.cids_list] # must be a list of dictionaries
+        ccd_specific_arg = [{"cids": cid} for cid in self.cids_list] # must be a list of dictionaries
         self.run_all_ccds(self.create_photometry_per_ccd,ccd_specific_arg)
     '''
     @time_keeper
