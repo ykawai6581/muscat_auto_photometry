@@ -770,10 +770,12 @@ class MuSCAT_PHOTOMETRY:
     '''
     def select_comparison(self, tid=None, nstars=5):
         if self.tid is None:
-            self.tid = tid
-        else:
-            print("Provide TID")
-            return
+            if tid is not None:
+                self.tid = tid
+            else:
+                print("Provide TID")
+                return
+    
         self.check_saturation(self.rad2)
         self.cids_list = []
         for saturation_cid in self.saturation_cids: 
