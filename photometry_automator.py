@@ -822,8 +822,8 @@ class MuSCAT_PHOTOMETRY:
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
                     cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
-                    print(result.stdout)
+                    #this command requires the cids to be separated by space
+                    subprocess.run(cmd, shell=True, text=True, stdout=sys.stdout, stderr=sys.stderr)
                     outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
                     if os.path.isfile(outfile_path): #if the photometry file now exists
                         subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)
