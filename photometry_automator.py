@@ -769,7 +769,7 @@ class MuSCAT_PHOTOMETRY:
             self.cids_list.append(cids)
     '''
     def select_comparison(self, tid=None, nstars=5):
-        if self.tid is not None:
+        if self.tid is None:
             self.tid = tid
         else:
             print("Provide TID")
@@ -798,7 +798,8 @@ class MuSCAT_PHOTOMETRY:
             -ap_type $method -r1 $rad1 -r2 $rad2 -dr $drad -tid $tID -cids $cID
         バンドごとにcidが違う場合を考慮したいからこのコードを使わなかった
         '''
-        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
+        #script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
+        script_path = "/ut3/kawai/muscat_auto_photometry/mklc_flux_collect_csv-2.pl"
         '''
         errorの症状:cidが複数あるときに、一つ目の星のfluxしかカウントされていない
         しかし、comparisonとしての割り算には合算したfluxが使われているよう
@@ -820,6 +821,7 @@ class MuSCAT_PHOTOMETRY:
                 if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
                     cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
                     result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
+                    print(result.stdout)
                     outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
                     if os.path.isfile(outfile_path): #if the photometry file now exists
                         subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)

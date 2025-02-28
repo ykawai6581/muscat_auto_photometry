@@ -19,6 +19,7 @@ from multiprocessing import Queue
 import time
 import functools
 from file_utilities import parse_dat_file, parse_obj_file, load_par_file, load_geo_file
+import glob
 
 
 class ProcessEachFrame:
@@ -34,12 +35,14 @@ class CreateLightCurve(ProcessEachFrame):
                 ):
 
         '''
+        asyncioを使って半径ごとの結果を保存する
+        
         dataframeからtidとcidのrowを抜き出す
         -> tidのseriesとcidのdfに分けて抜き出す
 
         comparison_flux = sum(comparison_flux)
         flux = target_flux/comparison_flux
-        flux_err = sqrt( (1/comparison_flux)**2 + (target_flux/comparison_flux**2)**2 )
+        flux_err = sqrt( (1/comparison_flux)**2 * target_flux_err**2 + (target_flux/comparison_flux**2)**2 * comparison_flux_err**2)
 
         GJD-2450000,
         exptime,
@@ -55,6 +58,55 @@ class CreateLightCurve(ProcessEachFrame):
         flux(r=7.0),
         err(r=7.0),,
         '''
+
+
+
+        def load_photometry(self, rad):
+            """Reads and processes photometry files for a given aperture."""
+            files = sorted(glob.glob(os.path.join(f"apphot_mapping_test/rad{rad}", "*.dat")))
+            data = []
+
+            tid = 4
+            
+            for file in files:
+                df = parse_dat_file(file)
+                data.append(df[(df["ID"] == self.tid)|(df["ID"].isin(self.cids))])
+            return pd.concat(data)#this is photometry for all frames in single aperture
+
+        def process_photometry(self, rad):
+            df = self.load_photometry(rad)
+            output = {}
+            target = df[df["ID"]==self.tid]
+            target_flux = target["flux"]
+            target_flux_err = target["err"]
+            for cid in self.cids:
+                comparison = df[df["ID"].isin(cid)]
+                comparison_flux = comparison.groupby("gjd - 2450000")["flux"].sum()#comparisonのfluxを取り出す
+                comparison_flux_err2 = np.sqrt(comparison.groupby("gjd - 2450000")["err"].apply(lambda x: (x**2)).sum()) #len = len(frames)
+                flux_ratio = target_flux/comparison_flux
+                flux_ratio_err = np.sqrt( (1/comparison_flux)**2 * target_flux_err**2 + (target_flux/comparison_flux**2)**2 * comparison_flux_err2)
+                output[f"flux"]
+
+
+            '''
+            frame単位でやる
+            '''
+            
+
+
+
+
+        async def main(base_directory: str):
+            """Processes all aperture directories asynchronously and combines results."""
+            aperture_dirs = sorted(next(os.walk(base_directory))[1])  # Get subdirectories
+            
+            tasks = [process_aperture(os.path.join(base_directory, aperture), aperture) for aperture in aperture_dirs]
+            results = await asyncio.gather(*tasks)  # Preserves order
+            
+            final_df = pd.concat(results, axis=1)
+            final_df.to_csv("normalized_fluxes.csv", index=False)
+            print("Saved to normalized_fluxes.csv")
+
 
 class CreateLightCurve:
     def __init__(self,
@@ -100,7 +152,7 @@ class CreateLightCurve:
         """
         #print(f"## apphot version {self.version} ##")
         dirs = self.frame.split("/") #-> obsdate/target_ccd/apphot_mapping/radxx/frame.dat
-        outfile =f".csv"  #-> target_ccd/apphot_method/rad/frame.dat
+        outfile = f"{ap_dir}/lcf_{inst}_{band}_{obj}_{date}_t{targetID}_c{suffix}_r{rad1}-{rad2}.csv".csv"  #-> target_ccd/apphot_method/rad/frame.dat
         outpath=f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
 
         os.makedirs(outpath, exist_ok=True)
