@@ -1165,7 +1165,11 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             else:
                 rad1 -= 1
                 rad2 += 1
-            print(f"Minimum rms: {min_rms_list[-2]:.3g} \n          -> {min_rms_list[-1]:.3g}")
+
+            previous_rms = [f"{rms:.3g}" for rms in min_rms_list[-2]]
+            latest_rms = [f"{rms:.3g}" for rms in min_rms_list[-1]]
+
+            print(f"Minimum rms: {previous_rms} \n          -> {latest_rms}")
         self.plot_outlier_cut_results()
 
     def plot_lc(self):
