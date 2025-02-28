@@ -809,9 +809,11 @@ class MuSCAT_PHOTOMETRY:
         for cid in cids:
             obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
             initial_obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{ccd}" 
+            apdir = f"{initial_obj_dir}/apphot_{self.method}"
+            lstfile = f"{initial_obj_dir}/list/object_ccd{ccd}.lst"
             outfile = f"lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
             if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
-                cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{ccd}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[ccd]} -date {self.obsdate}"
+                cmd = f"perl {script_path} -apdir {apdir} -list {lstfile} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[ccd]} -date {self.obsdate}"
                 #this command requires the cids to be separated by space
                 subprocess.run(cmd, shell=True, text=True, stdout=sys.stdout, stderr=sys.stderr)
                 outfile_path = os.path.join(initial_obj_dir,f"apphot_{self.method}",outfile)
