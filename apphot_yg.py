@@ -156,7 +156,7 @@ class ApPhotometry:
         #print(f"## apphot version {self.version} ##")
         dirs = self.frame.split("/") #-> obsdate/target_ccd/df/frame_df.fits
         outfile =f"{dirs[-1][:-8]}.dat"  #-> target_ccd/apphot_method/rad/frame.dat
-        outpath=f"{dirs[0]}/{dirs[1]}/apphot_{self.method}_test"
+        outpath=f"{dirs[0]}/{dirs[1]}/apphot_{self.method}"
 
         os.makedirs(outpath, exist_ok=True)
 
