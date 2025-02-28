@@ -800,8 +800,8 @@ class MuSCAT_PHOTOMETRY:
             -ap_type $method -r1 $rad1 -r2 $rad2 -dr $drad -tid $tID -cids $cID
         バンドごとにcidが違う場合を考慮したいからこのコードを使わなかった
         '''
-        #script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv.pl"
-        script_path = "/ut3/kawai/muscat_auto_photometry/mklc_flux_collect_csv-2.pl"
+        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv-test.pl"
+        #script_path = "/ut3/kawai/muscat_auto_photometry/mklc_flux_collect_csv-2.pl"
         '''
         errorの症状:cidが複数あるときに、一つ目の星のfluxしかカウントされていない
         しかし、comparisonとしての割り算には合算したfluxが使われているよう
