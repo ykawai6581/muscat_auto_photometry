@@ -523,8 +523,7 @@ class MuSCAT_PHOTOMETRY:
         missing_files = set()
         missing_rads = set()
 
-        #appphot_directory = f"{self.obsdate}/{self.target}_{i}/apphot_{self.method}"
-        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}_test"
+        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}"
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
         last_frame = int(frame_range["FRAME#2"].iloc[0])
@@ -661,7 +660,7 @@ class MuSCAT_PHOTOMETRY:
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
         last_frame = int(frame_range["FRAME#2"].iloc[0])
-        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}_test"
+        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}"
 
         all_frames = []
         
@@ -787,7 +786,7 @@ class MuSCAT_PHOTOMETRY:
             if self.tid in cids:
                 cids.remove(self.tid)
                 cids.append(dimmest_star)   
-                cids = [str(cid) for cid in cids]
+            cids = [str(cid) for cid in cids]
             self.cids_list.append(cids) #if too many stars are saturated, there is a risk of not having the photometry for the star. need to add logic for this
 
     @time_keeper
@@ -819,7 +818,7 @@ class MuSCAT_PHOTOMETRY:
                 os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}")) 
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
-                    cmd = f"perl {script_path} -apdir apphot_{self.method}_test -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
+                    cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
                     result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
                     outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
                     if os.path.isfile(outfile_path): #if the photometry file now exists
