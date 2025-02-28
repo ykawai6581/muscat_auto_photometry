@@ -809,10 +809,10 @@ class MuSCAT_PHOTOMETRY:
         initial_obj_dir = f"{self.target_dir}_{ccd}" 
         os.chdir(initial_obj_dir)
         for cid in cids:
-            apdir = f"{initial_obj_dir}/apphot_{self.method}"
-            lstfile = f"{initial_obj_dir}/list/object_ccd{ccd}.lst"
-            #apdir = f"apphot_{self.method}"
-            #lstfile = f"list/object_ccd{ccd}.lst"
+            #apdir = f"{initial_obj_dir}/apphot_{self.method}"
+            #lstfile = f"{initial_obj_dir}/list/object_ccd{ccd}.lst"
+            apdir = f"apphot_{self.method}"
+            lstfile = f"list/object_ccd{ccd}.lst"
 
             outfile = f"lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
             if not os.path.isfile(f"{self.target_dir}/{outfile}"): #if the photometry file does not exist
@@ -865,8 +865,8 @@ class MuSCAT_PHOTOMETRY:
         os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}"))
     '''
 
-class MuSCAT_PHOTOMETRY_OPTIMIZATION:
-    def __init__(self, muscat_photometry):
+class MuSCAT_PHOTOMETRY_OPTIMIZATION(MuSCAT_PHOTOMETRY):
+    def __init__(self, muscat_photometry):#ここは継承していれば引数で与えなくてもいい
         # Copy all attributes from the existing instance
         self.__dict__.update(muscat_photometry.__dict__)
         self.ap = np.arange(self.rad1, self.rad2+self.drad, self.drad)
@@ -1018,7 +1018,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         plt.tight_layout(h_pad=0)  # Remove spacing between rows
         plt.legend()
         plt.show()
-
+    '''
     @time_keeper
     def outlier_cut(self, sigma_cut=3, order=2, plot=True):
         """Performs outlier detection using polynomial fitting and sigma clipping."""
@@ -1090,7 +1090,121 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         if plot:
             self.plot_outlier_cut_results()
+    '''
+
+    def outlier_cut(self, sigma_cut=3, order=2, plot=True):
+        """Performs outlier detection using polynomial fitting and sigma clipping in parallel."""
+        
+        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (processing in parallel)")
+        
+        # Run the processing for each CCD in parallel
+        results = self.run_all_ccds(
+            self.outlier_cut_per_ccd,
+            None,  # No CCD-specific args
+            sigma_cut,
+            order
+        )
+        
+        if results is None:
+            print(">> No data processed successfully.")
+            return
+        
+        # Initialize class attributes to store results
+        self.index = []
+        self.ndata_diff = []
+        self.rms = []
+        self.min_rms_idx_list = []
+        
+        # Process results from parallel execution
+        for i in range(self.nccd):
+            if results.get(i) is None:
+                print(f">> CCD {i}: Processing failed or no data available.")
+                # Add empty placeholders for this CCD
+                self.index.append([])
+                self.ndata_diff.append(np.array([]))
+                self.rms.append(np.array([]))
+                self.min_rms_idx_list.append((0, 0))  # Default index
+                continue
+            
+            # Extract results for this CCD
+            ccd_results = results[i]
+            self.index.append(ccd_results['index'])
+            self.ndata_diff.append(ccd_results['ndata_diff'])
+            self.rms.append(ccd_results['rms'])
+            self.min_rms_idx_list.append(ccd_results['min_rms_idx'])
+        
+        # Store best candidate values
+        self.cIDs_best = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
+        self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
+        self.ap_best = [self.ap[item[1]] for item in self.min_rms_idx_list]
+        self.ap_best_idx = [item[1] for item in self.min_rms_idx_list]
+
+        if plot:
+            self.plot_outlier_cut_results()
     
+
+    def outlier_cut_per_ccd(self, i, sigma_cut, order):
+        """
+        Process outlier detection for a single CCD
+        This method will be called by run_all_ccds in parallel for each CCD
+        """
+        print(f"## >> CCD {i} | Computing outliers ...")
+        
+        n_cids = len(self.cids_list[i])
+        n_ap = len(self.ap)
+        
+        ndata_diff = np.zeros((n_cids, n_ap))
+        rms = np.zeros((n_cids, n_ap))
+        index = []
+        
+        for j in range(n_cids):
+            index.append([])
+            phot_j = self.phot[i][j]
+            exptime = phot_j['exptime']
+            gjd_vals = phot_j['GJD-2450000']
+            mask = self.mask[i][j]
+            
+            fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
+            fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])  # cid=jの総フラックス（in ADU?）のarrayをapごとに作成
+            
+            raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True)  # apごとのnormalized flux
+            ndata_init = fcomp_data.shape[1]
+            
+            ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
+            # arrayにしたときに次元が合わなくなるからここでマスクをかけている
+            
+            for k in range(n_ap):
+                if len(ye[k]) > 0:  # only perform outlier detection if there are data points
+                    p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
+                    index[j].append(np.isin(gjd_vals, gjd_vals[mask][keep_mask]))  # indexというのは超最終的なmask tcutsに含まれなかったらfalse
+                    ndata_final = len(tcut)
+                else:
+                    index[j].append(np.zeros_like(gjd_vals[mask], dtype=bool))
+                    ndata_final = 0
+                
+                ndata_diff[j, k] = ndata_final - ndata_init
+                
+                fin_flux = phot_j[f"flux(r={self.ap[k]:.1f})"][index[j][k]]
+                
+                if len(fin_flux) > 1:
+                    diff = np.diff(fin_flux)
+                    rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
+                else:
+                    rms[j, k] = np.inf
+        
+        # ここまでで全てcids, apに対してoutlier detectionが終わった per ccd （1ccdのrmsとdatapointsの行列完成）
+        min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)  # 最小のrmsのindexを取得
+        
+        print(f"## >> CCD {i} | Complete")
+        
+        # Return all the computed data for this CCD
+        return {
+            'index': index,
+            'ndata_diff': ndata_diff,
+            'rms': rms,
+            'min_rms_idx': min_rms_idx
+        }
+
     def plot_outlier_cut_results(self):
         """Plots the results of the outlier detection process."""
 
@@ -1246,3 +1360,54 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         outfile = '{0}_{1}.png'.format(self.target,self.obsdate)
         plt.savefig(f"/home/muscat/reduction_afphot/notebooks/general/{self.target}/{outfile}",bbox_inches='tight',pad_inches=0.1)
         plt.show()
+
+
+'''
+%%time
+n=200
+bjd=[]
+
+for i in range(nband):
+    
+    jd=np.array(phot[i][cIDs_best[i]]['GJD-2450000'][index[i][cIDs_best[i]][ap_best[i]]]+2450000)
+    print(i, len(jd))
+
+    bjd_band = np.empty(0)
+
+    for j in range(int(len(jd) / n)+1):
+        index1 = j*n
+        index2 = min((j+1)*n, len(jd))
+        
+        jd_tmp = jd[index1:index2]
+        
+        kwargs = {
+            'jd_utc': jd_tmp,
+            'ra': Angle(ra, unit=u.hour).deg,
+            'dec': Angle(dec, unit=u.deg).deg,
+        }
+        bjd_tmp = barycorr.utc2bjd(**kwargs)
+        bjd_band = np.append(bjd_band, bjd_tmp)
+        
+    bjd.append(bjd_band)
+        
+
+
+for i in range(nband):
+    f_key = 'flux(r=' + '{0:.1f})'.format(ap[ap_best[i]])
+    e_key = 'err(r=' + '{0:.1f})'.format(ap[ap_best[i]])
+#    outfile = tic + '-' + plnum + '_20' + date + '_' + inst + '_' + bands[i] + '_measurements.csv'
+    outfile = target + '_' + date + '_' + inst + '_' + bands[i] + '_c' + cIDs[cIDs_best[i]] + '_r' + str(ap[ap_best[i]]) + '.csv'
+    print(outfile)
+    out_array = np.array( (bjd[i],\
+                        np.array(phot[i][cIDs_best[i]][f_key][index[i][cIDs_best[i]][ap_best[i]]]),\
+                        np.array(phot[i][cIDs_best[i]][e_key][index[i][cIDs_best[i]][ap_best[i]]]),\
+                        np.array(phot[i][cIDs_best[i]]['airmass'][index[i][cIDs_best[i]][ap_best[i]]]),\
+                        np.array(phot[i][cIDs_best[i]]['dx(pix)'][index[i][cIDs_best[i]][ap_best[i]]]),\
+                        np.array(phot[i][cIDs_best[i]]['dy(pix)'][index[i][cIDs_best[i]][ap_best[i]]]),\
+                        np.array(phot[i][cIDs_best[i]]['fwhm(pix)'][index[i][cIDs_best[i]][ap_best[i]]]),\
+                        np.array(phot[i][cIDs_best[i]]['peak(ADU)'][index[i][cIDs_best[i]][ap_best[i]]]),\
+                        )) 
+    np.savetxt(outfile, out_array.T, delimiter=',', fmt='%.6f,%.5f,%.5f,%.4f,%.2f,%.2f,%.2f,%d',\
+               header='BJD_TDB,Flux,Err,Airmass,DX(pix),DY(pix),FWHM(pix),Peak(ADU)', comments='')
+    
+'''
