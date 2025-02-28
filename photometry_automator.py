@@ -523,7 +523,7 @@ class MuSCAT_PHOTOMETRY:
         missing_files = set()
         missing_rads = set()
 
-        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}"
+        apphot_directory = f"{self.target_dir}_{ccd}/apphot_{self.method}"
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
         last_frame = int(frame_range["FRAME#2"].iloc[0])
@@ -660,7 +660,7 @@ class MuSCAT_PHOTOMETRY:
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
         last_frame = int(frame_range["FRAME#2"].iloc[0])
-        apphot_directory = f"{self.obsdate}/{self.target}_{ccd}/apphot_{self.method}"
+        apphot_directory = f"{self.target_dir}_{ccd}/apphot_{self.method}"
 
         all_frames = []
         
