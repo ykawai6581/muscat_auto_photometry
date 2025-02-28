@@ -76,7 +76,7 @@ def parse_dat_file(input_file):
                 continue
 
             if line.startswith("#"):
-                for key in  ["gjd - 2400","exptime","airmass"]:
+                for key in  ["gjd - 2450000","exptime","airmass"]:
                     if key in line:
                         meta_data[key] = float(line.split()[-1])
                 if "ID xcen ycen" in line:

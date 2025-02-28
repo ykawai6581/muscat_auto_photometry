@@ -587,7 +587,7 @@ class MuSCAT_PHOTOMETRY:
                                     sky_calc_mode   = sky_calc_mode, #Sky calculation mode (0=mean, 1=median, 2=mode)
                                     const_sky_flag  = const_sky_flag, #Use constant sky value
                                     const_sky_flux  = const_sky_flux,#Constant sky flux value
-                                    const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation)
+                                    const_sky_sdev  = const_sky_sdev,#Constant sky standard deviation
                                     #max_concurrent  = max_concurrent
                                 )
         return config
@@ -770,12 +770,11 @@ class MuSCAT_PHOTOMETRY:
             self.cids_list.append(cids)
     '''
     def select_comparison(self, tid=None, nstars=5):
-        if tid is None and self.tid is None:
-            self.find_tid()
-        elif self.tid is not None:
+        if self.tid is not None:
             self.tid = tid
-        else: #tid is None and self.tid is not None
-            pass
+        else:
+            print("Provide TID")
+            return
         self.check_saturation(self.rad2)
         self.cids_list = []
         for saturation_cid in self.saturation_cids: 
@@ -820,7 +819,7 @@ class MuSCAT_PHOTOMETRY:
                 os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}")) 
                 outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
                 if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
-                    cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
+                    cmd = f"perl {script_path} -apdir apphot_{self.method}_test -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
                     result = subprocess.run(cmd, shell=True, capture_output=True, text=True) #this command requires the cids to be separated by space
                     outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
                     if os.path.isfile(outfile_path): #if the photometry file now exists
@@ -1119,7 +1118,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             reselected_cids_list.append(reselected_cids)
         return reselected_cids_list
     
-    def iterate_optimization(self):
+    async def iterate_optimization(self):
         min_rms_list = [[1 for _ in range(self.nccd)]] # Initialize with RMS = 1 to enter loop
         min_rms_list.append([np.array(self.rms[ccd])[index] for ccd, index in enumerate(self.min_rms_idx_list)])
         drad = 1
@@ -1145,7 +1144,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             print(f">> Returning to photometry for aperture optimization... (Iteration: {len(min_rms_list)-1})")
 
             photometry = MuSCAT_PHOTOMETRY(parent=self)
-            photometry.run_apphot(nstars=self.nstars, rad1=rad1, rad2=rad2, drad=drad, method="mapping")
+            await photometry.run_apphot(nstars=self.nstars, rad1=rad1, rad2=rad2, drad=drad, method="mapping")
             photometry.cids_list = reselected_cids
             photometry.create_photometry()
 
