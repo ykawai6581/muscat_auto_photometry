@@ -806,23 +806,24 @@ class MuSCAT_PHOTOMETRY:
         ↑これは僕の勘違いで、実際にrmsを計算するのに使っているのはflux ratioであり、fluxの合計値ではない
         '''
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv-test.pl"
-        os.chdir(f"{self.target_dir}_{ccd}") 
+        #os.chdir(f"{self.target_dir}_{ccd}") 
+        print(cids)
         for cid in cids:
-            obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
-            initial_obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{ccd}" 
+            print(cid)
+            initial_obj_dir = f"{self.target_dir}_{ccd}" 
             apdir = f"{initial_obj_dir}/apphot_{self.method}"
-            #lstfile = f"{initial_obj_dir}/list/object_ccd{ccd}.lst"
-            apdir = f"apphot_{self.method}"
-            lstfile = f"list/object_ccd{ccd}.lst"
+            lstfile = f"{initial_obj_dir}/list/object_ccd{ccd}.lst"
+            #apdir = f"apphot_{self.method}"
+            #lstfile = f"list/object_ccd{ccd}.lst"
 
             outfile = f"lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
-            if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
+            if not os.path.isfile(f"{self.target_dir}/{outfile}"): #if the photometry file does not exist
                 cmd = f"perl {script_path} -apdir {apdir} -list {lstfile} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[ccd]} -date {self.obsdate}"
                 #this command requires the cids to be separated by space
                 subprocess.run(cmd, shell=True, text=True, stdout=sys.stdout, stderr=sys.stderr)
                 outfile_path = os.path.join(apdir,outfile)
                 if os.path.isfile(outfile_path): #if the photometry file now exists
-                    subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)
+                    subprocess.run(f"mv {outfile_path} {self.target_dir}/{outfile}", shell=True)
                     print(f">> CCD {ccd} | Created photometry for cIDs:{cid}")
                 else:
                     print(f">> CCD {ccd} | Failed to create photometry for cIDs:{cid}")
