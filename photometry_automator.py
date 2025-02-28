@@ -493,9 +493,9 @@ class MuSCAT_PHOTOMETRY:
 
         config = self._config_photometry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         
-        frames_to_map = [{"frames": sorted(missing_files[i])} for i in range(self.nccd)]
+        ccd_specifc_arg = [{"frames": sorted(missing_files[i])} for i in range(self.nccd)]
         print(">> Mapping all frames to reference frames...")
-        results = self.run_all_ccds(self.map_all_frames, frames_to_map)
+        results = self.run_all_ccds(self.map_all_frames, ccd_specifc_arg)
         print("## >> Complete...")
         
         starlists = [result for _, result in results.items()]
@@ -791,18 +791,13 @@ class MuSCAT_PHOTOMETRY:
             cids = [str(cid) for cid in cids]
             self.cids_list.append(cids) #if too many stars are saturated, there is a risk of not having the photometry for the star. need to add logic for this
 
-    @time_keeper
-    def create_photometry(self, given_cids=None):
-        if given_cids:
-            self.cids_list = given_cids
+    def create_photometry_per_ccd(self,ccd,cids):
+        #print(f'>> CCD{ccd}')
         '''
         !perl scripts/auto_mklc.pl -date $date -obj $target\
             -ap_type $method -r1 $rad1 -r2 $rad2 -dr $drad -tid $tID -cids $cID
         バンドごとにcidが違う場合を考慮したいからこのコードを使わなかった
-        '''
-        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv-test.pl"
-        #script_path = "/ut3/kawai/muscat_auto_photometry/mklc_flux_collect_csv-2.pl"
-        '''
+
         errorの症状:cidが複数あるときに、一つ目の星のfluxしかカウントされていない
         しかし、comparisonとしての割り算には合算したfluxが使われているよう
             →argumentとしてのcidの読み込みはうまくいっている
@@ -810,6 +805,35 @@ class MuSCAT_PHOTOMETRY:
         comparisonの順番を数字が大きい方からにすると治ったので、何かしらの読み込み時の挙動だと思われる
         ↑これは僕の勘違いで、実際にrmsを計算するのに使っているのはflux ratioであり、fluxの合計値ではない
         '''
+        script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv-test.pl"
+        for cid in cids:
+            obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
+            initial_obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{ccd}" 
+            outfile = f"lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
+            if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
+                cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{ccd}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[ccd]} -date {self.obsdate}"
+                #this command requires the cids to be separated by space
+                subprocess.run(cmd, shell=True, text=True, stdout=sys.stdout, stderr=sys.stderr)
+                outfile_path = os.path.join(initial_obj_dir,f"apphot_{self.method}",outfile)
+                if os.path.isfile(outfile_path): #if the photometry file now exists
+                    subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)
+                    print(f">> CCD {ccd} | Created photometry for cIDs:{cid}")
+                else:
+                    print(f">> CCD {ccd} | Failed to create photometry for cIDs:{cid}")
+            else:
+                print(f">> CCD {ccd} | Photometry for cIDs:{cid} already exists.")
+
+    def create_photometry(self, given_cids=None):
+        if given_cids:
+            self.cids_list = given_cids
+        ccd_specific_arg = [{"frames": cid} for cid in self.cids_list] # must be a list of dictionaries
+        self.run_all_ccds(self.create_photometry_per_ccd,ccd_specific_arg)
+    '''
+    @time_keeper
+    def create_photometry(self, given_cids=None):
+        if given_cids:
+            self.cids_list = given_cids
+
         #script_path = "/home/muscat/reduction_afphot/tools/scripts/auto_mklc.pl"
 
         print(">> Creating photometry file for")
@@ -834,7 +858,7 @@ class MuSCAT_PHOTOMETRY:
                     print(f"## >> Photometry for cIDs:{cid} already exists.")
 
         os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}"))
-
+    '''
 
 class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def __init__(self, muscat_photometry):
