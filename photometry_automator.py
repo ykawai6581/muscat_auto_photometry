@@ -807,7 +807,7 @@ class MuSCAT_PHOTOMETRY:
         '''
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv-test.pl"
         initial_obj_dir = f"{self.target_dir}_{ccd}" 
-        os.chdir(initial_obj_dir)
+        #os.chdir(initial_obj_dir)
         for cid in cids:
             #apdir = f"{initial_obj_dir}/apphot_{self.method}"
             #lstfile = f"{initial_obj_dir}/list/object_ccd{ccd}.lst"
@@ -818,8 +818,8 @@ class MuSCAT_PHOTOMETRY:
             if not os.path.isfile(f"{self.target_dir}/{outfile}"): #if the photometry file does not exist
                 cmd = f"perl {script_path} -apdir {apdir} -list {lstfile} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[ccd]} -date {self.obsdate}"
                 #this command requires the cids to be separated by space
-                subprocess.run(cmd, shell=True, text=True, stdout=sys.stdout, stderr=sys.stderr)
-                outfile_path = os.path.join(f"{self.target_dir}_{ccd}",apdir,outfile)
+                subprocess.run(cmd, cwd=initial_obj_dir, shell=True, text=True, stdout=sys.stdout, stderr=sys.stderr)
+                outfile_path = os.path.join(initial_obj_dir,apdir,outfile)
                 if os.path.isfile(outfile_path): #if the photometry file now exists
                     subprocess.run(f"mv {outfile_path} {self.target_dir}/{outfile}", shell=True)
                     print(f">> CCD {ccd} | Created photometry for cIDs:{cid}")
