@@ -1280,13 +1280,13 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             bjd = np.append(bjd, bjd_tmp)
         return bjd
     
-    def save_lc_per_ccd(self,ccd):
+    async def save_lc_per_ccd(self,ccd,outpath):
         f_key = f'flux(r={self.ap_best[ccd]})'
         e_key = f'err(r={self.ap_best[ccd]})'
         outfile = f"{self.target}_{self.obsdate}_{self.instrument}_{self.bands[ccd]}_c{self.cIDs_best[ccd].replace(' ', '')}_r{int(self.ap_best[ccd])}.csv"
         mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
         print(outfile)
-        bjd = self.barycentric_correction(ccd)
+        bjd = await asyncio.to_thread(self.barycentric_correction, ccd)
         out_array = np.array( (bjd,
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]][f_key][mask]),
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]][e_key][mask]),
@@ -1296,9 +1296,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['fwhm(pix)'][mask]),
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['peak(ADU)'][mask]),
                             )) 
-        np.savetxt(outfile, out_array.T, delimiter=',', fmt='%.6f,%.5f,%.5f,%.4f,%.2f,%.2f,%.2f,%d',
+        np.savetxt(f"{outpath}/{outfile}", out_array.T, delimiter=',', fmt='%.6f,%.5f,%.5f,%.4f,%.2f,%.2f,%.2f,%d',
                 header='BJD_TDB,Flux,Err,Airmass,DX(pix),DY(pix),FWHM(pix),Peak(ADU)', comments='')
     
-    def save_lc(self):
-        run_all_ccds(self.nccd,self.save_lc_per_ccd)
-
+    async def save_lc(self):
+        tasks = [self.save_lc_per_ccd(ccd) for ccd in range(self.nccd)]
+        await asyncio.gather(*tasks)  # Run all tasks concurrently
