@@ -2,6 +2,7 @@ import subprocess
 import pandas as pd
 from io import StringIO
 from IPython.display import clear_output
+from dataclasses import dataclass
 
 import numpy as np
 import os
@@ -145,6 +146,11 @@ os.nice(19)
 print(f"Running notebook for {target_from_filename()}")
 print(f"Available obsdates {obsdates_from_filename()}")
 
+@dataclass
+class Instrument:
+    instrument:  str 
+    
+
 class MuSCAT_PHOTOMETRY:
     def __init__(self,instrument=None,obsdate=None,parent=None,ra=None,dec=None):
         if not ((instrument is not None and obsdate is not None) or parent is not None):
@@ -161,8 +167,7 @@ class MuSCAT_PHOTOMETRY:
             self.instrument = instrument
 
             if self.instrument not in list(instrument_id.keys()):
-                print(f"Instrument has to be one of {list(instrument_id.keys())}")
-                return
+                raise ValueError(f"Instrument must be one of {list(instrument_id.keys())}")
             
             try:
                 self.ra, self.dec = query_radec(target_from_filename())
@@ -187,7 +192,10 @@ class MuSCAT_PHOTOMETRY:
             }
 
             self.bands = muscat_bands[self.instrument]
-            os.chdir('/home/muscat/reduction_afphot/'+self.instrument)
+            self.reduction_dir = Path(f"/home/muscat/reduction_afphot/{self.instrument}")
+            self.reduction_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
+
+            os.chdir(self.reduction_dir)
 
             self.load_obslog()
 
@@ -200,10 +208,16 @@ class MuSCAT_PHOTOMETRY:
                 self.target = self.obj_names[int(pick_target[0])]
             print(f"Continuing photometry for {self.target}")
             self.tid = None
-            self.target_dir = f"{self.obsdate}/{self.target}"
-            self.flat_dir = f"{self.obsdate}/FLAT"
+
+            self.flat_dir = self.reduction_dir / self.obsdate / "FLAT"
+                        
             self.frames = [] #object.lstから読んできて保存されるようにする
-            #self.target_dir = f"{self.obsdate}/{self.target}
+
+    def get_target_dir(self,ccd=None):
+        if ccd is None:
+            return self.reduction_dir / self.obsdate / self.target
+        else:
+            return self.reduction_dir / self.obsdate / f"{self.target}_{ccd}"
 
     def load_obslog(self):
         for ccd in range(self.nccd):
@@ -226,13 +240,12 @@ class MuSCAT_PHOTOMETRY:
         #flat_first_frameIDs = [1306, 1857, 2414] 
         #======
 
-        flat_conf_path = f"{self.flat_dir}/list/flat_ccd{ccd}.conf"
+        flat_conf = self.flat_dir / "list" / f"flat_ccd{ccd}.conf"
         #print(flat_conf_path)
-        if not os.path.exists(flat_conf_path):
+        if not os.path.exists(flat_conf):
             cmd = f'perl scripts/config_flat.pl {self.obsdate} {ccd} -set_dir_only'
             subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-            flat_conf = f'{self.flat_dir}/list/flat_ccd{ccd}.conf'
             print(flat_conf)
             text = f'flat {self.flat_first_frameIDs[ccd]} {self.flat_first_frameIDs[ccd]+49}\nflat_dark {self.flat_first_frameIDs[ccd]+50} {self.flat_first_frameIDs[ccd]+54}'
             with open(flat_conf, mode='w') as f:
@@ -241,35 +254,36 @@ class MuSCAT_PHOTOMETRY:
             print(result.stdout)
             print('\n')
         else:
-            print(f"config file already exisits under {self.flat_dir}/list/flat_ccd{ccd}.conf")
+            print(f"config file already exisits under {flat_conf}")
 
     def config_object(self,ccd):
         ## Setting configure files for object
         obslog = self.obslog[ccd]
         exposure = float(obslog["EXPTIME(s)"][obslog["OBJECT"] == self.target])  # exposure times (sec) for object
-        obj_conf_path = f"{self.target_dir}_{ccd}/list/object_ccd{ccd}.conf"
+        obj_conf = self.get_target_dir(ccd) / "list" / f"object_ccd{ccd}.conf"
+
         #print(obj_conf_path)
-        if not os.path.exists(obj_conf_path):
+        if not os.path.exists(obj_conf):
             cmd = f'perl scripts/config_object.pl {self.obsdate} {self.target} {ccd} -auto_obj -auto_dark {exposure}'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             print(result.stdout)
         else:
-            print(f"config file already exisits under {self.target_dir}_{ccd}/list/ as object_ccd{ccd}.conf")
+            print(f"config file already exisits under {obj_conf}")
 
     def reduce_flat(self, ccd):
         ## Reducing FLAT images 
-        flat_path = f"{self.flat_dir}/flat/flat_ccd{ccd}.fits"
+        flat = self.flat_dir / "flat"/ f"flat_ccd{ccd}.fits"
         #print(flat_path)
-        if not os.path.exists(flat_path):
+        if not os.path.exists(flat):
             print(f'>> Reducing FLAT images of CCD{ccd} ... (it may take tens of seconds)')
             cmd = f"perl scripts/auto_mkflat.pl {self.obsdate} {ccd} > /dev/null"
             subprocess.run(cmd, shell=True, capture_output=True, text=True)
         else:
-            print(f"flat file already exisits under {self.flat_dir}/flat/ as flat_ccd{ccd}.fits")
+            print(f"flat file already exisits under {flat}")
     
     ## Reducing Object images 
     def auto_mkdf(self,ccd):
-        df_directory = f'{self.target_dir}_{ccd}/df'
+        df_directory = self.get_target_dir(ccd) / "df"
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
         last_frame = int(frame_range["FRAME#2"].iloc[0])
@@ -339,7 +353,7 @@ class MuSCAT_PHOTOMETRY:
 
     def show_missing_frames(self,rads=None):
         missing, missing_files, missing_rads, nframes = self._check_missing_photometry(rads=rads)
-        frames = [f"{self.target_dir}_0/rawdata/{file[:-4]}.fits" 
+        frames = [self.get_target_dir(0) / "rawdata" / f"{file[:-4]}.fits" 
                     for _, missing_files_per_ccd in missing_files.items()
                     for file in missing_files_per_ccd]  # rawdata is a symbolic link
         for frame in frames:
@@ -353,9 +367,9 @@ class MuSCAT_PHOTOMETRY:
         '''
         if self.tid is not None:
             nstars = max(self.tid,nstars)
-        ref_path = Path(f"{self.target_dir}/list/ref.lst")
+        ref_path = self.get_target_dir() / "list" / "ref.lst"
         if os.path.exists(ref_path):            
-            metadata, data = parse_obj_file(f"{self.target_dir}/reference/ref-{self.ref_file}.objects")
+            metadata, data = parse_obj_file(self.get_target_dir() / "reference" / f"ref-{self.ref_file}.objects")
             x0, y0 = np.array(data["x"][:nstars]),np.array(data["y"][:nstars]) #array of pixel coordinates for stars in the reference frame
             return x0, y0
         else:
@@ -364,7 +378,7 @@ class MuSCAT_PHOTOMETRY:
     
     def map_reference(self, ccd, frame):  #frameidにした方がいい  
         x0, y0 = self.read_reference()
-        geoparam_file_path = f"{self.target_dir}_{ccd}/geoparam/{frame[:-4]}.geo" #extract the frame name and modify to geoparam path 
+        geoparam_file_path = self.get_target_dir(ccd) / "geoparam"/ f"{frame[:-4]}.geo" #extract the frame name and modify to geoparam path 
         geoparams = load_geo_file(geoparam_file_path)#毎回geoparamsを呼び出すのに時間がかかりそう
         geo = SimpleNamespace(**geoparams)
         x = geo.dx + geo.a * x0 + geo.b * y0
@@ -382,7 +396,7 @@ class MuSCAT_PHOTOMETRY:
     def wcs_calculation(self,ccd):
         buffer = 0.02
         search_radius = 15 #in arcmin
-        ref_file_path = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.fits"
+        ref_file_path = self.get_target_dir(ccd) / "df"/ f"{self.ref_file}.df.fits"
 
         print(">> Running WCS Calculation of reference file...")
         cmd = f"/usr/local/astrometry/bin/solve-field --ra {self.ra} --dec {self.dec} --radius {search_radius/60} --scale-low {self.pixscale-buffer} --scale-high {self.pixscale+buffer} --scale-units arcsecperpix {ref_file_path}"
@@ -394,7 +408,7 @@ class MuSCAT_PHOTOMETRY:
         return self.read_wcs_calculation(ccd)
 
     def read_wcs_calculation(self, ccd):
-        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
+        wcsfits = self.get_target_dir(ccd) / "df" / f"{self.ref_file}.df.new"
         x0, y0 = self.read_reference(nstars=100)
         with fits.open(wcsfits) as hdul:
             header = hdul[0].header
@@ -410,7 +424,7 @@ class MuSCAT_PHOTOMETRY:
         return ra_list, dec_list
 
     def find_tid(self, ccd=0, refid_delta=0, threshold=10, rad=20):
-        wcsfits = f"{self.target_dir}_{ccd}/df/{self.ref_file}.df.new"
+        wcsfits = self.get_target_dir(ccd) / "df" / f"{self.ref_file}.df.new"
         if os.path.exists(wcsfits):
             ra_list, dec_list = self.read_wcs_calculation(ccd)
         else:
@@ -427,7 +441,7 @@ class MuSCAT_PHOTOMETRY:
                 print("___Match!_______________________________________________")
                 print(f"{self.target} | TID = {self.tid}")
                 print("________________________________________________________")
-                ref_fits =f"{self.target_dir}/reference/ref-{self.ref_file}.fits"
+                ref_fits =self.get_target_dir() / "reference" / f"ref-{self.ref_file}.fits"
                 self.show_frame(frame=ref_fits,rad=rad,reference=True)
                 return
         if rad < 1:
@@ -445,18 +459,17 @@ class MuSCAT_PHOTOMETRY:
 
         ## Starfind
         print(f"starfind_centroid.pl {objlist}")
-        subprocess.run(["starfind_centroid.pl", objlist], cwd=f"{self.target_dir}_{ccd}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["starfind_centroid.pl", objlist], cwd=self.get_target_dir(ccd), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        ## Set reference
-        reflist = f"{self.target_dir}/list/ref.lst"
+        reflist = self.get_target_dir() / "list" / "ref.lst"  # Ensure target_dir() is a Path
+        dest_dir = self.get_target_dir(ccd) / "list"
+        dest_dir.mkdir(parents=True, exist_ok=True)  # Create it if it doesn't exist
+        shutil.copy(reflist, dest_dir / "ref.lst")
 
-        print(f"cp {reflist} {self.target_dir}_{ccd}/list/")
-        shutil.copy(reflist, f"{self.target_dir}_{ccd}/list/")
-
-        refdir = f"{self.target_dir}/reference"
-        ref_symlink = f"{self.target_dir}_{ccd}/reference"
+        refdir = self.get_target_dir() / "reference"
+        ref_symlink = self.get_target_dir(ccd) / "reference"
         
-        print(f"ln -s {refdir} {self.target_dir}_{ccd}/list/")
+        print(f"ln -s {refdir} {self.get_target_dir(ccd)}/list/")
         
         # Create symbolic link if it doesn't exist
         if os.path.islink(ref_symlink):
@@ -466,7 +479,7 @@ class MuSCAT_PHOTOMETRY:
 
         ## Starmatch
         print(f"starmatch.pl list/ref.lst {objlist}")
-        result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=f"{self.target_dir}_{ccd}", shell=True, capture_output=True, text=True)
+        result = subprocess.run(f"starmatch.pl list/ref.lst {objlist}", cwd=self.get_target_dir(ccd), shell=True, capture_output=True, text=True)
         
     ## Performing aperture photometry
     async def run_apphot(self, nstars=None, rad1=None, rad2=None, drad=None, method="mapping",
@@ -504,7 +517,7 @@ class MuSCAT_PHOTOMETRY:
         missing_images = [sorted(missing_files[ccd]) for ccd in range(self.nccd)]
         missing_images = [
             [
-                f"{self.target_dir}_{ccd}/df/{file[:-4]}.df.fits" 
+                self.get_target_dir(ccd) / "df"/ f"{file[:-4]}.df.fits" 
                 for file in missing_images_per_ccd
             ] 
             for ccd, missing_images_per_ccd in enumerate(missing_images)
@@ -524,14 +537,14 @@ class MuSCAT_PHOTOMETRY:
         missing_files = set()
         missing_rads = set()
 
-        apphot_directory = f"{self.target_dir}_{ccd}/apphot_{self.method}"
+        apphot_directory = self.get_target_dir(ccd) / f"apphot_{self.method}"
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
         last_frame = int(frame_range["FRAME#2"].iloc[0])
         nframes = last_frame-first_frame+1
 
         def file_exists(rad, frame): #nested helper function to help judge if photometry exists
-            file_path = f"{apphot_directory}/rad{rad}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
+            file_path = apphot_directory / f"rad{rad}" / f"MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
             if os.path.exists(file_path):
                 return True
 
@@ -547,7 +560,7 @@ class MuSCAT_PHOTOMETRY:
         return missing, list(missing_files), list(missing_rads) ,nframes
 
     def _check_missing_photometry(self,rads):
-        results = run_all_ccds(self.nccd,self._check_missing_photometry_per_ccd, None, rads) 
+        results = run_all_ccds(self.nccd, self._check_missing_photometry_per_ccd, None, rads) 
         missing_frames = {}
         nframes = []
         missing_rads = set()
@@ -559,13 +572,13 @@ class MuSCAT_PHOTOMETRY:
         return missing, missing_frames, missing_rads, nframes
     
     def _config_photometry(self, sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev):
-        telescope_param = load_par_file(f"{self.target_dir}/param/param-tel.par")
+        telescope_param = load_par_file(self.get_target_dir() / "param" / "param-tel.par")
         tel = SimpleNamespace(**telescope_param)
 
-        apphot_param = load_par_file(f"{self.target_dir}/param/param-apphot.par") #skysep,wid,hbox,dcen,sigma_0
+        apphot_param = load_par_file(self.get_target_dir() / "param" / "param-apphot.par") #skysep,wid,hbox,dcen,sigma_0
         app = SimpleNamespace(**apphot_param)
 
-        ccd_param = load_par_file(f"{self.target_dir}/param//param-ccd.par") ##gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
+        ccd_param = load_par_file(self.get_target_dir() / "param" /"param-ccd.par") ##gain,readnoise,darknoise,adulo,aduhi from param/param-ccd.par
         ccd = SimpleNamespace(**ccd_param)
 
         config = PhotometryConfig(tid               = self.tid,
@@ -661,12 +674,12 @@ class MuSCAT_PHOTOMETRY:
         frame_range = self.obslog[ccd][self.obslog[ccd]["OBJECT"] == self.target]
         first_frame = int(frame_range["FRAME#1"].iloc[0])
         last_frame = int(frame_range["FRAME#2"].iloc[0])
-        apphot_directory = f"{self.target_dir}_{ccd}/apphot_{self.method}"
+        apphot_directory = self.get_target_dir(ccd) / f"apphot_{self.method}"
 
         all_frames = []
         
         for frame in range(first_frame, last_frame+1):
-            filepath = f"{apphot_directory}/rad{str(rad)}/MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
+            filepath = apphot_directory / f"rad{str(rad)}" / f"MCT{self.instid}{ccd}_{self.obsdate}{frame:04d}.dat"
             df = parse_dat_file(filepath)
             #print(frame)
             #print(result)
@@ -806,18 +819,19 @@ class MuSCAT_PHOTOMETRY:
         ↑これは僕の勘違いで、実際にrmsを計算するのに使っているのはflux ratioであり、fluxの合計値ではない
         '''
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv-test.pl"
-        initial_obj_dir = f"{self.target_dir}_{ccd}" 
+        initial_obj_dir = self.get_target_dir(ccd)
         apdir = f"apphot_{self.method}"
         lstfile = f"list/object_ccd{ccd}.lst"
         for cid in cids:
             outfile = f"lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
-            if not os.path.isfile(f"{self.target_dir}/{outfile}"): #if the photometry file does not exist
+            dest_path = self.get_target_dir() / outfile
+            if not os.path.isfile(dest_path): #if the photometry file does not exist
                 cmd = f"perl {script_path} -apdir {apdir} -list {lstfile} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[ccd]} -date {self.obsdate}"
                 #this command requires the cids to be separated by space
                 subprocess.run(cmd, cwd=initial_obj_dir, shell=True, text=True, stdout=sys.stdout, stderr=sys.stderr)
                 outfile_path = os.path.join(initial_obj_dir,apdir,outfile)
                 if os.path.isfile(outfile_path): #if the photometry file now exists
-                    subprocess.run(f"mv {outfile_path} {self.target_dir}/{outfile}", shell=True)
+                    subprocess.run(f"mv {outfile_path} {dest_path}", shell=True)
                     print(f">> CCD {ccd} | Created photometry for cIDs:{cid}")
                 else:
                     print(f">> CCD {ccd} | Failed to create photometry for cIDs:{cid}")
@@ -843,12 +857,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     
         self.min_rms_idx_list = []
         self.phot=[]
-        phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
+        phot_dir = self.get_target_dir()
 
         for ccd in range(self.nccd):
             self.phot.append([])
             for j, cid in enumerate(self.cids_list_opt[ccd]):#self.cids_list_opt is only needed to access the files here
-                infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv'
+                infile = phot_dir / f"lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv"
                 self.phot[ccd].append(Table.read(infile))
                 self.mask[ccd][j] = np.ones_like(self.phot[ccd][j]['GJD-2450000'], dtype=bool) #add mask depending on the number of ccds and their number of exposures
 
@@ -1251,35 +1265,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         plt.xlabel('JD-2450000')
         plt.ylabel('Relative flux')
         outfile = f'{self.target}_{self.obsdate}.png'
-        plt.savefig(f"/home/muscat/reduction_afphot/notebooks/general/{self.target}/{outfile}",bbox_inches='tight',pad_inches=0.1)
+        plt.savefig(self.get_target_dir() / outfile, bbox_inches='tight',pad_inches=0.1)
         plt.show()
-    '''
-    async def barycentric_correction(self,ccd):
-        jd = self.phot[ccd][self.cIDs_best_idx[ccd]]['GJD-2450000']
-        mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
-        masked_jd = np.array(jd[mask] + 2450000)
 
-        n_slice=200 #number of data points to process at a time due to barrycorrpy request constraints
-        niteration = int(len(masked_jd) / n_slice) + 1
-
-        bjd = np.array([])
-
-        for iteration_id in range(niteration):
-            index1 = iteration_id*n_slice
-            index2 = min((iteration_id+1)*n_slice, len(masked_jd))
-            
-            jd_tmp = masked_jd[index1:index2]
-            
-            kwargs = {
-                'jd_utc': jd_tmp,
-                'ra': self.ra,
-                'dec': self.dec,
-            }
-
-            bjd_tmp = barycorr.utc2bjd(**kwargs)
-            bjd = np.append(bjd, bjd_tmp)
-        return bjd
-    '''
     async def barycentric_correction(self, ccd):
         jd = self.phot[ccd][self.cIDs_best_idx[ccd]]['GJD-2450000']
         mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
@@ -1305,7 +1293,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         e_key = f'err(r={self.ap_best[ccd]})'
         outfile = f"{self.target}_{self.obsdate}_{self.instrument}_{self.bands[ccd]}_c{self.cIDs_best[ccd].replace(' ', '')}_r{int(self.ap_best[ccd])}.csv"
         mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
-        print(outfile)
+        print(f"CCD {ccd} | {outfile}")
         bjd = await self.barycentric_correction(ccd)
         print(f"CCD {ccd} | Barycentric correction complete.")
         out_array = np.array( (bjd,
@@ -1317,7 +1305,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['fwhm(pix)'][mask]),
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['peak(ADU)'][mask]),
                             )) 
-        np.savetxt(f"{self.target_dir}/{outfile}", out_array.T, delimiter=',', fmt='%.6f,%.5f,%.5f,%.4f,%.2f,%.2f,%.2f,%d',
+        np.savetxt(self.get_target_dir() / outfile, out_array.T, delimiter=',', fmt='%.6f,%.5f,%.5f,%.4f,%.2f,%.2f,%.2f,%d',
                 header='BJD_TDB,Flux,Err,Airmass,DX(pix),DY(pix),FWHM(pix),Peak(ADU)', comments='')
         print(f"CCD {ccd} | Saving complete.")
 
