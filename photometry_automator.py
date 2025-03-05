@@ -1253,8 +1253,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         outfile = f'{self.target}_{self.obsdate}.png'
         plt.savefig(f"/home/muscat/reduction_afphot/notebooks/general/{self.target}/{outfile}",bbox_inches='tight',pad_inches=0.1)
         plt.show()
-    
-    def barycentric_correction(self,ccd):
+    '''
+    async def barycentric_correction(self,ccd):
         jd = self.phot[ccd][self.cIDs_best_idx[ccd]]['GJD-2450000']
         mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
         masked_jd = np.array(jd[mask] + 2450000)
@@ -1279,6 +1279,26 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             bjd_tmp = barycorr.utc2bjd(**kwargs)
             bjd = np.append(bjd, bjd_tmp)
         return bjd
+    '''
+    async def barycentric_correction(self, ccd):
+        jd = self.phot[ccd][self.cIDs_best_idx[ccd]]['GJD-2450000']
+        mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
+        masked_jd = np.array(jd[mask] + 2450000)
+
+        n_slice = 200  # Number of data points to process per request
+        niteration = int(len(masked_jd) / n_slice) + 1
+
+        async def process_slice(index1, index2):
+            """Runs barycorr.utc2bjd in a separate thread"""
+            jd_tmp = masked_jd[index1:index2]
+            kwargs = {'jd_utc': jd_tmp, 'ra': self.ra, 'dec': self.dec}
+            return await asyncio.to_thread(barycorr.utc2bjd, **kwargs)
+        
+        async with asyncio.Semaphore(1000):
+            tasks = [process_slice(i * n_slice, min((i + 1) * n_slice, len(masked_jd))) for i in range(niteration)]
+            results = await asyncio.gather(*tasks)
+
+        return np.concatenate(results)
     
     async def save_lc_per_ccd(self,ccd):
         f_key = f'flux(r={self.ap_best[ccd]})'
