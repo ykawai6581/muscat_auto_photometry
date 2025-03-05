@@ -1283,7 +1283,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def save_lc_per_ccd(self,ccd):
         f_key = f'flux(r={self.ap_best[ccd]})'
         e_key = f'err(r={self.ap_best[ccd]})'
-        outfile = f"{self.target}_{self.obsdate}_{self.instrument}_{self.bands[ccd]}_c{self.cIDs_best[ccd]}_r{int(self.ap_best[ccd])}.csv"
+        outfile = f"{self.target}_{self.obsdate}_{self.instrument}_{self.bands[ccd]}_c{self.cIDs_best[ccd].replace(" ", "")}_r{int(self.ap_best[ccd])}.csv"
         mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
         print(outfile)
         bjd = self.barycentric_correction(ccd)
