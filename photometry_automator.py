@@ -1259,14 +1259,16 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         mask = [self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]]
         masked_jd = np.array(jd[mask] + 2450000)
 
-        n=200 #number of data points to process at a time due to barrycorrpy request constraints
+        n_slice=200 #number of data points to process at a time due to barrycorrpy request constraints
+        niteration = int(len(masked_jd) / n_slice) + 1
 
         bjd = np.array([])
-        for j in range(int(len(masked_jd) / n)+1):
-            index1 = j*n
-            index2 = min((j+1)*n, len(jd))
+
+        for iteration_id in range(niteration):
+            index1 = iteration_id*n_slice
+            index2 = min((iteration_id+1)*n_slice, len(masked_jd))
             
-            jd_tmp = jd[index1:index2]
+            jd_tmp = masked_jd[index1:index2]
             
             kwargs = {
                 'jd_utc': jd_tmp,
