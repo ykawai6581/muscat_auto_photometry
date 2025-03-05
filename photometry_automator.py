@@ -1306,7 +1306,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         outfile = f"{self.target}_{self.obsdate}_{self.instrument}_{self.bands[ccd]}_c{self.cIDs_best[ccd].replace(' ', '')}_r{int(self.ap_best[ccd])}.csv"
         mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
         print(outfile)
-        bjd = await asyncio.to_thread(self.barycentric_correction, ccd)
+        bjd = await self.barycentric_correction(ccd)
         out_array = np.array( (bjd,
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]][f_key][mask]),
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]][e_key][mask]),
