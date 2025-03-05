@@ -162,6 +162,7 @@ class MuSCAT_PHOTOMETRY:
             self.tid = None
             self.target_dir = f"{self.obsdate}/{self.target}"
             self.flat_dir = f"{self.obsdate}/FLAT"
+            self.frames = [] #object.lstから読んできて保存されるようにする
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     #@time_keeper
@@ -807,13 +808,9 @@ class MuSCAT_PHOTOMETRY:
         '''
         script_path = "/home/muscat/reduction_afphot/tools/afphot/script/mklc_flux_collect_csv-test.pl"
         initial_obj_dir = f"{self.target_dir}_{ccd}" 
-        #os.chdir(initial_obj_dir)
+        apdir = f"apphot_{self.method}"
+        lstfile = f"list/object_ccd{ccd}.lst"
         for cid in cids:
-            #apdir = f"{initial_obj_dir}/apphot_{self.method}"
-            #lstfile = f"{initial_obj_dir}/list/object_ccd{ccd}.lst"
-            apdir = f"apphot_{self.method}"
-            lstfile = f"list/object_ccd{ccd}.lst"
-
             outfile = f"lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
             if not os.path.isfile(f"{self.target_dir}/{outfile}"): #if the photometry file does not exist
                 cmd = f"perl {script_path} -apdir {apdir} -list {lstfile} -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[ccd]} -date {self.obsdate}"
@@ -828,45 +825,15 @@ class MuSCAT_PHOTOMETRY:
             else:
                 print(f">> CCD {ccd} | Photometry for cIDs:{cid} already exists.")
 
+    @time_keeper
     def create_photometry(self, given_cids=None):
         if given_cids:
             self.cids_list = given_cids
         ccd_specific_arg = [{"cids": cid} for cid in self.cids_list] # must be a list of dictionaries
         self.run_all_ccds(self.create_photometry_per_ccd,ccd_specific_arg)
-    '''
-    @time_keeper
-    def create_photometry(self, given_cids=None):
-        if given_cids:
-            self.cids_list = given_cids
 
-        #script_path = "/home/muscat/reduction_afphot/tools/scripts/auto_mklc.pl"
-
-        print(">> Creating photometry file for")
-        print(f"| Target = {self.target} | TID = {self.tid} | r1={self.rad1} r2={self.rad2} dr={self.drad} | (it may take minutes)")
-        for i in range(self.nccd):
-            print(f'>> CCD{i}')
-            for cid in self.cids_list[i]:
-                obj_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
-                os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}_{i}")) 
-                outfile = f"lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid.replace(' ','')}_r{int(self.rad1)}-{int(self.rad2)}.csv" # file name radius must be int
-                if not os.path.isfile(f"{obj_dir}/{outfile}"): #if the photometry file does not exist
-                    cmd = f"perl {script_path} -apdir apphot_{self.method} -list list/object_ccd{i}.lst -r1 {int(self.rad1)} -r2 {int(self.rad2)} -dr {self.drad} -tid {self.tid} -cids {cid} -obj {self.target} -inst {self.instrument} -band {self.bands[i]} -date {self.obsdate}"
-                    #this command requires the cids to be separated by space
-                    subprocess.run(cmd, shell=True, text=True, stdout=sys.stdout, stderr=sys.stderr)
-                    outfile_path = os.path.join(os.getcwd(),f"apphot_{self.method}", outfile)
-                    if os.path.isfile(outfile_path): #if the photometry file now exists
-                        subprocess.run(f"mv {outfile_path} {obj_dir}/{outfile}", shell=True)
-                        print(f"## >> Created photometry for cIDs:{cid}")
-                    else:
-                        print(f"## >> Failed to create photometry for cIDs:{cid}")
-                else:
-                    print(f"## >> Photometry for cIDs:{cid} already exists.")
-
-        os.chdir(Path(f"/home/muscat/reduction_afphot/{self.instrument}"))
-    '''
-
-class MuSCAT_PHOTOMETRY_OPTIMIZATION(MuSCAT_PHOTOMETRY):
-    def __init__(self, muscat_photometry):#ここは継承していれば引数で与えなくてもいい
+class MuSCAT_PHOTOMETRY_OPTIMIZATION:
+    def __init__(self,muscat_photometry):#ここは継承していれば引数で与えなくてもいい
         # Copy all attributes from the existing instance
         self.__dict__.update(muscat_photometry.__dict__)
         self.ap = np.arange(self.rad1, self.rad2+self.drad, self.drad)
@@ -874,7 +841,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION(MuSCAT_PHOTOMETRY):
         print('available aperture radii: ', self.ap)
         self.bands = ["g","r","i","z"] #muscat1に対応していない
         self.mask = [[[] for _ in range(len(self.cids_list_opt[i]))] for i in range(self.nccd)]
-
+    
         self.min_rms_idx_list = []
         self.phot=[]
         phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
