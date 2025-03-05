@@ -1279,11 +1279,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             bjd = np.append(bjd, bjd_tmp)
         return bjd
     
-    def barycentric_correction(self):
-        results = run_all_ccds(self.nccd,self.barycentric_correction_per_ccd)
-        bjds = [result for _, result in results.items()]
-        return bjds
-    
     def save_lc_per_ccd(self,ccd):
         f_key = f'flux(r={self.ap_best[ccd]})'
         e_key = f'err(r={self.ap_best[ccd]})'
