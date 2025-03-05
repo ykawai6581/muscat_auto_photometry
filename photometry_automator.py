@@ -205,46 +205,6 @@ class MuSCAT_PHOTOMETRY:
             self.frames = [] #object.lstから読んできて保存されるようにする
             #self.target_dir = f"{self.obsdate}/{self.target}
 
-    #@time_keeper
-    def run_all_ccds(self, method, ccd_specific_args=None, *shared_args, **shared_kwargs):
-        """
-        Wrapper function to run a method in parallel for all CCDs.
-        - Collects return values if any.
-        - Runs the method in parallel for all CCDs.
-        ex:
-        ccd_specific_args = [
-            ("ccd0_arg1", "ccd0_arg2"),  # Arguments for CCD 0
-            ("ccd1_arg1", "ccd1_arg2"),  # Arguments for CCD 1
-            ("ccd2_arg1", "ccd2_arg2")   # Arguments for CCD 2
-        ]
-        """
-
-        results = {}
-        with ProcessPoolExecutor(max_workers=self.nccd) as executor:
-            futures = {}
-            for ccd in range(self.nccd):
-                # Extract CCD-specific arguments if provided
-                ccd_args = ccd_specific_args[ccd] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
-                # Submit the task with dynamic arguments
-                futures[executor.submit(
-                    method,
-                    ccd,
-                    *shared_args,     # Pass shared positional arguments
-                    **ccd_args,          # Pass CCD-specific arguments
-                    **shared_kwargs   # Pass shared keyword arguments
-                )] = ccd
-
-            for future in futures:
-                ccd = futures[future]
-                try:
-                    result = future.result()  # Capture return value if any
-                    results[ccd] = result  # Store per-CCD results
-                except Exception as e:
-                    print(f"Error in CCD {ccd}: {e}")
-                    results[ccd] = None
-
-        return results if any(v is not None for v in results.values()) else None
-
     def load_obslog(self):
         for i in range(self.nccd):
             print(f'\n=== CCD{i} ===')
@@ -1025,84 +985,11 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         plt.tight_layout(h_pad=0)  # Remove spacing between rows
         plt.legend()
         plt.show()
-    '''
-    @time_keeper
-    def outlier_cut(self, sigma_cut=3, order=2, plot=True):
-        """Performs outlier detection using polynomial fitting and sigma clipping."""
-        
-        self.index = []  # Pre-allocate index storage
-        self.ndata_diff = []  # Stores data difference arrays for each CCD
-        self.rms = []  # Stores RMS arrays for each CCD
-        self.min_rms_idx_list = []  # Stores min RMS indices per CCD
-
-        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (it may take a few minutes)")
-
-        for i in range(self.nccd):
-            print(f"## >> CCD {i} | Computing outliers ...")
-            
-            n_cids = len(self.cids_list[i])
-            n_ap = len(self.ap)
-            
-            ndata_diff = np.zeros((n_cids, n_ap))
-            rms = np.zeros((n_cids, n_ap))
-            self.index.append([])
-
-            for j in range(n_cids):
-                self.index[i].append([])
-                phot_j = self.phot[i][j]
-                exptime = phot_j['exptime']
-                gjd_vals = phot_j['GJD-2450000']
-                mask = self.mask[i][j]
-
-                fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)] 
-                fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys]) #cid=jの総フラックス（in ADU?）のarrayをapごとに作成
-
-                raw_norm = (fcomp_data / exptime) / np.median(fcomp_data / exptime, axis=1, keepdims=True) #apごとのnormalized flux
-                ndata_init = fcomp_data.shape[1]
-
-                ye = np.sqrt(fcomp_data[:, mask]) / exptime[mask] / np.median(fcomp_data / exptime, axis=1, keepdims=True)
-                #arrayにしたときに次元が合わなくなるからここでマスクをかけている
-
-                for k in range(n_ap):
-                    if len(ye[k]) > 0: #only perform outlier detection if there are data points
-                        p, tcut, ycut, yecut, keep_mask = lc.outcut_polyfit(gjd_vals[mask], raw_norm[k][mask], ye[k], order, sigma_cut)
-                        self.index[i][j].append(np.isin(gjd_vals,gjd_vals[mask][keep_mask])) #indexというのは超最終的なmask tcutsに含まれなかったらfalse
-                        ndata_final = len(tcut)
-                    else:
-                        self.index[i][j].append(np.zeros_like(gjd_vals[mask], dtype=bool))
-                        ndata_final = 0
-
-                    ndata_diff[j, k] = ndata_final - ndata_init
-
-                    fin_flux = phot_j[f"flux(r={self.ap[k]:.1f})"][self.index[i][j][k]]
-
-                    if len(fin_flux) > 1:
-                        diff = np.diff(fin_flux)
-                        rms[j, k] = np.std(diff) if np.std(diff) > 0 else np.inf
-                    else:
-                        rms[j, k] = np.inf
-            #ここまでで全てcids, apに対してoutlier detectionが終わった per ccd （1ccdのrmsとdatapointsの行列完成）
-            min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)#最小のrmsのindexを取得
-            self.min_rms_idx_list.append(min_rms_idx)#最小のrmsのindexを格納
-            self.min_rms = rms[min_rms_idx]#使っていない？
-
-            self.ndata_diff.append(ndata_diff)#消えたデータ点数を格納
-            self.rms.append(rms)
-
-        # Store best candidate values
-        self.cIDs_best = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
-        self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
-        self.ap_best = [self.ap[item[1]] for item in self.min_rms_idx_list]
-        self.ap_best_idx = [item[1] for item in self.min_rms_idx_list]
-
-        if plot:
-            self.plot_outlier_cut_results()
-    '''
 
     def outlier_cut(self, sigma_cut=3, order=2, plot=True):
         """Performs outlier detection using polynomial fitting and sigma clipping in parallel."""
         
-        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (processing in parallel)")
+        print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
         
         # Run the processing for each CCD in parallel
         results = run_all_ccds(
@@ -1154,7 +1041,6 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def outlier_cut_per_ccd(self, i, sigma_cut, order):
         """
         Process outlier detection for a single CCD
-        This method will be called by run_all_ccds in parallel for each CCD
         """
         print(f"## >> CCD {i} | Computing outliers ...")
         
@@ -1368,54 +1254,55 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         outfile = '{0}_{1}.png'.format(self.target,self.obsdate)
         plt.savefig(f"/home/muscat/reduction_afphot/notebooks/general/{self.target}/{outfile}",bbox_inches='tight',pad_inches=0.1)
         plt.show()
-
-
-'''
-%%time
-n=200
-bjd=[]
-
-for i in range(nband):
     
-    jd=np.array(phot[i][cIDs_best[i]]['GJD-2450000'][index[i][cIDs_best[i]][ap_best[i]]]+2450000)
-    print(i, len(jd))
+    def barycentric_correction(self,ccd):
+        jd = self.phot[ccd][self.cIDs_best_idx[ccd]]['GJD-2450000']
+        mask = [self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]]
+        masked_jd = np.array(jd[mask] + 2450000)
 
-    bjd_band = np.empty(0)
+        n=200 #number of data points to process at a time due to barrycorrpy request constraints
 
-    for j in range(int(len(jd) / n)+1):
-        index1 = j*n
-        index2 = min((j+1)*n, len(jd))
-        
-        jd_tmp = jd[index1:index2]
-        
-        kwargs = {
-            'jd_utc': jd_tmp,
-            'ra': Angle(ra, unit=u.hour).deg,
-            'dec': Angle(dec, unit=u.deg).deg,
-        }
-        bjd_tmp = barycorr.utc2bjd(**kwargs)
-        bjd_band = np.append(bjd_band, bjd_tmp)
-        
-    bjd.append(bjd_band)
-        
+        bjd = np.array([])
+        for j in range(int(len(masked_jd) / n)+1):
+            index1 = j*n
+            index2 = min((j+1)*n, len(jd))
+            
+            jd_tmp = jd[index1:index2]
+            
+            kwargs = {
+                'jd_utc': jd_tmp,
+                'ra': self.ra,
+                'dec': self.dec,
+            }
 
-
-for i in range(nband):
-    f_key = 'flux(r=' + '{0:.1f})'.format(ap[ap_best[i]])
-    e_key = 'err(r=' + '{0:.1f})'.format(ap[ap_best[i]])
-#    outfile = tic + '-' + plnum + '_20' + date + '_' + inst + '_' + bands[i] + '_measurements.csv'
-    outfile = target + '_' + date + '_' + inst + '_' + bands[i] + '_c' + cIDs[cIDs_best[i]] + '_r' + str(ap[ap_best[i]]) + '.csv'
-    print(outfile)
-    out_array = np.array( (bjd[i],\
-                        np.array(phot[i][cIDs_best[i]][f_key][index[i][cIDs_best[i]][ap_best[i]]]),\
-                        np.array(phot[i][cIDs_best[i]][e_key][index[i][cIDs_best[i]][ap_best[i]]]),\
-                        np.array(phot[i][cIDs_best[i]]['airmass'][index[i][cIDs_best[i]][ap_best[i]]]),\
-                        np.array(phot[i][cIDs_best[i]]['dx(pix)'][index[i][cIDs_best[i]][ap_best[i]]]),\
-                        np.array(phot[i][cIDs_best[i]]['dy(pix)'][index[i][cIDs_best[i]][ap_best[i]]]),\
-                        np.array(phot[i][cIDs_best[i]]['fwhm(pix)'][index[i][cIDs_best[i]][ap_best[i]]]),\
-                        np.array(phot[i][cIDs_best[i]]['peak(ADU)'][index[i][cIDs_best[i]][ap_best[i]]]),\
-                        )) 
-    np.savetxt(outfile, out_array.T, delimiter=',', fmt='%.6f,%.5f,%.5f,%.4f,%.2f,%.2f,%.2f,%d',\
-               header='BJD_TDB,Flux,Err,Airmass,DX(pix),DY(pix),FWHM(pix),Peak(ADU)', comments='')
+            bjd_tmp = barycorr.utc2bjd(**kwargs)
+            bjd = np.append(bjd, bjd_tmp)
+        return bjd
     
-'''
+    def barycentric_correction(self):
+        results = run_all_ccds(self.nccd,self.barycentric_correction_per_ccd)
+        bjds = [result for _, result in results.items()]
+        return bjds
+    
+    def save_lc_per_ccd(self,ccd):
+        f_key = f'flux(r={self.ap_best[ccd]})'
+        e_key = f'err(r={self.ap_best[ccd]})'
+        outfile = f"{self.target}_{self.obsdate}_{self.instrument}_{self.bands[ccd]}_c{self.cIDs_best[ccd]}_r{int(self.ap_best)}.csv"
+        mask = [self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]]
+        print(outfile)
+        bjd = self.barycentric_correction(ccd)
+        out_array = np.array( (bjd,
+                            np.array(self.phot[ccd][self.cIDs_best_idx[ccd]][f_key][mask]),
+                            np.array(self.phot[ccd][self.cIDs_best_idx[ccd]][e_key][mask]),
+                            np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['airmass'][mask]),
+                            np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['dx(pix)'][mask]),
+                            np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['dy(pix)'][mask]),
+                            np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['fwhm(pix)'][mask]),
+                            np.array(self.phot[ccd][self.cIDs_best_idx[ccd]]['peak(ADU)'][mask]),
+                            )) 
+        np.savetxt(outfile, out_array.T, delimiter=',', fmt='%.6f,%.5f,%.5f,%.4f,%.2f,%.2f,%.2f,%d',
+                header='BJD_TDB,Flux,Err,Airmass,DX(pix),DY(pix),FWHM(pix),Peak(ADU)', comments='')
+    
+    def save_lc(self):
+        run_all_ccds(self.nccd,self.save_lc_per_ccd)
+
