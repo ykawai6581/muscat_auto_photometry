@@ -1256,7 +1256,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     
     def barycentric_correction(self,ccd):
         jd = self.phot[ccd][self.cIDs_best_idx[ccd]]['GJD-2450000']
-        mask = [self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]]
+        mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
         masked_jd = np.array(jd[mask] + 2450000)
 
         n_slice=200 #number of data points to process at a time due to barrycorrpy request constraints
@@ -1284,7 +1284,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         f_key = f'flux(r={self.ap_best[ccd]})'
         e_key = f'err(r={self.ap_best[ccd]})'
         outfile = f"{self.target}_{self.obsdate}_{self.instrument}_{self.bands[ccd]}_c{self.cIDs_best[ccd]}_r{int(self.ap_best[ccd])}.csv"
-        mask = [self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]]
+        mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
         print(outfile)
         bjd = self.barycentric_correction(ccd)
         out_array = np.array( (bjd,
