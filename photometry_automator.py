@@ -1307,6 +1307,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         mask = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]
         print(outfile)
         bjd = await self.barycentric_correction(ccd)
+        print(f"CCD {ccd} | Barycentric correction complete.")
         out_array = np.array( (bjd,
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]][f_key][mask]),
                             np.array(self.phot[ccd][self.cIDs_best_idx[ccd]][e_key][mask]),
@@ -1318,7 +1319,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                             )) 
         np.savetxt(f"{self.target_dir}/{outfile}", out_array.T, delimiter=',', fmt='%.6f,%.5f,%.5f,%.4f,%.2f,%.2f,%.2f,%d',
                 header='BJD_TDB,Flux,Err,Airmass,DX(pix),DY(pix),FWHM(pix),Peak(ADU)', comments='')
-    
+        print(f"CCD {ccd} | Saving complete.")
+
     async def save_lc(self):
         tasks = [self.save_lc_per_ccd(ccd) for ccd in range(self.nccd)]
         await asyncio.gather(*tasks)  # Run all tasks concurrently
