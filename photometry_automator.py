@@ -97,6 +97,46 @@ def dec_to_dms(dec_deg):
     sign = "+" if dec_deg >= 0 else "-"
     return f"{sign}{int(dec_deg_part):02d}:{int(dec_min_part):02d}:{dec_seconds:05.2f}"
 
+def run_all_ccds(nccd, method, ccd_specific_args=None, *shared_args, **shared_kwargs):
+    """
+    Wrapper function to run a method in parallel for all CCDs.
+    - Collects return values if any.
+    - Runs the method in parallel for all CCDs.
+    ex:
+    ccd_specific_args = [
+        ("ccd0_arg1", "ccd0_arg2"),  # Arguments for CCD 0
+        ("ccd1_arg1", "ccd1_arg2"),  # Arguments for CCD 1
+        ("ccd2_arg1", "ccd2_arg2")   # Arguments for CCD 2
+    ]
+    """
+
+    results = {}
+    with ProcessPoolExecutor(max_workers=nccd) as executor:
+        futures = {}
+        for ccd in range(nccd):
+            # Extract CCD-specific arguments if provided
+            ccd_args = ccd_specific_args[ccd] if ccd_specific_args and ccd < len(ccd_specific_args) else {}
+            # Submit the task with dynamic arguments
+            futures[executor.submit(
+                method,
+                ccd,
+                *shared_args,     # Pass shared positional arguments
+                **ccd_args,          # Pass CCD-specific arguments
+                **shared_kwargs   # Pass shared keyword arguments
+            )] = ccd
+
+        for future in futures:
+            ccd = futures[future]
+            try:
+                result = future.result()  # Capture return value if any
+                results[ccd] = result  # Store per-CCD results
+            except Exception as e:
+                print(f"Error in CCD {ccd}: {e}")
+                results[ccd] = None
+
+    return results if any(v is not None for v in results.values()) else None
+
+
 from muscat_photometry import target_from_filename, obsdates_from_filename, query_radec
 
 os.umask(0o002)
@@ -496,7 +536,7 @@ class MuSCAT_PHOTOMETRY:
         
         ccd_specifc_arg = [{"frames": sorted(missing_files[i])} for i in range(self.nccd)]
         print(">> Mapping all frames to reference frames...")
-        results = self.run_all_ccds(self.map_all_frames, ccd_specifc_arg)
+        results = run_all_ccds(self.nccd,self.map_all_frames, ccd_specifc_arg)
         print("## >> Complete...")
         
         starlists = [result for _, result in results.items()]
@@ -547,7 +587,7 @@ class MuSCAT_PHOTOMETRY:
         return missing, list(missing_files), list(missing_rads) ,nframes
 
     def _check_missing_photometry(self,rads):
-        results = self.run_all_ccds(self._check_missing_photometry_per_ccd, None, rads) 
+        results = run_all_ccds(self.nccd,self._check_missing_photometry_per_ccd, None, rads) 
         missing_frames = {}
         nframes = []
         missing_rads = set()
@@ -723,7 +763,7 @@ class MuSCAT_PHOTOMETRY:
         fig, ax = plt.subplots(self.nccd, 1, figsize=(15, 10))
         # Run in parallel
         print(f'>> Checking for saturation with rad={rad} ... (it may take a few seconds)')
-        results = self.run_all_ccds(self.check_saturation_per_ccd, None, rad)
+        results = run_all_ccds(self.nccd,self.check_saturation_per_ccd, None, rad)
         print(f'## >> Done loading photometry data.')
 
         self.saturation_cids = [result[0] for _, result in results.items()]
@@ -830,7 +870,7 @@ class MuSCAT_PHOTOMETRY:
         if given_cids:
             self.cids_list = given_cids
         ccd_specific_arg = [{"cids": cid} for cid in self.cids_list] # must be a list of dictionaries
-        self.run_all_ccds(self.create_photometry_per_ccd,ccd_specific_arg)
+        run_all_ccds(self.nccd,self.create_photometry_per_ccd,ccd_specific_arg)
 
 class MuSCAT_PHOTOMETRY_OPTIMIZATION:
     def __init__(self,muscat_photometry):#ここは継承していれば引数で与えなくてもいい
@@ -1065,7 +1105,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         print(f">> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ... (processing in parallel)")
         
         # Run the processing for each CCD in parallel
-        results = self.run_all_ccds(
+        results = run_all_ccds(
+            self.nccd,
             self.outlier_cut_per_ccd,
             None,  # No CCD-specific args
             sigma_cut,
