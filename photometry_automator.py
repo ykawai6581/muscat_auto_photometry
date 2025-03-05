@@ -206,9 +206,9 @@ class MuSCAT_PHOTOMETRY:
             #self.target_dir = f"{self.obsdate}/{self.target}
 
     def load_obslog(self):
-        for i in range(self.nccd):
-            print(f'\n=== CCD{i} ===')
-            cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {self.instrument} {self.obsdate} {i}'
+        for ccd in range(self.nccd):
+            print(f'\n=== CCD{ccd} ===')
+            cmd = f'perl /home/muscat/obslog/show_obslog_summary.pl {self.instrument} {self.obsdate} {ccd}'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
             obslog_perccd = result.stdout
@@ -321,19 +321,19 @@ class MuSCAT_PHOTOMETRY:
         plt.title(f"{frame}")
 
         # Add reference points as circles
-        for i, _ in enumerate(zip(x0, y0)):
-            if i == self.tid - 1:
+        for starid, _ in enumerate(zip(x0, y0)):
+            if starid == self.tid - 1:
                 color = "red"
                 text_color = "yellow"
                 text = f"{self.target}|{self.tid}"
             else:
                 color = "chocolate"
                 text_color = "chocolate"
-                text = f"{i+1}"
+                text = f"{starid+1}"
 
-            circ = plt.Circle((x0[i], y0[i]), rad, color=color, fill=False)
+            circ = plt.Circle((x0[starid], y0[starid]), rad, color=color, fill=False)
             plt.gca().add_patch(circ)
-            plt.text(x0[i] + rad / 2, y0[i] + rad / 2, text, fontsize=14, color=text_color)
+            plt.text(x0[starid] + rad / 2, y0[starid] + rad / 2, text, fontsize=14, color=text_color)
 
         plt.show()
 
@@ -418,10 +418,10 @@ class MuSCAT_PHOTOMETRY:
         threshold_pix = 2
         threshold_deg = threshold_pix*self.pixscale/3600
 
-        for i, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
+        for starid, (ra, dec) in enumerate(zip(ra_list,dec_list)): 
             match = (self.ra - ra < threshold_deg) and (self.ra - ra > -threshold_deg) and (self.dec - dec < threshold_deg) and (self.dec - dec > -threshold_deg)
             if match:
-                tid = i + 1 #(index starts from 1 for starfind)
+                tid = starid + 1 #(index starts from 1 for starfind)
                 #print(f"Target ID: {tid}")
                 self.tid = tid
                 print("___Match!_______________________________________________")
@@ -485,23 +485,23 @@ class MuSCAT_PHOTOMETRY:
             print(f">> Photometry is already available for radius: {available_rads}")
             return
 
-        for i in range(self.nccd):
+        for ccd in range(self.nccd):
             if not self.rad_to_use:
-                print(f">> CCD={i} | Photometry already available for rads = {rads}")
+                print(f">> CCD={ccd} | Photometry already available for rads = {rads}")
                 continue
             elif len(self.rad_to_use) != len(rads):
-                print(f">> CCD={i} | Photometry already available for rads = {available_rads}")
+                print(f">> CCD={ccd} | Photometry already available for rads = {available_rads}")
 
         config = self._config_photometry(sky_calc_mode, const_sky_flag, const_sky_flux, const_sky_sdev)
         
-        ccd_specifc_arg = [{"frames": sorted(missing_files[i])} for i in range(self.nccd)]
+        ccd_specifc_arg = [{"frames": sorted(missing_files[ccd])} for ccd in range(self.nccd)]
         print(">> Mapping all frames to reference frames...")
         results = run_all_ccds(self.nccd,self.map_all_frames, ccd_specifc_arg)
         print("## >> Complete...")
         
         starlists = [result for _, result in results.items()]
 
-        missing_images = [sorted(missing_files[i]) for i in range(self.nccd)]
+        missing_images = [sorted(missing_files[ccd]) for ccd in range(self.nccd)]
         missing_images = [
             [
                 f"{self.target_dir}_{ccd}/df/{file[:-4]}.df.fits" 
@@ -551,9 +551,9 @@ class MuSCAT_PHOTOMETRY:
         missing_frames = {}
         nframes = []
         missing_rads = set()
-        for i, result in results.items():
+        for ccd, result in results.items():
             missing = result[0] if result[0] else False
-            missing_frames[i] = result[1]
+            missing_frames[ccd] = result[1]
             nframes.append(result[3])
             [missing_rads.add(item) for item in result[2]]
         return missing, missing_frames, missing_rads, nframes
@@ -730,28 +730,27 @@ class MuSCAT_PHOTOMETRY:
         most_saturated_ccd = np.argmax([len(ids) for ids in self.saturation_cids])
 
         # Collect results and plot
-        for i in range(self.nccd):
-            if results and results[i] is not None:
-                _, frames, flux, median, saturation_zone = results[i]
+        for ccd in range(self.nccd):
+            if results and results[ccd] is not None:
+                _, frames, flux, median, saturation_zone = results[ccd]
                 #self.saturation_cids.append(saturation_cids_per_ccd)
 
             for j, _ in enumerate(flux):
-                label = f"ID = {j+1}" if i == most_saturated_ccd else None
-                ax[i].plot(frames[j],flux[j], label=label,zorder=1)
-                ax[i].plot(frames[j], median[j], color="white", alpha=0.5, zorder=2)
-                ax[i].scatter(saturation_zone[j], 
+                label = f"ID = {j+1}" if ccd == most_saturated_ccd else None
+                ax[ccd].plot(frames[j],flux[j], label=label,zorder=1)
+                ax[ccd].plot(frames[j], median[j], color="white", alpha=0.5, zorder=2)
+                ax[ccd].scatter(saturation_zone[j], 
                              median[j][saturation_zone[j]],
                                 color="red", alpha=0.5, marker=".", s=10, zorder=3)
                 
-            ax[i].set_title(f"CCD {i}")
-            ax[i].set_ylim(0, 62000)
-            #ax[i].set_xlabel("Frame")
-            ax[i].set_ylabel("Peak")
+            ax[ccd].set_title(f"CCD {ccd}")
+            ax[ccd].set_ylim(0, 62000)
+            ax[ccd].set_ylabel("Peak")
 
         fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0), frameon=False, ncol=self.nstars)
 
-        for i in range(self.nccd):
-            print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[i]} in CCD {i}")
+        for ccd in range(self.nccd):
+            print(f"WARNING: Over 5 percent of frames are saturated for cIDS {self.saturation_cids[ccd]} in CCD {ccd}")
 
         plt.show()
 
@@ -840,18 +839,18 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.cids_list_opt = [[cid.replace(" ", "") for cid in cids] for cids in self.cids_list] #optphot takes cids with no space
         print('available aperture radii: ', self.ap)
         self.bands = ["g","r","i","z"] #muscat1に対応していない
-        self.mask = [[[] for _ in range(len(self.cids_list_opt[i]))] for i in range(self.nccd)]
+        self.mask = [[[] for _ in enumerate(self.cids_list_opt[ccd])] for ccd in range(self.nccd)]
     
         self.min_rms_idx_list = []
         self.phot=[]
         phot_dir = f"/home/muscat/reduction_afphot/{self.instrument}/{self.obsdate}/{self.target}"
 
-        for i in range(self.nccd):
+        for ccd in range(self.nccd):
             self.phot.append([])
-            for j, cid in enumerate(self.cids_list_opt[i]):#self.cids_list_opt is only needed to access the files here
-                infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[i]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv'
-                self.phot[i].append(Table.read(infile))
-                self.mask[i][j] = np.ones_like(self.phot[i][j]['GJD-2450000'], dtype=bool) #add mask depending on the number of ccds and their number of exposures
+            for j, cid in enumerate(self.cids_list_opt[ccd]):#self.cids_list_opt is only needed to access the files here
+                infile = f'{phot_dir}/lcf_{self.instrument}_{self.bands[ccd]}_{self.target}_{self.obsdate}_t{self.tid}_c{cid}_r{str(int(self.rad1))}-{str(int(self.rad2))}.csv'
+                self.phot[ccd].append(Table.read(infile))
+                self.mask[ccd][j] = np.ones_like(self.phot[ccd][j]['GJD-2450000'], dtype=bool) #add mask depending on the number of ccds and their number of exposures
 
         self.mask_status = {
             "raw"      : {"lower": np.full(self.nccd,-np.inf), "upper": np.full(self.nccd,np.inf)},
@@ -866,18 +865,18 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         # Create separate DataFrames for each CCD
         print(">> Current mask status:")
         masks = []
-        for i in range(self.nccd):
-            mask_df = pd.DataFrame({key: {"lower": data["lower"][i], "upper": data["upper"][i]} 
+        for ccd in range(self.nccd):
+            mask_df = pd.DataFrame({key: {"lower": data["lower"][ccd], "upper": data["upper"][ccd]} 
                             for key, data in self.mask_status.items()}).T
-            mask_df.index.name = f"CCD_{i}"  # Name index to indicate CCD number
+            mask_df.index.name = f"CCD_{ccd}"  # Name index to indicate CCD number
             masks.append(mask_df)
 
         # Example: Print all DataFrames
-        for i, mask_df in enumerate(masks):
+        for ccd, mask_df in enumerate(masks):
             print(f"{mask_df} \n")
 
     def _apply_mask(self,ccd):
-        for j in range(len(self.phot[ccd])):  # Loop over sources, stars, or apertures
+        for j, _ in enumerate(self.phot[ccd]):  # Loop over sources, stars, or apertures
             condition = np.ones_like(self.phot[ccd][j]['GJD-2450000'], dtype=bool) # initialize mask
             for key in self.mask_status.keys():
                 if key == "raw":
@@ -907,12 +906,12 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         if key not in self.mask_status:
             raise ValueError(f"Invalid key: {key}, must be one of {list(self.mask_status.keys())}")
         """Applies a mask to all elements in self.phot, handling lists of upper/lower bounds."""
-        for i in range(self.nccd):  # Loop over CCDs
+        for ccd in range(self.nccd):  # Loop over CCDs
             if lower is not None:
-                self.mask_status[key]["lower"][i] = lower[i] if isinstance(lower, list) else lower
+                self.mask_status[key]["lower"][ccd] = lower[ccd] if isinstance(lower, list) else lower
             if upper is not None:
-                self.mask_status[key]["upper"][i] = upper[i] if isinstance(upper, list) else upper
-            self._apply_mask(i)
+                self.mask_status[key]["upper"][ccd] = upper[ccd] if isinstance(upper, list) else upper
+            self._apply_mask(ccd)
         print(f">> Added mask to {key}")
         self.print_mask_status()
 
@@ -921,9 +920,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         fig, ax = plt.subplots(6, self.nccd, figsize=(16, 20), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1, 1, 2, 2]})
         print(">> Performing preliminary outlier detection ...")
         print(f"## >> Fitting with polynomials (order = {order}) and cutting {sigma_cut} sigma outliers ...")
-        for i in range(self.nccd):
-            mask = self.mask[i][cid]
-            phot_j = self.phot[i][cid][mask]
+        for ccd in range(self.nccd):
+            mask = self.mask[ccd][cid]
+            phot_j = self.phot[ccd][cid][mask]
             exptime = phot_j['exptime']
             gjd_vals = phot_j['GJD-2450000']
             raw_norm = phot_j[fcomp_key] / exptime
@@ -945,30 +944,30 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
             outlier_for_plot = np.clip(raw_norm[three_sigma_outliers], ymin, ymax)
 
-            ax[0, i].plot(gjd_vals[three_sigma_outliers], outlier_for_plot, 'x', c="gray")
-            ax[1, i].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
-            ax[2, i].plot(gjd_vals[three_sigma_outliers], phot_j['dx(pix)'][three_sigma_outliers], 'x', c="gray")
-            ax[3, i].plot(gjd_vals[three_sigma_outliers], phot_j['dy(pix)'][three_sigma_outliers], 'x', c="gray")
-            ax[4, i].plot(gjd_vals[three_sigma_outliers], phot_j['fwhm(pix)'][three_sigma_outliers], 'x', c="gray")
-            ax[5, i].plot(gjd_vals[three_sigma_outliers], phot_j['peak(ADU)'][three_sigma_outliers], 'x', c="gray")
+            ax[0, ccd].plot(gjd_vals[three_sigma_outliers], outlier_for_plot, 'x', c="gray")
+            ax[1, ccd].plot(gjd_vals[three_sigma_outliers], phot_j['airmass'][three_sigma_outliers], 'x', c="gray", label=f"{sigma_cut}-sigma outliers")
+            ax[2, ccd].plot(gjd_vals[three_sigma_outliers], phot_j['dx(pix)'][three_sigma_outliers], 'x', c="gray")
+            ax[3, ccd].plot(gjd_vals[three_sigma_outliers], phot_j['dy(pix)'][three_sigma_outliers], 'x', c="gray")
+            ax[4, ccd].plot(gjd_vals[three_sigma_outliers], phot_j['fwhm(pix)'][three_sigma_outliers], 'x', c="gray")
+            ax[5, ccd].plot(gjd_vals[three_sigma_outliers], phot_j['peak(ADU)'][three_sigma_outliers], 'x', c="gray")
         
-            print(f">> CCD {i} | Ploting the photometry data for cID:{self.cids_list[i][cid]}, ap:{self.ap[ap]}")
-            ax[0, i].plot(gjd_vals[keep_mask], raw_norm[keep_mask], '.', c="k")
-            ax[1, i].plot(gjd_vals[keep_mask], phot_j['airmass'][keep_mask], '.', c="gray")
-            ax[2, i].plot(gjd_vals[keep_mask], phot_j['dx(pix)'][keep_mask], '.', c="orange")
-            ax[3, i].plot(gjd_vals[keep_mask], phot_j['dy(pix)'][keep_mask], '.', c="orange")
-            ax[4, i].plot(gjd_vals[keep_mask], phot_j['fwhm(pix)'][keep_mask], '.', c="blue")
-            ax[5, i].plot(gjd_vals[keep_mask], phot_j['peak(ADU)'][keep_mask], '.', c="red")
+            print(f">> CCD {ccd} | Ploting the photometry data for cID:{self.cids_list[ccd][cid]}, ap:{self.ap[ap]}")
+            ax[0, ccd].plot(gjd_vals[keep_mask], raw_norm[keep_mask], '.', c="k")
+            ax[1, ccd].plot(gjd_vals[keep_mask], phot_j['airmass'][keep_mask], '.', c="gray")
+            ax[2, ccd].plot(gjd_vals[keep_mask], phot_j['dx(pix)'][keep_mask], '.', c="orange")
+            ax[3, ccd].plot(gjd_vals[keep_mask], phot_j['dy(pix)'][keep_mask], '.', c="orange")
+            ax[4, ccd].plot(gjd_vals[keep_mask], phot_j['fwhm(pix)'][keep_mask], '.', c="blue")
+            ax[5, ccd].plot(gjd_vals[keep_mask], phot_j['peak(ADU)'][keep_mask], '.', c="red")
 
             for key_index, key in enumerate(self.mask_status.keys()):  # Fixed iteration
-                lower_val = self.mask_status[key]["lower"][i]
-                upper_val = self.mask_status[key]["upper"][i]
+                lower_val = self.mask_status[key]["lower"][ccd]
+                upper_val = self.mask_status[key]["upper"][ccd]
 
                 if not np.isinf(lower_val):  # Plot only if lower_val is finite
-                    ax[key_index, i].plot(gjd_vals,np.full(len(gjd_vals), lower_val),c="gray")
+                    ax[key_index, ccd].plot(gjd_vals,np.full(len(gjd_vals), lower_val),c="gray")
 
                 if not np.isinf(upper_val):  # Plot only if upper_val is finite
-                    ax[key_index, i].plot(gjd_vals,np.full(len(gjd_vals), upper_val),c="gray")
+                    ax[key_index, ccd].plot(gjd_vals,np.full(len(gjd_vals), upper_val),c="gray")
 
         # Set labels only on the first column
         ax[0, 0].set_ylabel('Relative flux')
@@ -979,8 +978,8 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         ax[5, 0].set_ylabel('Peak of the brightest star (ADU)')
 
         # Set common x-axis label
-        for i in range(self.nccd):
-            ax[-1, i].set_xlabel('GJD - 2450000')
+        for ccd in range(self.nccd):
+            ax[-1, ccd].set_xlabel('GJD - 2450000')
 
         plt.tight_layout(h_pad=0)  # Remove spacing between rows
         plt.legend()
@@ -1011,9 +1010,9 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         self.min_rms_idx_list = []
         
         # Process results from parallel execution
-        for i in range(self.nccd):
-            if results.get(i) is None:
-                print(f">> CCD {i}: Processing failed or no data available.")
+        for ccd in range(self.nccd):
+            if results.get(ccd) is None:
+                print(f">> CCD {ccd}: Processing failed or no data available.")
                 # Add empty placeholders for this CCD
                 self.index.append([])
                 self.ndata_diff.append(np.array([]))
@@ -1022,14 +1021,14 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
                 continue
             
             # Extract results for this CCD
-            ccd_results = results[i]
+            ccd_results = results[ccd]
             self.index.append(ccd_results['index'])
             self.ndata_diff.append(ccd_results['ndata_diff'])
             self.rms.append(ccd_results['rms'])
             self.min_rms_idx_list.append(ccd_results['min_rms_idx'])
         
         # Store best candidate values
-        self.cIDs_best = [self.cids_list[i][item[0]] for i, item in enumerate(self.min_rms_idx_list)]
+        self.cIDs_best = [self.cids_list[ccd][item[0]] for ccd, item in enumerate(self.min_rms_idx_list)]
         self.cIDs_best_idx = [item[0] for item in self.min_rms_idx_list]
         self.ap_best = [self.ap[item[1]] for item in self.min_rms_idx_list]
         self.ap_best_idx = [item[1] for item in self.min_rms_idx_list]
@@ -1038,13 +1037,13 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             self.plot_outlier_cut_results()
     
 
-    def outlier_cut_per_ccd(self, i, sigma_cut, order):
+    def outlier_cut_per_ccd(self, ccd, sigma_cut, order):
         """
         Process outlier detection for a single CCD
         """
-        print(f"## >> CCD {i} | Computing outliers ...")
+        print(f"## >> CCD {ccd} | Computing outliers ...")
         
-        n_cids = len(self.cids_list[i])
+        n_cids = len(self.cids_list[ccd])
         n_ap = len(self.ap)
         
         ndata_diff = np.zeros((n_cids, n_ap))
@@ -1053,10 +1052,10 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         
         for j in range(n_cids):
             index.append([])
-            phot_j = self.phot[i][j]
+            phot_j = self.phot[ccd][j]
             exptime = phot_j['exptime']
             gjd_vals = phot_j['GJD-2450000']
-            mask = self.mask[i][j]
+            mask = self.mask[ccd][j]
             
             fcomp_keys = [f'flux_comp(r={self.ap[k]:.1f})' for k in range(n_ap)]
             fcomp_data = np.array([phot_j[fk] for fk in fcomp_keys])  # cid=jの総フラックス（in ADU?）のarrayをapごとに作成
@@ -1089,7 +1088,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
         # ここまでで全てcids, apに対してoutlier detectionが終わった per ccd （1ccdのrmsとdatapointsの行列完成）
         min_rms_idx = np.unravel_index(np.argmin(rms, axis=None), rms.shape)  # 最小のrmsのindexを取得
         
-        print(f"## >> CCD {i} | Complete")
+        print(f"## >> CCD {ccd} | Complete")
         
         # Return all the computed data for this CCD
         return {
@@ -1104,36 +1103,36 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         fig, axes = plt.subplots(self.nccd, 2, figsize=(14, 4 * self.nccd))  # 2 columns per CCD
 
-        for i in range(self.nccd):
-            ndata_diff = self.ndata_diff[i]
-            rms = self.rms[i]
-            min_rms_idx = self.min_rms_idx_list[i]
+        for ccd in range(self.nccd):
+            ndata_diff = self.ndata_diff[ccd]
+            rms = self.rms[ccd]
+            min_rms_idx = self.min_rms_idx_list[ccd]
 
             norm_diff = mcolors.Normalize(vmin=np.min(ndata_diff), vmax=np.max(ndata_diff))
             norm_rms = mcolors.Normalize(vmin=np.min(rms[rms != np.inf]), vmax=np.max(rms[rms != np.inf]))
 
             # **Left Plot: Number of cut data points**
-            im1 = axes[i, 0].imshow(ndata_diff, cmap="coolwarm", aspect="auto", norm=norm_diff)
-            axes[i, 0].set_title(f"CCD {i} - Cut Data Points")
-            axes[i, 0].set_xticks(range(len(self.ap)))
-            axes[i, 0].set_xticklabels([f"{int(self.ap[k])}" for k in range(len(self.ap))])
-            axes[i, 0].set_yticks(range(len(self.cids_list[i])))
-            axes[i, 0].set_yticklabels(self.cids_list[i])
-            fig.colorbar(im1, ax=axes[i, 0], label="Number of Cut Data Points")
+            im1 = axes[ccd, 0].imshow(ndata_diff, cmap="coolwarm", aspect="auto", norm=norm_diff)
+            axes[ccd, 0].set_title(f"CCD {ccd} - Cut Data Points")
+            axes[ccd, 0].set_xticks(range(len(self.ap)))
+            axes[ccd, 0].set_xticklabels([f"{int(self.ap[k])}" for k in range(len(self.ap))])
+            axes[ccd, 0].set_yticks(range(len(self.cids_list[ccd])))
+            axes[ccd, 0].set_yticklabels(self.cids_list[ccd])
+            fig.colorbar(im1, ax=axes[ccd, 0], label="Number of Cut Data Points")
 
             # **Right Plot: RMS of flux differences**
-            im2 = axes[i, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
-            axes[i, 1].set_title(f"CCD {i} - RMS")
-            axes[i, 1].set_xticks(range(len(self.ap)))
-            axes[i, 1].set_xticklabels([f"{int(self.ap[k])}" for k in range(len(self.ap))])
-            axes[i, 1].set_yticks(range(len(self.cids_list[i])))
-            axes[i, 1].set_yticklabels(self.cids_list[i])
-            fig.colorbar(im2, ax=axes[i, 1], label="RMS")
+            im2 = axes[ccd, 1].imshow(rms, cmap="cividis", aspect="auto", norm=norm_rms)
+            axes[ccd, 1].set_title(f"CCD {ccd} - RMS")
+            axes[ccd, 1].set_xticks(range(len(self.ap)))
+            axes[ccd, 1].set_xticklabels([f"{int(self.ap[k])}" for k in range(len(self.ap))])
+            axes[ccd, 1].set_yticks(range(len(self.cids_list[ccd])))
+            axes[ccd, 1].set_yticklabels(self.cids_list[ccd])
+            fig.colorbar(im2, ax=axes[ccd, 1], label="RMS")
 
             # **Highlight the min RMS cell with a white square**
             j_min, k_min = min_rms_idx
             rect = patches.Rectangle((k_min - 0.5, j_min - 0.5), 1, 1, linewidth=3, edgecolor='white', facecolor='none')
-            axes[i, 1].add_patch(rect)
+            axes[ccd, 1].add_patch(rect)
 
         print(">> Plotting results")
         plt.tight_layout()
@@ -1191,7 +1190,7 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             mask_status = self.mask_status
             self.__init__(photometry)
             self.mask_status = mask_status
-            [self._apply_mask(i) for i in range(self.nccd)] # reapply mask
+            [self._apply_mask(ccd) for ccd in range(self.nccd)] # reapply mask
             self.outlier_cut(plot=False)
             min_rms_list.append([np.array(self.rms[ccd])[index] for ccd, index in enumerate(self.min_rms_idx_list)])
 
@@ -1221,13 +1220,13 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
 
         plt.figure(figsize=(10,12))
         plt.rcParams['font.size']=18
-        for i in range(self.nccd):
+        for ccd in range(self.nccd):
             
-            f_key = 'flux(r=' + '{0:.1f})'.format(self.ap_best[i])
-            e_key = 'flux(r=' + '{0:.1f})'.format(self.ap_best[i])
+            f_key = f'flux(r={self.ap_best[ccd]})'
+            e_key = f'err(r={self.ap_best[ccd]})'
 
-            phot_per_ccd = self.phot[i][self.cIDs_best_idx[i]] 
-            best_idx = self.index[i][self.cIDs_best_idx[i]][self.ap_best_idx[i]]  # Store the best index mask
+            phot_per_ccd = self.phot[ccd][self.cIDs_best_idx[ccd]] 
+            best_idx = self.index[ccd][self.cIDs_best_idx[ccd]][self.ap_best_idx[ccd]]  # Store the best index mask
 
             lc_time = phot_per_ccd['GJD-2450000'][best_idx]  
             t0 = np.min(lc_time)
@@ -1241,17 +1240,17 @@ class MuSCAT_PHOTOMETRY_OPTIMIZATION:
             ybin.append(ybin_tmp)
             yebin.append(yebin_tmp)
             
-            plt.plot(lc_time,best_flux+offset[i],'.k',alpha=0.3)
+            plt.plot(lc_time,best_flux+offset[ccd],'.k',alpha=0.3)
         #    plt.ylim(0.985,1.015)
-            plt.plot(tbin[i], ybin[i]+offset[i],'o',color=colors[i], markersize=8)
-            tx=tbin[i][0]
-            ty=1.005+offset[i]
-            plt.text(tx,ty,band_names[i],color=colors[i])
+            plt.plot(tbin[ccd], ybin[ccd]+offset[ccd],'o',color=colors[ccd], markersize=8)
+            tx=tbin[ccd][0]
+            ty=1.005+offset[ccd]
+            plt.text(tx,ty,band_names[ccd],color=colors[ccd])
         #plt.xlabel('')
         plt.title(self.target)
         plt.xlabel('JD-2450000')
         plt.ylabel('Relative flux')
-        outfile = '{0}_{1}.png'.format(self.target,self.obsdate)
+        outfile = f'{self.target}_{self.obsdate}.png'
         plt.savefig(f"/home/muscat/reduction_afphot/notebooks/general/{self.target}/{outfile}",bbox_inches='tight',pad_inches=0.1)
         plt.show()
     
